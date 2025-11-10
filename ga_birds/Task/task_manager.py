@@ -8,6 +8,7 @@ GA Sprite Birds - 任务管理器
 
 import uuid
 import asyncio
+import importlib
 from enum import Enum
 from dataclasses import dataclass, field
 from typing import Optional, Dict, List, Any
@@ -15,8 +16,12 @@ from datetime import datetime
 
 from loguru import logger
 
-from ga_birds.Config import Settings
-from ga_birds.Parser import Chapter
+import config
+
+# 动态导入核心模块
+_core_module_name = config.CORE_DIR.replace('-', '_')
+_parser_module = importlib.import_module(f'{_core_module_name}.Parser')
+Chapter = _parser_module.Chapter
 
 
 class TaskStatus(str, Enum):
@@ -58,19 +63,13 @@ class Task:
 
 class TaskManager:
     """任务管理器"""
-    
-    def __init__(self, settings: Settings):
-        """
-        初始化任务管理器
-        
-        Args:
-            settings: 系统配置
-        """
-        self.settings = settings
+
+    def __init__(self):
+        """初始化任务管理器"""
         self.tasks: Dict[str, Task] = {}
-        self.max_concurrent_tasks = settings.task.max_concurrent_tasks
+        self.max_concurrent_tasks = config.TASK_MAX_CONCURRENT
         self.running_tasks: Dict[str, asyncio.Task] = {}
-        
+
         logger.info(f"任务管理器初始化完成，最大并发任务数: {self.max_concurrent_tasks}")
     
     def create_task(

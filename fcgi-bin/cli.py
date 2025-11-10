@@ -8,16 +8,28 @@ GA Sprite Birds - CLI 命令行模式
 
 import asyncio
 import argparse
+import importlib
 from pathlib import Path
 from typing import Optional
 
 from loguru import logger
 
-import ga_birds.config as config
-from ga_birds.Utils import read_text_file, extract_pdf_text
-from ga_birds.Parser import ChapterParser
-from ga_birds.LLM import LLMManager
-from ga_birds.Audio import TTSManager, AudioExporter
+import config
+
+# 动态导入核心模块（根据 config.CORE_DIR）
+_core_module_name = config.CORE_DIR.replace('-', '_')  # 将连字符转为下划线（Python 模块名规范）
+_utils_module = importlib.import_module(f'{_core_module_name}.Utils')
+_parser_module = importlib.import_module(f'{_core_module_name}.Parser')
+_llm_module = importlib.import_module(f'{_core_module_name}.LLM')
+_audio_module = importlib.import_module(f'{_core_module_name}.Audio')
+
+# 导入需要的类和函数
+read_text_file = _utils_module.read_text_file
+extract_pdf_text = _utils_module.extract_pdf_text
+ChapterParser = _parser_module.ChapterParser
+LLMManager = _llm_module.LLMManager
+TTSManager = _audio_module.TTSManager
+AudioExporter = _audio_module.AudioExporter
 
 
 def get_unique_filename(path: Path) -> Path:

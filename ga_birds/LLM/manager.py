@@ -7,14 +7,19 @@ GA Sprite Birds - LLM 管理器
 """
 
 import re
+import importlib
 from typing import Optional
 
 import ollama
 from openai import OpenAI
 from loguru import logger
 
-import ga_birds.config as config
-from ga_birds.Utils.model_manager import ModelManager
+import config
+
+# 动态导入核心模块
+_core_module_name = config.CORE_DIR.replace('-', '_')
+_utils_module = importlib.import_module(f'{_core_module_name}.Utils.model_manager')
+ModelManager = _utils_module.ModelManager
 
 
 class LLMManager:

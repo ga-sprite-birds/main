@@ -7,6 +7,7 @@ GA Sprite Birds - FastAPI 统一路由入口
 """
 
 import os
+import importlib
 from pathlib import Path
 from typing import Optional, Dict, Any
 
@@ -16,38 +17,50 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from loguru import logger
 
-from ga_birds.Config import get_settings, Settings
-from ga_birds.Utils import read_text_file, extract_pdf_text, preprocess_text
-from ga_birds.Parser import ChapterParser
-from ga_birds.LLM import LLMManager
-from ga_birds.Audio import TTSManager, AudioExporter
-from ga_birds.Sprite import SpriteManager
-from ga_birds.Task import TaskManager, TaskStatus
+import config
 
+# 动态导入核心模块（根据 config.CORE_DIR）
+_core_module_name = config.CORE_DIR.replace('-', '_')
+_utils_module = importlib.import_module(f'{_core_module_name}.Utils')
+_parser_module = importlib.import_module(f'{_core_module_name}.Parser')
+_llm_module = importlib.import_module(f'{_core_module_name}.LLM')
+_audio_module = importlib.import_module(f'{_core_module_name}.Audio')
+_sprite_module = importlib.import_module(f'{_core_module_name}.Sprite')
+_task_module = importlib.import_module(f'{_core_module_name}.Task')
 
-# 初始化配置
-settings = get_settings()
+# 导入需要的类和函数
+read_text_file = _utils_module.read_text_file
+extract_pdf_text = _utils_module.extract_pdf_text
+preprocess_text = _utils_module.preprocess_text
+ChapterParser = _parser_module.ChapterParser
+LLMManager = _llm_module.LLMManager
+TTSManager = _audio_module.TTSManager
+AudioExporter = _audio_module.AudioExporter
+SpriteManager = _sprite_module.SpriteManager
+TaskManager = _task_module.TaskManager
+TaskStatus = _task_module.TaskStatus
+
 
 # 初始化 FastAPI 应用
 app = FastAPI(
     title="音频朗读系统 API",
     description="将文本转换为音频的 API 服务",
     version="1.0.0",
-    debug=settings.api.debug
+    debug=config.API_DEBUG
 )
 
 # 配置 CORS
-if settings.api.cors_enabled:
+if config.API_CORS_ENABLED:
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.api.cors_origins,
+        allow_origins=config.API_CORS_ORIGINS,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
 # 初始化管理器
-task_manager = TaskManager(settings)
+task_manager = TaskManager()
 sprite_manager = SpriteManager()
 
 

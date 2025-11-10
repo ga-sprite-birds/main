@@ -237,6 +237,8 @@ MODEL_DOWNLOAD_SOURCE = os.getenv('MODEL_DOWNLOAD_SOURCE', 'huggingface')
 # 作用：本地模型文件的存储位置
 MODEL_CACHE_DIR = os.getenv('MODEL_CACHE_DIR', './cache/models')
 
+
+
 # ========== 日志配置 ==========
 
 # LOG_LEVEL：日志级别
@@ -244,3 +246,96 @@ MODEL_CACHE_DIR = os.getenv('MODEL_CACHE_DIR', './cache/models')
 # 可选值：DEBUG, INFO, WARNING, ERROR
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
 
+# LOG_FORMAT：日志格式
+# 作用：定义日志输出的格式
+LOG_FORMAT = os.getenv('LOG_FORMAT', '{time:YYYY-MM-DD HH:mm:ss} | {level} | {name}:{function}:{line} - {message}')
+
+# LOG_FILE：日志文件路径
+# 作用：指定日志文件的保存位置
+LOG_FILE = os.getenv('LOG_FILE', './logs/app.log')
+
+# LOG_MAX_FILE_SIZE：日志文件最大大小
+# 作用：单个日志文件的最大大小（MB）
+LOG_MAX_FILE_SIZE = int(os.getenv('LOG_MAX_FILE_SIZE', '10'))
+
+# LOG_BACKUP_COUNT：日志备份数量
+# 作用：保留的日志文件备份数量
+LOG_BACKUP_COUNT = int(os.getenv('LOG_BACKUP_COUNT', '5'))
+
+# LOG_CONSOLE：是否输出到控制台
+# 作用：控制是否同时在控制台输出日志
+LOG_CONSOLE = os.getenv('LOG_CONSOLE', 'true').lower() == 'true'
+
+# ========== API 服务配置 ==========
+
+# API_HOST：API 服务监听地址
+# 作用：指定 FastAPI 服务监听的 IP 地址
+# 建议：开发环境用 127.0.0.1，生产环境用 0.0.0.0
+API_HOST = os.getenv('API_HOST', '0.0.0.0')
+
+# API_PORT：API 服务端口
+# 作用：指定 FastAPI 服务监听的端口
+API_PORT = int(os.getenv('API_PORT', '8000'))
+
+# API_DEBUG：调试模式
+# 作用：是否启用 FastAPI 调试模式
+API_DEBUG = os.getenv('API_DEBUG', 'true').lower() == 'true'
+
+# API_CORS_ENABLED：是否启用 CORS
+# 作用：控制是否允许跨域请求
+API_CORS_ENABLED = os.getenv('API_CORS_ENABLED', 'true').lower() == 'true'
+
+# API_CORS_ORIGINS：允许的跨域来源
+# 作用：指定允许跨域访问的来源列表
+# 格式：逗号分隔的 URL 列表，* 表示允许所有来源
+API_CORS_ORIGINS = os.getenv('API_CORS_ORIGINS', '*').split(',')
+
+# API_MAX_UPLOAD_SIZE：最大上传文件大小
+# 作用：限制上传文件的最大大小（MB）
+API_MAX_UPLOAD_SIZE = int(os.getenv('API_MAX_UPLOAD_SIZE', '100'))
+
+# ========== 任务配置 ==========
+
+# TASK_QUEUE_TYPE：任务队列类型
+# 作用：指定任务队列的实现方式
+# 可选值：memory(内存队列), redis(Redis队列)
+# 建议：开发环境用 memory，生产环境用 redis
+TASK_QUEUE_TYPE = os.getenv('TASK_QUEUE_TYPE', 'memory')
+
+# TASK_MAX_CONCURRENT：最大并发任务数
+# 作用：限制同时执行的任务数量
+TASK_MAX_CONCURRENT = int(os.getenv('TASK_MAX_CONCURRENT', '3'))
+
+# TASK_TIMEOUT：任务超时时间
+# 作用：单个任务的最大执行时间（秒）
+TASK_TIMEOUT = int(os.getenv('TASK_TIMEOUT', '3600'))
+
+# TASK_RESULT_TTL：任务结果保留时间
+# 作用：任务结果在系统中保留的时间（秒）
+TASK_RESULT_TTL = int(os.getenv('TASK_RESULT_TTL', '86400'))
+
+# ========== Redis 配置 ==========
+
+# REDIS_HOST：Redis 服务器地址
+# 作用：指定 Redis 服务器的 IP 地址
+REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
+
+# REDIS_PORT：Redis 服务器端口
+# 作用：指定 Redis 服务器的端口
+REDIS_PORT = int(os.getenv('REDIS_PORT', '6379'))
+
+# REDIS_DB：Redis 数据库编号
+# 作用：指定使用的 Redis 数据库编号
+REDIS_DB = int(os.getenv('REDIS_DB', '0'))
+
+# REDIS_PASSWORD：Redis 密码
+# 作用：Redis 服务器的认证密码
+REDIS_PASSWORD = os.getenv('REDIS_PASSWORD')
+
+# ========== 项目配置 ==========
+
+# CORE_DIR：核心模块目录名称
+# 作用：指定项目核心模块的目录名称
+# 默认值：ga_birds
+# 说明：如果您修改了核心目录名称，需要同步修改此配置
+CORE_DIR = os.getenv('CORE_DIR', 'ga_birds')

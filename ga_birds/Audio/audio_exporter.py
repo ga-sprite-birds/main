@@ -13,7 +13,7 @@ from datetime import datetime
 from pydub import AudioSegment
 from loguru import logger
 
-import ga_birds.config as config
+import config
 
 
 class AudioExporter:

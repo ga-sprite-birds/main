@@ -14,7 +14,7 @@ from typing import Optional, Tuple
 import ollama
 from loguru import logger
 
-import ga_birds.config as config
+import config
 
 
 class ModelManager:
