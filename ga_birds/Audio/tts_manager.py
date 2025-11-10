@@ -146,11 +146,11 @@ class TTSManager:
         return f"{percent:+d}%"
     
     @staticmethod
-    def _format_pitch(pitch: float) -> str:
+    def _format_pitch(pitch: int) -> str:
         """格式化音调参数"""
         # Edge TTS 音调格式: +0Hz 或 -50Hz
-        hz = int((pitch - 1.0) * 50)
-        return f"{hz:+d}Hz"
+        # pitch 直接表示 Hz 偏移量（0 = 正常，正数 = 提高，负数 = 降低）
+        return f"{pitch:+d}Hz"
     
     def generate_audio_sync(
         self,
