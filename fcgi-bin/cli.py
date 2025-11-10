@@ -146,9 +146,12 @@ async def generate_from_file(
         try:
             logger.info("正在初始化 LLM 管理器...")
             llm_manager = LLMManager()
+            logger.info(f"✓ LLM 管理器初始化成功")
         except Exception as e:
-            logger.error(f"LLM 初始化失败: {e}")
+            logger.error(f"✗ LLM 初始化失败: {e}")
             logger.warning("将跳过 LLM 处理")
+            import traceback
+            logger.debug(traceback.format_exc())
 
     logger.info("正在初始化 TTS 管理器...")
     tts_manager = TTSManager()
@@ -175,19 +178,47 @@ async def generate_from_file(
         logger.info(f"内容长度: {len(chapter.content)} 字符")
         
         try:
-            content = chapter.content
+            # 保存原始内容用于对比
+            original_content = chapter.content
+            original_length = len(original_content)
+
+            # 当前处理的内容
+            content = original_content
+            colloquialized_content = None
 
             # LLM 口语化（可选）
-            if enable_llm and llm_manager:
-                logger.info("  → LLM 口语化中...")
-                try:
-                    content = llm_manager.colloquialize_text(content)
-                    logger.info("  ✓ LLM 处理完成")
-                except Exception as e:
-                    logger.warning(f"  ⚠ LLM 处理失败: {e}")
-                    logger.warning("  → 使用原始文本")
+            if enable_llm:
+                if llm_manager:
+                    logger.info("  → LLM 口语化中...")
+                    logger.debug(f"  → 原文长度: {original_length} 字符")
+                    logger.debug(f"  → 原文前100字: {content[:100]}...")
+                    try:
+                        colloquialized_content = llm_manager.colloquialize_text(content)
+                        colloquialized_length = len(colloquialized_content)
+                        logger.debug(f"  → LLM 返回长度: {colloquialized_length} 字符")
+                        logger.debug(f"  → LLM 返回前100字: {colloquialized_content[:100]}...")
+
+                        # 检查 LLM 是否真的改变了文本
+                        if colloquialized_content != content:
+                            content = colloquialized_content
+                            logger.info(f"  ✓ LLM 处理完成（{original_length} → {colloquialized_length} 字符）")
+                        else:
+                            logger.warning(f"  ⚠ LLM 返回文本与原文相同")
+                            logger.warning(f"  → 仍会保存 LLM 输出用于调试")
+                            # 不设为 None，保留 LLM 输出用于调试
+
+                    except Exception as e:
+                        logger.error(f"  ✗ LLM 处理失败: {e}")
+                        logger.warning(f"  → 使用原始文本")
+                        import traceback
+                        logger.debug(traceback.format_exc())
+                        colloquialized_content = None
+                else:
+                    logger.warning("  ⚠ LLM 管理器未初始化，跳过 LLM 处理")
+                    logger.debug(f"  → enable_llm={enable_llm}, llm_manager={llm_manager}")
 
             # 添加片头片尾（如果启用）
+            final_content = content
             if config.CHAPTER_INTRO_OUTRO:
                 # 片头
                 intro = config.CHAPTER_INTRO_TEMPLATE.format(
@@ -200,7 +231,7 @@ async def generate_from_file(
 
                 # 组合内容（直接添加，不加停顿）
                 # Edge TTS 不支持 SSML，停顿只能通过标点符号自然产生
-                content = f"{intro}。\n\n{content}\n\n{outro}。"
+                final_content = f"{intro}。\n\n{content}\n\n{outro}。"
 
             # 生成音频文件路径
             audio_path = audio_exporter.get_output_path(
@@ -226,6 +257,7 @@ async def generate_from_file(
 
             # 保存章节文本（如果启用）
             if config.OUTPUT_SAVE_CHAPTER_TEXT:
+                # 保存最终文本（包含片头片尾）
                 text_path = audio_path.with_suffix('.txt')
                 try:
                     with open(
@@ -233,17 +265,49 @@ async def generate_from_file(
                         'w',
                         encoding=config.OUTPUT_CHAPTER_TEXT_ENCODING
                     ) as f:
-                        f.write(content)
+                        f.write(final_content)
                     logger.info(f"  ✓ 章节文本已保存: {text_path.name}")
                 except Exception as e:
                     logger.warning(f"  ⚠ 保存章节文本失败: {e}")
+
+                # 如果启用了 LLM，额外保存原文和 LLM 处理后的文本
+                if enable_llm and colloquialized_content:
+                    # 保存原文
+                    original_text_path = audio_path.with_name(
+                        audio_path.stem + '-原文.txt'
+                    )
+                    try:
+                        with open(
+                            original_text_path,
+                            'w',
+                            encoding=config.OUTPUT_CHAPTER_TEXT_ENCODING
+                        ) as f:
+                            f.write(original_content)
+                        logger.info(f"  ✓ 原文已保存: {original_text_path.name}")
+                    except Exception as e:
+                        logger.warning(f"  ⚠ 保存原文失败: {e}")
+
+                    # 保存 LLM 处理后的文本
+                    llm_text_path = audio_path.with_name(
+                        audio_path.stem + '-LLM.txt'
+                    )
+                    try:
+                        with open(
+                            llm_text_path,
+                            'w',
+                            encoding=config.OUTPUT_CHAPTER_TEXT_ENCODING
+                        ) as f:
+                            f.write(colloquialized_content)
+                        logger.info(f"  ✓ LLM文本已保存: {llm_text_path.name}")
+                    except Exception as e:
+                        logger.warning(f"  ⚠ 保存LLM文本失败: {e}")
 
             # TTS 生成音频
             logger.info(f"  → TTS 生成中...")
 
             # 准备 TTS 参数
             tts_kwargs = {
-                "text": content,
+                "text": final_content,
                 "output_path": str(audio_path),
                 "voice": voice
             }

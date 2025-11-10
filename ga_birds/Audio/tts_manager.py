@@ -22,8 +22,9 @@ class TTSManager:
 
     def __init__(self):
         """初始化 TTS 管理器"""
-        self.mode = config.TTS_MODE
-        self.engine_name = config.TTS_ENGINE
+        # 统一转为小写，支持大小写不敏感
+        self.mode = config.TTS_MODE.lower()
+        self.engine_name = config.TTS_ENGINE.lower()
 
         # 创建 TTS 引擎实例
         self.engine = self._create_engine()

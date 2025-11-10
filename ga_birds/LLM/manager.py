@@ -27,7 +27,8 @@ class LLMManager:
 
     def __init__(self):
         """初始化 LLM 管理器"""
-        self.mode = config.LLM_MODE
+        # 统一转为小写，支持大小写不敏感
+        self.mode = config.LLM_MODE.lower()
         self.model_manager = ModelManager()
 
         if self.mode == "local":
@@ -75,7 +76,15 @@ class LLMManager:
 
         messages.append({"role": "user", "content": prompt})
 
-        response = ollama.chat(
+        logger.debug(f"调用 Ollama，超时时间: {config.LLM_TIMEOUT} 秒")
+
+        # 创建 Ollama 客户端并设置超时
+        client = ollama.Client(
+            host=config.LLM_LOCAL_HOST,
+            timeout=config.LLM_TIMEOUT
+        )
+
+        response = client.chat(
             model=config.LLM_LOCAL_MODEL,
             messages=messages,
             options={
@@ -106,17 +115,38 @@ class LLMManager:
         Returns:
             过滤后的文本
         """
-        # 移除 <think>...</think> 标签及其内容
-        text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+        original_text = text
+
+        # 策略1：如果存在 </think> 标签，提取其后的所有内容
+        if '</think>' in text:
+            # 找到最后一个 </think> 的位置
+            last_think_end = text.rfind('</think>')
+            result = text[last_think_end + len('</think>'):].strip()
+
+            if result and len(result) >= 10:
+                logger.debug(f"提取 </think> 后的内容，长度: {len(result)}")
+                return result
+            else:
+                logger.warning("⚠ </think> 后内容为空或过短，尝试其他策略")
+
+        # 策略2：移除所有 <think>...</think> 标签及其内容
+        filtered = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
 
         # 移除可能的其他思考标记
-        text = re.sub(r'思考过程[:：].*?(?=\n\n|\Z)', '', text, flags=re.DOTALL)
+        filtered = re.sub(r'思考过程[:：].*?(?=\n\n|\Z)', '', filtered, flags=re.DOTALL)
 
         # 清理多余的空白
-        text = re.sub(r'\n{3,}', '\n\n', text)
-        text = text.strip()
+        filtered = re.sub(r'\n{3,}', '\n\n', filtered)
+        filtered = filtered.strip()
 
-        return text
+        # 安全检查：如果过滤后文本为空或过短，返回原文
+        if not filtered or len(filtered) < 10:
+            logger.warning("⚠ 过滤后文本过短或为空，返回原文")
+            logger.debug(f"原文前200字: {original_text[:200]}...")
+            return original_text.strip()
+
+        logger.debug(f"使用策略2过滤，结果长度: {len(filtered)}")
+        return filtered
     
     def _generate_api(self, prompt: str, system_prompt: Optional[str] = None) -> str:
         """使用 API 生成"""
@@ -153,21 +183,45 @@ class LLMManager:
         if config.LLM_SYSTEM_PROMPT:
             system_prompt = config.LLM_SYSTEM_PROMPT
         else:
-            system_prompt = """你是一个专业的文本口语化助手。
-你的任务是将书面文本转换为适合朗读的口语化文本。
+            system_prompt = """你是一个专业的有声书文本改写助手。
+你的任务是将书面小说文本改写为更适合语音朗读的口语化版本。
+
+改写要求：
+1. 将文言文、书面语改为现代口语表达
+2. 将长句拆分为短句，便于朗读和理解
+3. 将复杂的修辞简化为直白的表达
+4. 适当添加语气词和停顿（用标点符号）
+5. 保持故事情节和人物对话不变
+6. 必须进行改写，不能原样输出
+
+输出格式：
+- 你可以在 <think> 标签中分析如何改写
+- 在 </think> 之后直接输出改写后的文本
+- 不要添加任何说明、前缀或后缀"""
+
+        prompt = f"""请将以下小说文本改写为适合朗读的口语化版本。
+
+原文：
+{text}
 
 要求：
-1. 保持原文意思不变
-2. 将复杂的书面语转换为自然的口语表达
-3. 适当添加停顿标记（用逗号、句号）
-4. 不要添加任何解释、评论、思考过程
-5. 不要使用 <think> 标签
-6. 直接输出转换后的文本，不要有任何前缀或后缀"""
-
-        prompt = f"请将以下文本口语化，直接输出结果，不要有任何思考过程或解释：\n\n{text}"
+1. 必须进行改写，不能原样输出
+2. 在 </think> 之后输出改写结果
+3. 只输出改写后的文本，不要有任何说明"""
 
         logger.info(f"开始口语化文本，长度: {len(text)} 字符")
+        logger.debug(f"原文前100字: {text[:100]}...")
+
         result = self.generate(prompt, system_prompt)
 
-        return result.strip()
+        logger.info(f"LLM 原始输出长度: {len(result)} 字符")
+        logger.debug(f"LLM 原始输出前200字: {result[:200]}...")
+
+        # 过滤思考过程标签
+        filtered_result = self._filter_think_tags(result)
+
+        logger.info(f"过滤后输出长度: {len(filtered_result)} 字符")
+        logger.debug(f"过滤后前100字: {filtered_result[:100]}...")
+
+        return filtered_result
 

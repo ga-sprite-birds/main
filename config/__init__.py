@@ -54,6 +54,12 @@ LLM_MAX_TOKENS = int(os.getenv('LLM_MAX_TOKENS', '2000'))
 # 建议：DeepSeek R1 7B 最大支持 8192
 LLM_NUM_CTX = int(os.getenv('LLM_NUM_CTX', '8192'))
 
+# LLM_TIMEOUT：LLM 请求超时时间
+# 作用：限制单次 LLM 请求的最大等待时间（秒）
+# 影响：超时后会抛出异常，使用原始文本
+# 建议：600（10分钟），DeepSeek R1 思考时间较长
+LLM_TIMEOUT = int(os.getenv('LLM_TIMEOUT', '600'))
+
 # LLM_API_TYPE：API 类型
 # 作用：指定 API 服务类型
 # 可选值：openai, azure, custom
@@ -77,6 +83,13 @@ LLM_API_MODEL = os.getenv('LLM_API_MODEL', 'gpt-4')
 # 作用：自定义 LLM 的行为指令
 # 建议：留空使用默认口语化提示词
 LLM_SYSTEM_PROMPT = os.getenv('LLM_SYSTEM_PROMPT', '')
+
+# ========== 模型缓存配置 ==========
+
+# MODEL_CACHE_DIR：模型缓存目录
+# 作用：存储下载的模型文件
+# 建议：使用默认路径 ./models
+MODEL_CACHE_DIR = os.getenv('MODEL_CACHE_DIR', './models')
 
 # ========== TTS 配置 ==========
 
