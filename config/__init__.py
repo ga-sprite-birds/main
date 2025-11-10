@@ -82,57 +82,43 @@ LLM_SYSTEM_PROMPT = os.getenv('LLM_SYSTEM_PROMPT', '')
 
 # TTS_MODE：TTS 运行模式
 # 作用：选择使用本地模型还是 API 服务
-# 可选值：'local'(本地模型), 'api'(Edge TTS API)
+# 可选值：'api'(API 服务), 'local'(本地模型)
 # 影响：决定使用哪套 TTS 配置
 # 建议：快速测试用 api，高质量用 local
 TTS_MODE = os.getenv('TTS_MODE', 'api')
 
-# TTS_LOCAL_ENGINE：本地 TTS 引擎
-# 作用：指定本地 TTS 引擎类型
-# 可选值：cosyvoice, chattts, gpt-sovits
-TTS_LOCAL_ENGINE = os.getenv('TTS_LOCAL_ENGINE', 'cosyvoice')
+# TTS_ENGINE：TTS 引擎类型
+# 作用：指定使用的 TTS 引擎
+# 可选值：edge
+TTS_ENGINE = os.getenv('TTS_ENGINE', 'edge')
 
-# TTS_LOCAL_MODEL_PATH：本地模型路径
-# 作用：指定本地 TTS 模型文件位置
-TTS_LOCAL_MODEL_PATH = os.getenv('TTS_LOCAL_MODEL_PATH', './models/CosyVoice')
-
-# TTS_LOCAL_VOICE：本地音色
-# 作用：指定使用的音色名称
-TTS_LOCAL_VOICE = os.getenv('TTS_LOCAL_VOICE', 'default')
-
-# TTS_LOCAL_SAMPLE_RATE：采样率
-# 作用：音频采样率，影响音质
-# 可选值：16000, 22050, 44100
-# 建议：22050 平衡质量和文件大小
-TTS_LOCAL_SAMPLE_RATE = int(os.getenv('TTS_LOCAL_SAMPLE_RATE', '22050'))
-
-# TTS_LOCAL_DEVICE：计算设备
-# 作用：指定 TTS 推理使用的设备
-# 可选值：cpu, cuda, mps
-# 建议：有 GPU 用 cuda，否则用 cpu
-TTS_LOCAL_DEVICE = os.getenv('TTS_LOCAL_DEVICE', 'cpu')
-
-# TTS_VOICE：API 音色
-# 作用：指定 Edge TTS 的音色
-# 可选值：zh-CN-YunxiNeural(男), zh-CN-XiaoxiaoNeural(女) 等
-# 建议：查看 Edge TTS 文档获取完整列表
+# TTS_VOICE：音色/说话人
+# 作用：指定使用的音色或说话人
+# 格式：zh-CN-YunxiNeural(男), zh-CN-XiaoxiaoNeural(女) 等
 TTS_VOICE = os.getenv('TTS_VOICE', 'zh-CN-YunxiNeural')
 
-# TTS_RATE：语速
+# TTS_RATE：语速倍数
 # 作用：控制语音播放速度
 # 取值范围：0.5-2.0，1.0 为正常速度
 # 影响：越大越快，越小越慢
 # 建议：0.9-1.2，可通过命令行 --rate 覆盖
+# 注意：所有引擎统一使用倍数格式
 TTS_RATE = float(os.getenv('TTS_RATE', '1.0'))
 
-# TTS_VOLUME：音量
+# TTS_VOLUME：音量倍数
 # 作用：控制音频音量
-# 取值范围：0.0-1.0
+# 取值范围：0.0-2.0，1.0 为正常音量
+# 影响：越大越响，越小越轻
+# 建议：0.8-1.2
+# 注意：所有引擎统一使用倍数格式
 TTS_VOLUME = float(os.getenv('TTS_VOLUME', '1.0'))
 
-# TTS_PITCH：音调
+# TTS_PITCH：音调偏移
 # 作用：控制音频音调高低
 # 取值范围：-20 到 +20（Hz）
+# 影响：正数提高音调，负数降低音调，0 为正常
+# 建议：-10 到 +10
+# 注意：所有引擎统一使用 Hz 偏移格式
 TTS_PITCH = int(os.getenv('TTS_PITCH', '0'))
 
 # ========== 章节配置 ==========
@@ -224,20 +210,6 @@ OUTPUT_SAVE_CHAPTER_TEXT = os.getenv('OUTPUT_SAVE_CHAPTER_TEXT', 'true').lower()
 # OUTPUT_CHAPTER_TEXT_ENCODING：章节文本编码
 # 作用：保存章节文本时使用的编码
 OUTPUT_CHAPTER_TEXT_ENCODING = os.getenv('OUTPUT_CHAPTER_TEXT_ENCODING', 'utf-8')
-
-# ========== 模型下载配置 ==========
-
-# MODEL_DOWNLOAD_SOURCE：模型下载源
-# 作用：指定模型下载的来源
-# 可选值：huggingface, modelscope
-# 建议：国内用 modelscope，国外用 huggingface
-MODEL_DOWNLOAD_SOURCE = os.getenv('MODEL_DOWNLOAD_SOURCE', 'huggingface')
-
-# MODEL_CACHE_DIR：模型缓存目录
-# 作用：本地模型文件的存储位置
-MODEL_CACHE_DIR = os.getenv('MODEL_CACHE_DIR', './cache/models')
-
-
 
 # ========== 日志配置 ==========
 

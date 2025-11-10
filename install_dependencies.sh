@@ -30,7 +30,10 @@ pip install \
     "pytest>=7.4.4" \
     "pytest-asyncio>=0.23.3" \
     "black>=24.1.1" \
-    "flake8>=7.0.0"
+    "flake8>=7.0.0" \
+    "torch" \
+    "torchvision" \
+    "torchaudio"
 
 echo "依赖安装完成！"
 echo "已安装的主要包："
