@@ -13,9 +13,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # 切换到项目目录
 cd "${SCRIPT_DIR}"
 
-# 激活 conda 环境
-eval "$(conda shell.bash hook)"
-conda activate ga-sprite-birds
 
 # 设置 PYTHONPATH 并运行 CLI
 PYTHONPATH=. python fcgi-bin/cli.py "$@"

@@ -37,6 +37,7 @@ python-magic-bin>=0.4.14  # Windows 需要，Linux/Mac 使用 python-magic
 ollama>=0.1.6  # Ollama Python SDK
 openai>=1.0.0  # 兼容 OpenAI API 格式的调用
 httpx>=0.26.0
+tiktoken>=0.5.0  # Token 计数工具
 
 # ============================================
 # TTS 相关

@@ -8,7 +8,8 @@ GA Sprite Birds - LLM 管理器
 
 import re
 import importlib
-from typing import Optional
+from typing import Optional, List
+import time
 
 import ollama
 from openai import OpenAI
@@ -20,6 +21,11 @@ import config
 _core_module_name = config.CORE_DIR.replace('-', '_')
 _utils_module = importlib.import_module(f'{_core_module_name}.Utils.model_manager')
 ModelManager = _utils_module.ModelManager
+
+# 导入 token 工具
+_token_utils_module = importlib.import_module(f'{_core_module_name}.Utils.token_utils')
+count_tokens = _token_utils_module.count_tokens
+split_text_smart = _token_utils_module.split_text_smart
 
 
 class LLMManager:
@@ -36,6 +42,9 @@ class LLMManager:
             if not self.model_manager.validate_local_llm_setup():
                 raise RuntimeError("本地 LLM 设置验证失败，请检查配置和模型")
 
+            # 检查本地模式的配置是否合理
+            self._validate_local_config()
+
             self.client = None  # Ollama 使用函数式调用
             logger.info(f"LLM 模式: 本地 (Ollama), 模型: {config.LLM_LOCAL_MODEL}")
         elif self.mode == "api":
@@ -46,6 +55,36 @@ class LLMManager:
             logger.info(f"LLM 模式: API, 模型: {config.LLM_API_MODEL}")
         else:
             raise ValueError(f"不支持的 LLM 模式: {self.mode}")
+
+    def _validate_local_config(self):
+        """验证本地模式的配置"""
+        # 常见本地模型的上下文限制
+        model_limits = {
+            "deepseek-r1:7b": 8192,
+            "deepseek-r1:1.5b": 8192,
+            "qwen2.5:7b": 32768,
+            "llama3.1:8b": 128000,
+        }
+
+        # 获取当前模型的限制
+        model_name = config.LLM_LOCAL_MODEL.lower()
+        max_ctx = None
+
+        for model_key, limit in model_limits.items():
+            if model_key in model_name:
+                max_ctx = limit
+                break
+
+        # 如果配置的 num_ctx 超过已知限制，发出警告
+        if max_ctx and config.LLM_NUM_CTX > max_ctx:
+            logger.warning(f"⚠ 警告：LLM_NUM_CTX={config.LLM_NUM_CTX} 可能超出模型 {config.LLM_LOCAL_MODEL} 的上下文限制（{max_ctx} tokens）")
+            logger.warning(f"→ 建议修改 .env 配置：LLM_NUM_CTX={max_ctx}")
+            logger.warning(f"→ 如果遇到超时或错误，请降低此配置")
+
+        # 检查输出 tokens 是否合理
+        if config.LLM_MAX_TOKENS >= config.LLM_NUM_CTX:
+            logger.warning(f"⚠ 警告：LLM_MAX_TOKENS={config.LLM_MAX_TOKENS} 不应大于等于 LLM_NUM_CTX={config.LLM_NUM_CTX}")
+            logger.warning(f"→ 建议修改 .env 配置：LLM_MAX_TOKENS={config.LLM_NUM_CTX // 4}")
     
     def generate(self, prompt: str, system_prompt: Optional[str] = None) -> str:
         """
@@ -171,7 +210,7 @@ class LLMManager:
     
     def colloquialize_text(self, text: str) -> str:
         """
-        将文本口语化
+        将文本口语化（支持自动分段处理）
 
         Args:
             text: 原始文本
@@ -199,6 +238,65 @@ class LLMManager:
 - 在 </think> 之后直接输出改写后的文本
 - 不要添加任何说明、前缀或后缀"""
 
+        # 步骤 1：计算 token 数
+        model_name = config.LLM_API_MODEL if self.mode == "api" else "gpt-3.5-turbo"
+        input_tokens = count_tokens(text, model_name)
+        system_tokens = count_tokens(system_prompt, model_name)
+
+        # 步骤 2：计算可用的输入空间
+        # 公式：可用空间 = 总上下文 - 输出预留 - system prompt - 安全边距
+        available_tokens = config.LLM_NUM_CTX - config.LLM_MAX_TOKENS - system_tokens - 500
+
+        logger.info(f"开始口语化文本，长度: {len(text)} 字符（约 {input_tokens} tokens）")
+        logger.debug(f"可用输入空间: {available_tokens} tokens（上下文={config.LLM_NUM_CTX}, 输出预留={config.LLM_MAX_TOKENS}）")
+
+        # 步骤 3：判断是否需要分段
+        if input_tokens > available_tokens:
+            logger.warning(f"⚠ 提示：当前文本较长（约 {input_tokens} tokens）")
+            logger.warning(f"→ 根据配置 LLM_NUM_CTX={config.LLM_NUM_CTX}，可能超出模型上下文限制")
+
+            # 分段处理
+            segments = split_text_smart(text, available_tokens, model_name)
+            logger.info(f"→ 已自动分为 {len(segments)} 段处理，确保生成质量")
+            logger.info(f"→ 建议：如果模型支持更大上下文，可适当增加 LLM_NUM_CTX 配置")
+
+            # 分别处理每段
+            results = []
+            for i, segment in enumerate(segments, 1):
+                segment_tokens = count_tokens(segment, model_name)
+                logger.info(f"→ 处理第 {i}/{len(segments)} 段（约 {segment_tokens} tokens）...")
+
+                start_time = time.time()
+                result = self._colloquialize_single(segment, system_prompt)
+                elapsed = time.time() - start_time
+
+                result_tokens = count_tokens(result, model_name)
+                logger.info(f"  ✓ 第 {i} 段完成（{segment_tokens} → {result_tokens} tokens，耗时 {elapsed:.1f}s）")
+
+                results.append(result)
+
+            # 合并结果
+            final_result = "\n".join(results)
+            logger.info(f"✓ 文本分段处理完成（共 {len(segments)} 段）")
+            logger.info(f"→ 合并后长度: {len(final_result)} 字符（约 {count_tokens(final_result, model_name)} tokens）")
+
+            return final_result
+        else:
+            # 单次处理
+            logger.debug(f"文本长度适中，单次处理")
+            return self._colloquialize_single(text, system_prompt)
+
+    def _colloquialize_single(self, text: str, system_prompt: str) -> str:
+        """
+        单次口语化处理（内部方法）
+
+        Args:
+            text: 原始文本
+            system_prompt: 系统提示词
+
+        Returns:
+            口语化后的文本
+        """
         prompt = f"""请将以下小说文本改写为适合朗读的口语化版本。
 
 原文：
@@ -209,18 +307,17 @@ class LLMManager:
 2. 在 </think> 之后输出改写结果
 3. 只输出改写后的文本，不要有任何说明"""
 
-        logger.info(f"开始口语化文本，长度: {len(text)} 字符")
         logger.debug(f"原文前100字: {text[:100]}...")
 
         result = self.generate(prompt, system_prompt)
 
-        logger.info(f"LLM 原始输出长度: {len(result)} 字符")
+        logger.debug(f"LLM 原始输出长度: {len(result)} 字符")
         logger.debug(f"LLM 原始输出前200字: {result[:200]}...")
 
         # 过滤思考过程标签
         filtered_result = self._filter_think_tags(result)
 
-        logger.info(f"过滤后输出长度: {len(filtered_result)} 字符")
+        logger.debug(f"过滤后输出长度: {len(filtered_result)} 字符")
         logger.debug(f"过滤后前100字: {filtered_result[:100]}...")
 
         return filtered_result
