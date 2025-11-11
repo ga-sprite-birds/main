@@ -64,7 +64,7 @@ async def generate_from_file(
     output_dir: Optional[str] = None,
     voice: Optional[str] = None,
     rate: Optional[float] = None,
-    enable_llm: bool = True,
+    enable_llm: Optional[bool] = None,
     start_chapter: int = 1,
     end_chapter: Optional[int] = None
 ):
@@ -85,6 +85,10 @@ async def generate_from_file(
     if not input_path.exists():
         logger.error(f"输入文件不存在: {input_file}")
         return
+
+    # 如果命令行没有指定 enable_llm，使用配置文件的值
+    if enable_llm is None:
+        enable_llm = config.ENABLE_LLM
 
     logger.info(f"输入文件: {input_file}")
     logger.info(f"LLM 模式: {config.LLM_MODE}")
@@ -419,12 +423,15 @@ def main():
     )
     
     # 运行生成任务
+    # 如果指定了 --no-llm，则禁用 LLM；否则使用配置文件的值
+    enable_llm_arg = False if args.no_llm else None
+
     asyncio.run(generate_from_file(
         input_file=args.input,
         output_dir=args.output,
         voice=args.voice,
         rate=args.rate,
-        enable_llm=not args.no_llm,
+        enable_llm=enable_llm_arg,
         start_chapter=args.start,
         end_chapter=args.end
     ))

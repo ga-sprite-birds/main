@@ -14,6 +14,13 @@ load_dotenv()
 
 # ========== LLM 配置 ==========
 
+# ENABLE_LLM：是否启用 LLM 口语化处理
+# 作用：控制是否对文本进行 LLM 口语化处理
+# 可选值：'true'(启用), 'false'(禁用)
+# 影响：禁用后直接使用原文生成音频，跳过 LLM 处理
+# 建议：有声书项目建议启用，快速测试可禁用
+ENABLE_LLM = os.getenv('ENABLE_LLM', 'true').lower() in ('true', '1', 'yes')
+
 # LLM_MODE：LLM 运行模式
 # 作用：选择使用本地模型还是 API 服务
 # 可选值：'local'(本地 Ollama), 'api'(OpenAI API)
