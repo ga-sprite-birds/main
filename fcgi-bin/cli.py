@@ -413,14 +413,28 @@ def main():
     )
     
     args = parser.parse_args()
-    
+
     # 配置日志
-    logger.remove()  # 移除默认处理器
-    logger.add(
-        lambda msg: print(msg, end=""),
-        level=args.log_level,
-        format="<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>"
-    )
+    logger.remove()
+
+    if config.LOG_CONSOLE:
+        logger.add(
+            lambda msg: print(msg, end=""),
+            level=args.log_level,
+            format="<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>"
+        )
+
+    if config.LOG_FILE:
+        from pathlib import Path
+        log_path = Path(config.LOG_FILE)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        logger.add(
+            config.LOG_FILE,
+            rotation=f"{config.LOG_MAX_FILE_SIZE} MB",
+            retention=config.LOG_BACKUP_COUNT,
+            level=args.log_level,
+            format=config.LOG_FORMAT
+        )
     
     # 运行生成任务
     # 如果指定了 --no-llm，则禁用 LLM；否则使用配置文件的值
