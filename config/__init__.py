@@ -324,6 +324,26 @@ REDIS_DB = int(os.getenv('REDIS_DB', '0'))
 # 作用：Redis 服务器的认证密码
 REDIS_PASSWORD = os.getenv('REDIS_PASSWORD')
 
+# ========== 角色分析配置 ==========
+
+# ENABLE_MULTI_VOICE：是否启用多角色配音
+# 作用：控制是否使用 LLM 分析角色并为每个角色分配不同音色
+# 可选值：'true'(启用多角色), 'false'(单一音色)
+# 影响：启用后会自动分析角色并分配音色，禁用则使用 TTS_VOICE
+# 建议：有声书项目建议启用，快速测试可禁用
+ENABLE_MULTI_VOICE = os.getenv('ENABLE_MULTI_VOICE', 'false').lower() in ('true', '1', 'yes')
+
+# CHARACTER_CACHE_DIR：角色数据缓存目录
+# 作用：存储角色分析结果的 JSON 文件
+# 建议：使用默认路径 ./cache/role
+CHARACTER_CACHE_DIR = os.getenv('CHARACTER_CACHE_DIR', './cache/role')
+
+# CHARACTER_MAX_CONTENT_LENGTH：角色分析最大内容长度
+# 作用：限制发送给 LLM 的章节内容长度（字符数）
+# 影响：越大分析越准确但耗时增加
+# 建议：3000-5000
+CHARACTER_MAX_CONTENT_LENGTH = int(os.getenv('CHARACTER_MAX_CONTENT_LENGTH', '3000'))
+
 # ========== 项目配置 ==========
 
 # CORE_DIR：核心模块目录名称

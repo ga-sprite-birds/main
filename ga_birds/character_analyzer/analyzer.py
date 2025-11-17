@@ -4,13 +4,15 @@ from typing import List, Dict, Set
 from pathlib import Path
 
 from loguru import logger
+import config
 
 
 class CharacterAnalyzer:
-    
+
     def __init__(self, llm_manager):
         self.llm_manager = llm_manager
         self.all_characters = {}
+        self.max_content_length = config.CHARACTER_MAX_CONTENT_LENGTH
     
     def analyze_chapter(self, chapter_content: str, chapter_index: int) -> List[Dict]:
         prompt = f"""请分析以下小说章节，提取所有出现的角色名。
@@ -22,7 +24,7 @@ class CharacterAnalyzer:
 4. 返回 JSON 格式，不要有任何其他说明文字
 
 章节内容：
-{chapter_content[:3000]}
+{chapter_content[:self.max_content_length]}
 
 返回格式（必须是有效的 JSON）：
 {{

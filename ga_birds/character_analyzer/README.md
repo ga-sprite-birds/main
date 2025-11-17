@@ -45,8 +45,20 @@ python ga_birds/character_analyzer/cli.py debug/ga.pdf --output my_characters.js
 
 ## 配置
 
-工具使用项目的 LLM 配置（`.env` 文件）：
+工具使用项目的配置（`.env` 文件）：
+
+### LLM 配置
 - `LLM_MODE`: local 或 api
 - `LLM_API_KEY`: API 密钥（如果使用 API 模式）
 - `LLM_API_MODEL`: 模型名称（如 deepseek-chat）
+
+### 角色分析配置
+- `ENABLE_MULTI_VOICE`: 是否启用多角色配音（默认: false）
+- `CHARACTER_CACHE_DIR`: 角色数据缓存目录（默认: ./cache/role）
+- `CHARACTER_MAX_CONTENT_LENGTH`: 发送给 LLM 的最大内容长度（默认: 3000）
+
+### 章节解析配置
+- `CHAPTER_REGEX_PATTERNS`: 章节识别正则表达式
+- `CHAPTER_MIN_LENGTH`: 最小章节长度
+- `CHAPTER_KEEP_TITLE`: 是否保留章节标题
 

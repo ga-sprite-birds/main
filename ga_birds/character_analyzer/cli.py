@@ -51,7 +51,7 @@ def main():
             i += 1
     
     if output_path is None:
-        output_dir = Path('cache/role')
+        output_dir = Path(config.CHARACTER_CACHE_DIR)
         output_path = output_dir / f"{input_file.stem}_characters.json"
     
     print(f"[*] 读取文件: {input_file}")
