@@ -80,7 +80,7 @@ class CharacterMerger:
 
         try:
             # 调用 LLM
-            response = self.llm_manager.chat(prompt)
+            response = self.llm_manager.generate(prompt)
 
             # 解析 JSON
             merge_data = self._extract_json(response)
