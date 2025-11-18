@@ -5,6 +5,7 @@
 
 from .tts_manager import TTSManager
 from .audio_exporter import AudioExporter
+from .audio_merger import AudioMerger
 
-__all__ = ["TTSManager", "AudioExporter"]
+__all__ = ["TTSManager", "AudioExporter", "AudioMerger"]
 

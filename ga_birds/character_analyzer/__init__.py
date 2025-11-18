@@ -4,6 +4,9 @@
 """
 
 from .analyzer import CharacterAnalyzer
+from .dialogue_parser import DialogueParser
+from .voice_assigner import VoiceAssigner
+from .character_list_parser import CharacterListParser
 
-__all__ = ['CharacterAnalyzer']
+__all__ = ['CharacterAnalyzer', 'DialogueParser', 'VoiceAssigner', 'CharacterListParser']
 

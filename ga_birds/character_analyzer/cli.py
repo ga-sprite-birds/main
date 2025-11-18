@@ -10,6 +10,7 @@ from ga_birds.Utils.file_utils import extract_pdf_text
 from ga_birds.Parser.chapter_parser import ChapterParser
 from ga_birds.LLM.manager import LLMManager
 from ga_birds.character_analyzer.analyzer import CharacterAnalyzer
+from ga_birds.character_analyzer.voice_assigner import VoiceAssigner
 
 
 def main():
@@ -104,19 +105,40 @@ def main():
         else:
             print(f"  - 未识别到角色")
     
-    print(f"\n[*] 保存角色数据...")
-    analyzer.save_to_json(output_path, input_file.stem, input_file.stem)
-    
-    print(f"\n[+] 完成！")
-    print(f"\n角色统计:")
-    print(f"  - 总角色数: {len(analyzer.all_characters)}")
-    
+    # 获取所有角色
     all_chars = analyzer.get_all_characters()
+
+    print(f"\n[*] 为角色分配音色...")
+    voice_assigner = VoiceAssigner()
+    all_chars = voice_assigner.assign_voices(all_chars)
+
+    # 创建角色配音模板
+    import json
+    character_template = VoiceAssigner.create_character_template(
+        all_chars,
+        input_file.stem,
+        input_file.stem
+    )
+
+    print(f"\n[*] 保存角色配音模板...")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, 'w', encoding='utf-8') as f:
+        json.dump(character_template, f, ensure_ascii=False, indent=2)
+
+    print(f"\n[+] 完成！")
+    print(f"\n角色配音模板已保存: {output_path}")
+    print(f"\n角色统计:")
+    print(f"  - 总角色数: {len(all_chars)}")
+
     for char in all_chars[:10]:
-        print(f"  - {char['name']}: 出现 {char['appearance_count']} 次（章节 {char['first_chapter']}-{char['last_chapter']}）")
-    
+        print(f"  - {char['name']}: {char['voice']} (出现 {char['appearance_count']} 次)")
+
     if len(all_chars) > 10:
         print(f"  ... 还有 {len(all_chars) - 10} 个角色")
+
+    print(f"\n旁白音色: {character_template['narrator']['voice']}")
+    print(f"\n您可以编辑模板文件来调整角色音色，然后使用以下命令生成音频:")
+    print(f"  bash cli.sh -i {input_file} --character-template {output_path}")
 
 
 if __name__ == "__main__":
