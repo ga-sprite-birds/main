@@ -79,7 +79,8 @@ async def generate_from_file(
     analyze_characters: bool = False,
     multi_voice: Optional[bool] = None,
     character_template: Optional[str] = None,
-    character_list: Optional[str] = None
+    character_list: Optional[str] = None,
+    analysis_mode: Optional[str] = None
 ):
     """
     从文件生成音频
@@ -96,6 +97,7 @@ async def generate_from_file(
         multi_voice: 多角色配音模式（None=使用配置文件）
         character_template: 角色配音模板文件路径（可选）
         character_list: 角色列表文件路径（混合模式，可选）
+        analysis_mode: 角色分析模式（None=使用配置文件，auto=智能分析，hybrid=混合模式）
     """
     # 检查输入文件
     input_path = Path(input_file)
@@ -167,13 +169,21 @@ async def generate_from_file(
         logger.info("")
         logger.info("=" * 60)
 
-        # 判断分析模式
-        if character_list:
+        # 判断分析模式（优先级：命令行参数 > character_list > 配置文件）
+        if analysis_mode is None:
+            # 未指定 --analysis-mode 参数
+            if character_list:
+                # 有 --character-list 参数，使用混合模式
+                analysis_mode = "hybrid"
+            else:
+                # 使用配置文件的值
+                analysis_mode = config.CHARACTER_ANALYSIS_MODE
+
+        # 显示分析模式
+        if analysis_mode == "hybrid":
             logger.info("角色分析模式：混合模式")
-            analysis_mode = "hybrid"
         else:
             logger.info("角色分析模式：智能分析")
-            analysis_mode = "auto"
 
         logger.info("=" * 60)
         logger.info("")
@@ -655,18 +665,27 @@ def main():
 示例:
   # 基本使用（使用 .env 配置）
   python cli.py -i debug/择天记_修复.txt
-  
+
   # 指定输出目录
   python cli.py -i debug/择天记_修复.txt -o ./output/择天记
-  
+
   # 指定音色（男声）
   python cli.py -i debug/择天记_修复.txt --voice zh-CN-YunxiNeural
-  
+
   # 禁用 LLM 处理
   python cli.py -i debug/择天记_修复.txt --no-llm
-  
+
   # 只生成第1-10章
   python cli.py -i debug/择天记_修复.txt --start 1 --end 10
+
+  # 角色分析（智能模式，自动合并重复角色）
+  python cli.py -i debug/择天记_修复.txt --analyze-characters
+
+  # 角色分析（混合模式，用户指定角色列表）
+  python cli.py -i debug/择天记_修复.txt --analyze-characters --character-list characters.txt
+
+  # 角色分析（强制使用混合模式）
+  python cli.py -i debug/择天记_修复.txt --analyze-characters --analysis-mode hybrid --character-list characters.txt
         """
     )
     
@@ -748,6 +767,13 @@ def main():
         help="指定角色列表文件路径（混合模式）：每行一个角色名，可选格式 '角色名 性别'"
     )
 
+    parser.add_argument(
+        "--analysis-mode",
+        type=str,
+        choices=["auto", "hybrid"],
+        help="角色分析模式（覆盖配置文件的 CHARACTER_ANALYSIS_MODE）：auto=智能分析+自动合并, hybrid=用户指定角色列表"
+    )
+
     args = parser.parse_args()
 
     # 配置日志
@@ -789,6 +815,9 @@ def main():
     else:
         multi_voice_arg = None  # 使用配置文件的值
 
+    # 角色分析模式参数
+    analysis_mode_arg = args.analysis_mode if args.analysis_mode else None
+
     asyncio.run(generate_from_file(
         input_file=args.input,
         output_dir=args.output,
@@ -800,7 +829,8 @@ def main():
         analyze_characters=args.analyze_characters,
         multi_voice=multi_voice_arg,
         character_template=args.character_template,
-        character_list=args.character_list
+        character_list=args.character_list,
+        analysis_mode=analysis_mode_arg
     ))
 
 
