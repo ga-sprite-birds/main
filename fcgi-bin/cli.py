@@ -38,6 +38,7 @@ CharacterAnalyzer = _character_module.CharacterAnalyzer
 DialogueParser = _character_module.DialogueParser
 VoiceAssigner = _character_module.VoiceAssigner
 CharacterListParser = _character_module.CharacterListParser
+CharacterMerger = _character_module.CharacterMerger
 
 
 def get_unique_filename(path: Path) -> Path:
@@ -294,6 +295,12 @@ async def generate_from_file(
             all_characters = analyzer.get_all_characters()
             logger.info("")
             logger.info(f"✓ 共识别 {len(all_characters)} 个角色")
+
+            # 自动合并重复角色
+            logger.info("")
+            logger.info("正在检查并合并重复角色...")
+            merger = CharacterMerger(llm_manager)
+            all_characters = merger.merge_duplicate_characters(all_characters)
 
         # 分配音色
         logger.info("")
