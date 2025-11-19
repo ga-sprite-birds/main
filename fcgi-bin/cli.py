@@ -179,6 +179,18 @@ async def generate_from_file(
                 # 使用配置文件的值
                 analysis_mode = config.CHARACTER_ANALYSIS_MODE
 
+        # 验证混合模式必须有角色列表文件
+        if analysis_mode == "hybrid" and not character_list:
+            logger.error("✗ 混合模式需要指定角色列表文件")
+            logger.error("请使用 --character-list 参数指定角色列表文件")
+            logger.error("")
+            logger.error("示例:")
+            logger.error("  bash cli.sh -i input.txt --analyze-characters --analysis-mode hybrid --character-list characters.txt")
+            logger.error("")
+            logger.error("或者使用智能分析模式:")
+            logger.error("  bash cli.sh -i input.txt --analyze-characters")
+            return
+
         # 显示分析模式
         if analysis_mode == "hybrid":
             logger.info("角色分析模式：混合模式")
