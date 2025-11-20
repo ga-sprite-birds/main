@@ -425,8 +425,23 @@ async def generate_from_file(
             with open(template_path, 'r', encoding='utf-8') as f:
                 character_template_data = json.load(f)
             logger.info(f"✓ 已加载 {character_template_data['total_characters']} 个角色")
+        except json.JSONDecodeError as e:
+            logger.error(f"✗ 角色模板 JSON 格式错误: {e}")
+            logger.error(f"✗ 文件路径: {template_path}")
+            logger.error("")
+            logger.error("请检查 JSON 文件格式，常见问题：")
+            logger.error("  1. 多余的逗号（如 ],} 前的逗号）")
+            logger.error("  2. 缺少引号或括号")
+            logger.error("  3. 编码问题")
+            logger.error("")
+            logger.error("可以使用以下命令重新生成模板：")
+            logger.error(f"  bash cli.sh -i {input_file} --analyze-characters")
+            logger.error("")
+            return
         except Exception as e:
             logger.error(f"✗ 加载角色模板失败: {e}")
+            logger.error(f"✗ 文件路径: {template_path}")
+            logger.error("")
             return
 
         logger.info("")
@@ -658,7 +673,13 @@ async def generate_from_file(
             logger.error(f"  ✗ 生成失败: {e}")
             logger.info("")
             failed_count += 1
-    
+
+            #  LLM  402 
+            msg = str(e)
+            if "Insufficient Balance" in msg or "Error code: 402" in msg:
+                logger.error("   LLM  402 ")
+                break
+
     # 总结
     logger.info("=" * 60)
     logger.info("生成完成")

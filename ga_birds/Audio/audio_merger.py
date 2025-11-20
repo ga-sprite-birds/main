@@ -7,15 +7,22 @@ import os
 from pathlib import Path
 from typing import List
 from loguru import logger
+import config
+
+if config.FFMPEG_PATH:
+    ffmpeg_path = Path(config.FFMPEG_PATH)
+    os.environ['PATH'] = str(ffmpeg_path) + os.pathsep + os.environ.get('PATH', '')
 
 
 class AudioMerger:
-    """音频合并器"""
-    
+
     def __init__(self):
-        """初始化音频合并器"""
         self.temp_dir = Path("cache/audio_temp")
         self.temp_dir.mkdir(parents=True, exist_ok=True)
+
+        if config.FFMPEG_PATH:
+            logger.info(f"  ffmpeg PATH: {config.FFMPEG_PATH}")
+
         logger.info("音频合并器初始化完成")
     
     def merge_audio_files(self, audio_files: List[str], output_path: str) -> bool:
@@ -60,17 +67,17 @@ class AudioMerger:
     def _merge_with_ffmpeg(self, audio_files: List[str], output_path: str) -> bool:
         """
         使用 ffmpeg 合并音频（备用方案）
-        
+
         Args:
             audio_files: 音频文件路径列表
             output_path: 输出文件路径
-            
+
         Returns:
             是否成功
         """
         try:
             import subprocess
-            
+
             # 创建文件列表
             list_file = self.temp_dir / "concat_list.txt"
             with open(list_file, 'w', encoding='utf-8') as f:
@@ -78,18 +85,24 @@ class AudioMerger:
                     # ffmpeg concat 需要绝对路径
                     abs_path = Path(audio_file).resolve()
                     f.write(f"file '{abs_path}'\n")
-            
+
+            # 确定 ffmpeg 路径
+            if config.FFMPEG_PATH:
+                ffmpeg_bin = str(Path(config.FFMPEG_PATH) / 'ffmpeg')
+            else:
+                ffmpeg_bin = 'ffmpeg'
+
             # 使用 ffmpeg concat
             cmd = [
-                'ffmpeg',
+                ffmpeg_bin,
                 '-f', 'concat',
                 '-safe', '0',
                 '-i', str(list_file),
                 '-c', 'copy',
-                '-y',  # 覆盖输出文件
+                '-y',
                 str(output_path)
             ]
-            
+
             logger.info(f"使用 ffmpeg 合并音频")
             result = subprocess.run(
                 cmd,
@@ -97,16 +110,18 @@ class AudioMerger:
                 text=True,
                 check=True
             )
-            
+
             logger.info(f"音频合并完成: {output_path}")
             return True
-            
+
         except subprocess.CalledProcessError as e:
             logger.error(f"ffmpeg 合并失败: {e.stderr}")
             return False
         except FileNotFoundError:
-            logger.error("ffmpeg 未安装，无法合并音频")
-            logger.error("请安装 pydub 或 ffmpeg")
+            logger.error("ffmpeg 未找到，无法合并音频")
+            if config.FFMPEG_PATH:
+                logger.error(f"配置的路径: {config.FFMPEG_PATH}")
+            logger.error("请检查 .env 中的 FFMPEG_PATH 配置")
             return False
         except Exception as e:
             logger.error(f"音频合并失败: {e}")

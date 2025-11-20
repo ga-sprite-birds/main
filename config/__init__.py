@@ -395,6 +395,15 @@ PERSONALITY_TAGS = {
     ]
 }
 
+# ========== FFmpeg 配置 ==========
+
+# FFMPEG_PATH：FFmpeg 可执行文件目录
+# 作用：指定 ffmpeg 和 ffprobe 所在的目录路径
+# 说明：如果为空，则使用系统 PATH 中的 ffmpeg
+# 建议：Windows 用户建议配置此路径，避免环境变量问题
+# 示例：F:/soft/ffmpeg/bin
+FFMPEG_PATH = os.getenv('FFMPEG_PATH', '')
+
 # ========== 项目配置 ==========
 
 # CORE_DIR：核心模块目录名称
