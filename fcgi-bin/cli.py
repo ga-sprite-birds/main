@@ -778,14 +778,9 @@ def main():
 
     parser.add_argument(
         "--multi-voice",
-        action="store_true",
-        help="启用多角色配音模式（覆盖配置文件的 ENABLE_MULTI_VOICE）"
-    )
-
-    parser.add_argument(
-        "--no-multi-voice",
-        action="store_true",
-        help="禁用多角色配音模式（覆盖配置文件的 ENABLE_MULTI_VOICE）"
+        type=str.lower,
+        choices=["true", "false"],
+        help="是否启用多角色配音模式（true/false，覆盖配置文件的 ENABLE_MULTI_VOICE）"
     )
 
     parser.add_argument(
@@ -840,13 +835,12 @@ def main():
     else:
         enable_llm_arg = None  # 使用配置文件的值
 
-    # 多角色参数
-    if args.multi_voice:
-        multi_voice_arg = True
-    elif args.no_multi_voice:
-        multi_voice_arg = False
-    else:
+    # 多角色参数（True/False/None）
+    if args.multi_voice is None:
         multi_voice_arg = None  # 使用配置文件的值
+    else:
+        # 命令行使用: --multi-voice true / --multi-voice false
+        multi_voice_arg = (args.multi_voice == "true")
 
     # 角色分析模式参数
     analysis_mode_arg = args.analysis_mode if args.analysis_mode else None
