@@ -86,28 +86,45 @@ class LLMManager:
             logger.warning(f"⚠ 警告：LLM_MAX_TOKENS={config.LLM_MAX_TOKENS} 不应大于等于 LLM_NUM_CTX={config.LLM_NUM_CTX}")
             logger.warning(f"→ 建议修改 .env 配置：LLM_MAX_TOKENS={config.LLM_NUM_CTX // 4}")
     
-    def generate(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+    def generate(
+        self,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        max_tokens: Optional[int] = None
+    ) -> str:
         """
         生成文本
-        
+
         Args:
             prompt: 用户提示词
             system_prompt: 系统提示词
-            
+            max_tokens: 最大输出 tokens（None 则使用配置默认值）
+
         Returns:
             生成的文本
         """
+        if max_tokens is None:
+            max_tokens = config.LLM_MAX_TOKENS
+
         try:
             if self.mode == "local":
-                return self._generate_local(prompt, system_prompt)
+                return self._generate_local(prompt, system_prompt, max_tokens)
             else:
-                return self._generate_api(prompt, system_prompt)
+                return self._generate_api(prompt, system_prompt, max_tokens)
         except Exception as e:
             logger.error(f"LLM 生成失败: {e}")
             raise
-    
-    def _generate_local(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+
+    def _generate_local(
+        self,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        max_tokens: Optional[int] = None
+    ) -> str:
         """使用 Ollama 本地生成"""
+        if max_tokens is None:
+            max_tokens = config.LLM_MAX_TOKENS
+
         messages = []
 
         if system_prompt:
@@ -128,13 +145,16 @@ class LLMManager:
             messages=messages,
             options={
                 "temperature": config.LLM_TEMPERATURE,
-                "num_predict": config.LLM_MAX_TOKENS,
+                "num_predict": max_tokens,
                 "num_ctx": config.LLM_NUM_CTX
             }
         )
 
         result = response["message"]["content"]
-        logger.debug(f"LLM 本地生成完成，输入: {len(prompt)} 字符，输出: {len(result)} 字符")
+        logger.debug(
+            f"LLM 本地生成完成，输入: {len(prompt)} 字符，"
+            f"输出: {len(result)} 字符，max_tokens: {max_tokens}"
+        )
 
         # 过滤 DeepSeek R1 的思考过程标签
         result = self._filter_think_tags(result)
@@ -187,25 +207,36 @@ class LLMManager:
         logger.debug(f"使用策略2过滤，结果长度: {len(filtered)}")
         return filtered
     
-    def _generate_api(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+    def _generate_api(
+        self,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        max_tokens: Optional[int] = None
+    ) -> str:
         """使用 API 生成"""
+        if max_tokens is None:
+            max_tokens = config.LLM_MAX_TOKENS
+
         messages = []
-        
+
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
-        
+
         messages.append({"role": "user", "content": prompt})
-        
+
         response = self.client.chat.completions.create(
             model=config.LLM_API_MODEL,
             messages=messages,
             temperature=config.LLM_TEMPERATURE,
-            max_tokens=config.LLM_MAX_TOKENS
+            max_tokens=max_tokens
         )
-        
+
         result = response.choices[0].message.content
-        logger.debug(f"LLM API 生成完成，输入: {len(prompt)} 字符，输出: {len(result)} 字符")
-        
+        logger.debug(
+            f"LLM API 生成完成，输入: {len(prompt)} 字符，"
+            f"输出: {len(result)} 字符，max_tokens: {max_tokens}"
+        )
+
         return result
     
     def colloquialize_text(self, text: str) -> str:

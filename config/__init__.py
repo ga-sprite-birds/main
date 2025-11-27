@@ -357,6 +357,16 @@ CHARACTER_CACHE_DIR = os.getenv('CHARACTER_CACHE_DIR', './cache/role')
 # 建议：3000-5000
 CHARACTER_MAX_CONTENT_LENGTH = int(os.getenv('CHARACTER_MAX_CONTENT_LENGTH', '3000'))
 
+# DIALOGUE_CHUNK_SIZE：对话解析分块大小
+# 作用：长章节会按此大小分块处理，避免 LLM 输出截断
+# 建议：3000-4000
+DIALOGUE_CHUNK_SIZE = int(os.getenv('DIALOGUE_CHUNK_SIZE', '3000'))
+
+# DIALOGUE_CHUNK_OVERLAP：对话解析分块重叠
+# 作用：确保分块边界处的上下文连贯
+# 建议：100-300
+DIALOGUE_CHUNK_OVERLAP = int(os.getenv('DIALOGUE_CHUNK_OVERLAP', '200'))
+
 # PERSONALITY_TAGS：性格标签库
 # 作用：预定义的角色性格标签，用于 LLM 分析角色性格时参考
 # 用途：未来用于情绪化配音，根据角色性格调整 TTS 参数

@@ -539,8 +539,8 @@ async def generate_from_file(
                 segments = dialogue_parser.parse_chapter(content, chapter.index)
                 logger.info(f"  → 解析到 {len(segments)} 个对话片段（不含片头片尾）")
 
-                # 使用 ChapterProcessor 添加片头片尾
-                segments = ChapterProcessor.add_intro_outro_to_segments(
+                # 添加片头片尾（使用 DialogueParser 的静态方法）
+                segments = DialogueParser.add_intro_outro_to_segments(
                     segments, intro, outro
                 )
                 if intro and outro:

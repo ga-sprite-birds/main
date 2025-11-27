@@ -1,19 +1,19 @@
 """
 GA Sprite Birds - 章节处理器
-处理片头片尾、文本组合等公共逻辑
+处理片头片尾等公共逻辑（单角色/多角色通用）
 
 版本: v1.0
 开发团队: Tiger
 """
 
-from typing import Tuple, Optional, List, Dict
+from typing import Tuple, Optional
 from loguru import logger
 
 from .config_manager import ConfigManager
 
 
 class ChapterProcessor:
-    """章节处理器 - 处理片头片尾逻辑"""
+    """章节处理器 - 处理片头片尾逻辑（公共基础设施）"""
 
     @staticmethod
     def prepare_intro_outro(
@@ -65,50 +65,4 @@ class ChapterProcessor:
         if intro and outro:
             return f"{intro}。\n\n{content}\n\n{outro}。"
         return content
-
-    @staticmethod
-    def add_intro_outro_to_segments(
-        segments: List[Dict],
-        intro: Optional[str],
-        outro: Optional[str]
-    ) -> List[Dict]:
-        """
-        为对话片段添加片头片尾（多角色配音模式）
-
-        Args:
-            segments: 对话片段列表
-            intro: 片头文本
-            outro: 片尾文本
-
-        Returns:
-            添加片头片尾后的片段列表
-        """
-        if not intro or not outro:
-            logger.debug("  → 未添加片头片尾（intro 或 outro 为空）")
-            return segments
-
-        original_count = len(segments)
-        enhanced_segments = []
-
-        # 片头使用旁白
-        enhanced_segments.append({
-            "text": f"{intro}。",
-            "speaker": "narrator",
-        })
-
-        # 正文对话
-        enhanced_segments.extend(segments)
-
-        # 片尾使用旁白
-        enhanced_segments.append({
-            "text": f"{outro}。",
-            "speaker": "narrator",
-        })
-
-        logger.debug(f"  → 片段总数（添加前）: {original_count}")
-        logger.debug(f"  → 片段总数（添加后）: {len(enhanced_segments)}")
-        logger.debug(f"  → 第一个片段: {enhanced_segments[0]}")
-        logger.debug(f"  → 最后一个片段: {enhanced_segments[-1]}")
-
-        return enhanced_segments
 

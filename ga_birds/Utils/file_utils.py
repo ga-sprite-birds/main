@@ -47,27 +47,66 @@ def detect_encoding(file_path: str) -> str:
 
 def read_text_file(file_path: str, encoding: Optional[str] = None) -> str:
     """
-    读取文本文件
-    
+    读取文本文件（支持自动编码检测）
+
     Args:
         file_path: 文件路径
         encoding: 编码（如果为 None，则自动检测）
-        
+
     Returns:
         文件内容
     """
+    path = Path(file_path)
+
+    if not path.exists():
+        raise FileNotFoundError(f"文件不存在: {file_path}")
+
     try:
         if encoding is None:
             encoding = detect_encoding(file_path)
-        
+
         with open(file_path, "r", encoding=encoding) as f:
             content = f.read()
-        
+
         logger.info(f"成功读取文件: {file_path} ({len(content)} 字符)")
         return content
     except Exception as e:
         logger.error(f"读取文件失败: {file_path}, 错误: {e}")
         raise
+
+
+def read_file(file_path: str) -> str:
+    """
+    智能读取文件（根据扩展名自动选择读取方式）
+
+    Args:
+        file_path: 文件路径
+
+    Returns:
+        文件内容
+
+    Raises:
+        FileNotFoundError: 文件不存在
+        ValueError: 不支持的文件格式
+    """
+    path = Path(file_path)
+
+    if not path.exists():
+        raise FileNotFoundError(f"文件不存在: {file_path}")
+
+    suffix = path.suffix.lower()
+
+    if suffix == '.txt':
+        content = read_text_file(file_path)
+    elif suffix == '.pdf':
+        content = extract_pdf_text(file_path)
+    else:
+        raise ValueError(f"不支持的文件格式: {suffix}")
+
+    if not content or not content.strip():
+        raise ValueError("文件内容为空")
+
+    return content
 
 
 def extract_pdf_text(file_path: str) -> str:
