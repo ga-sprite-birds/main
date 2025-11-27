@@ -24,11 +24,11 @@ _parser_module = importlib.import_module(f'{_core_module_name}.Parser')
 _llm_module = importlib.import_module(f'{_core_module_name}.LLM')
 _audio_module = importlib.import_module(f'{_core_module_name}.Audio')
 _character_module = importlib.import_module(f'{_core_module_name}.character_analyzer')
+_common_module = importlib.import_module(f'{_core_module_name}.Common')
 
 # 导入需要的类和函数
 read_text_file = _utils_module.read_text_file
 extract_pdf_text = _utils_module.extract_pdf_text
-ParamManager = _utils_module.ParamManager
 ChapterParser = _parser_module.ChapterParser
 LLMManager = _llm_module.LLMManager
 TTSManager = _audio_module.TTSManager
@@ -39,6 +39,11 @@ DialogueParser = _character_module.DialogueParser
 VoiceAssigner = _character_module.VoiceAssigner
 CharacterListParser = _character_module.CharacterListParser
 CharacterMerger = _character_module.CharacterMerger
+
+# 从 Common 模块导入
+ParamManager = _common_module.ParamManager
+ChapterProcessor = _common_module.ChapterProcessor
+ChapterTextSaver = _common_module.ChapterTextSaver
 
 
 def get_unique_filename(path: Path) -> Path:
@@ -510,23 +515,15 @@ async def generate_from_file(
                     logger.warning("  ⚠ LLM 管理器未初始化，跳过 LLM 处理")
                     logger.debug(f"  → enable_llm={enable_llm}, llm_manager={llm_manager}")
 
-            # 添加片头片尾（如果启用）
-            final_content = content
-            intro = None
-            outro = None
-            if config.CHAPTER_INTRO_OUTRO:
-                # 片头
-                intro = config.CHAPTER_INTRO_TEMPLATE.format(
-                    index=chapter.index,
-                    title=chapter.title
-                )
-
-                # 片尾
-                outro = config.CHAPTER_OUTRO_TEMPLATE
-
-                # 组合内容（单人配音模式直接在文本里加入片头片尾）
-                # Edge TTS 不支持 SSML，停顿只能通过标点符号自然产生
-                final_content = f"{intro}。\n\n{content}\n\n{outro}。"
+            # 添加片头片尾（使用 ChapterProcessor）
+            intro, outro = ChapterProcessor.prepare_intro_outro(
+                chapter.index, chapter.title
+            )
+            # 单人配音模式使用的最终内容
+            final_content = ChapterProcessor.combine_content_with_intro_outro(
+                content, intro, outro
+            )
+            logger.debug(f"  → 片头片尾启用: {intro is not None}")
 
             # 多角色配音 vs 单人配音
             if multi_voice and character_template_data:
@@ -534,29 +531,19 @@ async def generate_from_file(
                 logger.info("  → 使用多角色配音模式")
 
                 # 1. 解析对话（只解析正文，不包含片头片尾）
-                dialogue_parser = DialogueParser(llm_manager, character_template_data['characters'])
+                dialogue_parser = DialogueParser(
+                    llm_manager, character_template_data['characters']
+                )
                 # 注意：对话解析只基于正文内容，不包含片头片尾，
                 # 避免 LLM 在输出截断时丢失"本章播讲完毕"等提示语
                 segments = dialogue_parser.parse_chapter(content, chapter.index)
                 logger.info(f"  → 解析到 {len(segments)} 个对话片段（不含片头片尾）")
 
-                # 如果启用了片头片尾，在多角色模式下强制在首尾各添加一个旁白片段，
-                # 不依赖 LLM 输出，确保"开始/播讲完毕"等提示一定会被播报。
-                if config.CHAPTER_INTRO_OUTRO and intro and outro:
-                    enhanced_segments = []
-                    # 片头使用旁白
-                    enhanced_segments.append({
-                        "text": f"{intro}。",
-                        "speaker": "narrator",
-                    })
-                    # 正文对话
-                    enhanced_segments.extend(segments)
-                    # 片尾使用旁白
-                    enhanced_segments.append({
-                        "text": f"{outro}。",
-                        "speaker": "narrator",
-                    })
-                    segments = enhanced_segments
+                # 使用 ChapterProcessor 添加片头片尾
+                segments = ChapterProcessor.add_intro_outro_to_segments(
+                    segments, intro, outro
+                )
+                if intro and outro:
                     logger.info(f"  → 已添加片头片尾，对话片段总数: {len(segments)}")
 
                 # 2. 为每个片段生成音频
@@ -615,6 +602,15 @@ async def generate_from_file(
                     audio_merger.cleanup_temp_files(temp_audio_files)
                     import shutil
                     shutil.rmtree(temp_dir, ignore_errors=True)
+
+                    # 保存章节文本（多角色模式）
+                    ChapterTextSaver.save_multi_voice_text(
+                        audio_path=audio_path,
+                        segments=segments,
+                        original_content=original_content,
+                        llm_content=colloquialized_content,
+                        enable_llm=enable_llm
+                    )
                 else:
                     logger.error(f"  ✗ 音频合并失败")
                     raise Exception("音频合并失败")
@@ -640,55 +636,17 @@ async def generate_from_file(
                         logger.info(f"  ⚠ 文件已存在，重命名为: {audio_path.name}")
                     # overwrite 模式不需要特殊处理
 
-                # 保存章节文本（如果启用）
-                if config.OUTPUT_SAVE_CHAPTER_TEXT:
-                    # 保存最终文本（包含片头片尾）
-                    text_path = audio_path.with_suffix('.txt')
-                    try:
-                        with open(
-                            text_path,
-                            'w',
-                            encoding=config.OUTPUT_CHAPTER_TEXT_ENCODING
-                        ) as f:
-                            f.write(final_content)
-                        logger.info(f"  ✓ 章节文本已保存: {text_path.name}")
-                    except Exception as e:
-                        logger.warning(f"  ⚠ 保存章节文本失败: {e}")
-
-                    # 如果启用了 LLM，额外保存原文和 LLM 处理后的文本
-                    if enable_llm and colloquialized_content:
-                        # 保存原文
-                        original_text_path = audio_path.with_name(
-                            audio_path.stem + '-原文.txt'
-                        )
-                        try:
-                            with open(
-                                original_text_path,
-                                'w',
-                                encoding=config.OUTPUT_CHAPTER_TEXT_ENCODING
-                            ) as f:
-                                f.write(original_content)
-                            logger.info(f"  ✓ 原文已保存: {original_text_path.name}")
-                        except Exception as e:
-                            logger.warning(f"  ⚠ 保存原文失败: {e}")
-
-                        # 保存 LLM 处理后的文本
-                        llm_text_path = audio_path.with_name(
-                            audio_path.stem + '-LLM.txt'
-                        )
-                        try:
-                            with open(
-                                llm_text_path,
-                                'w',
-                                encoding=config.OUTPUT_CHAPTER_TEXT_ENCODING
-                            ) as f:
-                                f.write(colloquialized_content)
-                            logger.info(f"  ✓ LLM文本已保存: {llm_text_path.name}")
-                        except Exception as e:
-                            logger.warning(f"  ⚠ 保存LLM文本失败: {e}")
+                # 保存章节文本（单人配音模式）
+                ChapterTextSaver.save_single_voice_text(
+                    audio_path=audio_path,
+                    final_content=final_content,
+                    original_content=original_content,
+                    llm_content=colloquialized_content,
+                    enable_llm=enable_llm
+                )
 
                 # TTS 生成音频（单人配音模式）
-                logger.info(f"  → TTS 生成中...")
+                logger.info("  → TTS 生成中...")
 
                 # 准备 TTS 参数
                 tts_kwargs = {

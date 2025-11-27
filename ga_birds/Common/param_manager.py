@@ -142,30 +142,30 @@ class ParamManager:
 
         return result
 
-    # ========== 向后兼容的方法 ==========
+    # ========== 便捷方法 ==========
 
     @staticmethod
     def merge_enable_llm(cli_value: Optional[bool]) -> bool:
-        """合并 LLM 启用参数（向后兼容）"""
+        """合并 LLM 启用参数"""
         return ParamManager.merge_param('enable_llm', cli_value)
 
     @staticmethod
     def merge_multi_voice(cli_value: Optional[bool]) -> bool:
-        """合并多角色配音参数（向后兼容）"""
+        """合并多角色配音参数"""
         return ParamManager.merge_param('multi_voice', cli_value)
 
     @staticmethod
     def merge_voice(cli_value: Optional[str]) -> str:
-        """合并音色参数（向后兼容）"""
+        """合并音色参数"""
         return ParamManager.merge_param('voice', cli_value)
 
     @staticmethod
     def merge_rate(cli_value: Optional[float]) -> Optional[float]:
-        """合并语速参数（向后兼容）"""
+        """合并语速参数"""
         return ParamManager.merge_param('rate', cli_value)
 
     @staticmethod
     def merge_output_dir(cli_value: Optional[str]) -> str:
-        """合并输出目录参数（向后兼容）"""
+        """合并输出目录参数"""
         return ParamManager.merge_param('output_dir', cli_value)
 

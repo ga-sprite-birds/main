@@ -5,7 +5,10 @@
 
 from .file_utils import detect_encoding, read_text_file, extract_pdf_text
 from .model_manager import ModelManager
-from .param_manager import ParamManager
 
-__all__ = ["detect_encoding", "read_text_file", "extract_pdf_text", "ModelManager", "ParamManager"]
-
+__all__ = [
+    "detect_encoding",
+    "read_text_file",
+    "extract_pdf_text",
+    "ModelManager",
+]
