@@ -512,6 +512,8 @@ async def generate_from_file(
 
             # 添加片头片尾（如果启用）
             final_content = content
+            intro = None
+            outro = None
             if config.CHAPTER_INTRO_OUTRO:
                 # 片头
                 intro = config.CHAPTER_INTRO_TEMPLATE.format(
@@ -522,7 +524,7 @@ async def generate_from_file(
                 # 片尾
                 outro = config.CHAPTER_OUTRO_TEMPLATE
 
-                # 组合内容（直接添加，不加停顿）
+                # 组合内容（单人配音模式直接在文本里加入片头片尾）
                 # Edge TTS 不支持 SSML，停顿只能通过标点符号自然产生
                 final_content = f"{intro}。\n\n{content}\n\n{outro}。"
 
@@ -531,10 +533,31 @@ async def generate_from_file(
                 # 多角色配音模式
                 logger.info("  → 使用多角色配音模式")
 
-                # 1. 解析对话
+                # 1. 解析对话（只解析正文，不包含片头片尾）
                 dialogue_parser = DialogueParser(llm_manager, character_template_data['characters'])
-                segments = dialogue_parser.parse_chapter(final_content, chapter.index)
-                logger.info(f"  → 解析到 {len(segments)} 个对话片段")
+                # 注意：对话解析只基于正文内容，不包含片头片尾，
+                # 避免 LLM 在输出截断时丢失"本章播讲完毕"等提示语
+                segments = dialogue_parser.parse_chapter(content, chapter.index)
+                logger.info(f"  → 解析到 {len(segments)} 个对话片段（不含片头片尾）")
+
+                # 如果启用了片头片尾，在多角色模式下强制在首尾各添加一个旁白片段，
+                # 不依赖 LLM 输出，确保"开始/播讲完毕"等提示一定会被播报。
+                if config.CHAPTER_INTRO_OUTRO and intro and outro:
+                    enhanced_segments = []
+                    # 片头使用旁白
+                    enhanced_segments.append({
+                        "text": f"{intro}。",
+                        "speaker": "narrator",
+                    })
+                    # 正文对话
+                    enhanced_segments.extend(segments)
+                    # 片尾使用旁白
+                    enhanced_segments.append({
+                        "text": f"{outro}。",
+                        "speaker": "narrator",
+                    })
+                    segments = enhanced_segments
+                    logger.info(f"  → 已添加片头片尾，对话片段总数: {len(segments)}")
 
                 # 2. 为每个片段生成音频
                 temp_audio_files = []
@@ -567,6 +590,22 @@ async def generate_from_file(
                     custom_base_path=output_dir
                 )
                 audio_path.parent.mkdir(parents=True, exist_ok=True)
+
+                # 处理文件已存在的情况
+                if audio_path.exists():
+                    if config.OUTPUT_DUPLICATE_HANDLING == "skip":
+                        logger.info(f"  ⊙ 文件已存在，跳过: {audio_path}")
+                        logger.info("")
+                        # 清理临时文件
+                        audio_merger = AudioMerger()
+                        audio_merger.cleanup_temp_files(temp_audio_files)
+                        import shutil
+                        shutil.rmtree(temp_dir, ignore_errors=True)
+                        continue
+                    elif config.OUTPUT_DUPLICATE_HANDLING == "rename":
+                        audio_path = get_unique_filename(audio_path)
+                        logger.info(f"  ⚠ 文件已存在，重命名为: {audio_path.name}")
+                    # overwrite 模式不需要特殊处理
 
                 logger.info(f"  → 合并 {len(temp_audio_files)} 个音频片段...")
                 audio_merger = AudioMerger()
@@ -674,10 +713,10 @@ async def generate_from_file(
             logger.info("")
             failed_count += 1
 
-            #  LLM  402 
+            # 如果是 LLM 余额不足（402），则终止后续章节生成
             msg = str(e)
             if "Insufficient Balance" in msg or "Error code: 402" in msg:
-                logger.error("   LLM  402 ")
+                logger.error("  ⚠ 检测到 LLM 余额不足（402），终止后续章节生成")
                 break
 
     # 总结
@@ -778,9 +817,11 @@ def main():
 
     parser.add_argument(
         "--multi-voice",
+        nargs='?',
+        const=None,
         type=str.lower,
         choices=["true", "false"],
-        help="是否启用多角色配音模式（true/false，覆盖配置文件的 ENABLE_MULTI_VOICE）"
+        help="是否启用多角色配音模式（true/false，不带值或不写则使用配置文件）"
     )
 
     parser.add_argument(
