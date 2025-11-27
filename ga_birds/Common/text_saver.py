@@ -77,7 +77,7 @@ class ChapterTextSaver:
 
         encoding = ConfigManager.get_chapter_text_encoding()
 
-        # 保存带说话人标注的文本
+        # 1. 保存带说话人标注的文本
         text_path = audio_path.with_suffix('.txt')
         try:
             with open(text_path, 'w', encoding=encoding) as f:
@@ -86,11 +86,24 @@ class ChapterTextSaver:
                     text = segment.get('text', '')
                     # 格式：【说话人】文本内容
                     f.write(f"【{speaker}】{text}\n\n")
-            logger.info(f"  ✓ 章节文本已保存: {text_path.name}")
+            logger.info(f"  ✓ 章节文本已保存（带说话人）: {text_path.name}")
         except Exception as e:
             logger.warning(f"  ⚠ 保存章节文本失败: {e}")
 
-        # 如果启用了 LLM，额外保存原文和 LLM 文本
+        # 2. 保存纯文本版本（不带说话人标注）
+        plain_text_path = audio_path.with_name(
+            audio_path.stem + '-raw.txt'
+        )
+        try:
+            with open(plain_text_path, 'w', encoding=encoding) as f:
+                for segment in segments:
+                    text = segment.get('text', '')
+                    f.write(f"{text}\n\n")
+            logger.info(f"  ✓ 章节文本已保存（纯文本）: {plain_text_path.name}")
+        except Exception as e:
+            logger.warning(f"  ⚠ 保存纯文本失败: {e}")
+
+        # 3. 如果启用了 LLM，额外保存原文和 LLM 文本
         if enable_llm and llm_content:
             ChapterTextSaver._save_llm_texts(
                 audio_path, original_content, llm_content, encoding

@@ -6,6 +6,7 @@
 from .tts_manager import TTSManager
 from .audio_exporter import AudioExporter
 from .audio_merger import AudioMerger
+from .interjection_mapper import InterjectionMapper
 
-__all__ = ["TTSManager", "AudioExporter", "AudioMerger"]
+__all__ = ["TTSManager", "AudioExporter", "AudioMerger", "InterjectionMapper"]
 

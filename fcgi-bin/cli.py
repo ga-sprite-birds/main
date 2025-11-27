@@ -34,6 +34,7 @@ LLMManager = _llm_module.LLMManager
 TTSManager = _audio_module.TTSManager
 AudioExporter = _audio_module.AudioExporter
 AudioMerger = _audio_module.AudioMerger
+InterjectionMapper = _audio_module.InterjectionMapper
 CharacterAnalyzer = _character_module.CharacterAnalyzer
 DialogueParser = _character_module.DialogueParser
 VoiceAssigner = _character_module.VoiceAssigner
@@ -536,8 +537,23 @@ async def generate_from_file(
                 )
                 # 注意：对话解析只基于正文内容，不包含片头片尾，
                 # 避免 LLM 在输出截断时丢失"本章播讲完毕"等提示语
+
                 segments = dialogue_parser.parse_chapter(content, chapter.index)
                 logger.info(f"  → 解析到 {len(segments)} 个对话片段（不含片头片尾）")
+
+                # 验证内容完整性
+                original_length = len(content)
+                total_segment_length = sum(len(seg['text']) for seg in segments)
+                completeness_ratio = total_segment_length / original_length if original_length > 0 else 0
+
+                logger.debug(f"  → 原文长度: {original_length} 字符")
+                logger.debug(f"  → 片段总长度: {total_segment_length} 字符")
+                logger.debug(f"  → 完整性: {completeness_ratio:.1%}")
+
+                if completeness_ratio < 0.9:
+                    logger.warning(f"  ⚠ 对话解析可能丢失内容：原文 {original_length} 字符，解析后 {total_segment_length} 字符（{completeness_ratio:.1%}）")
+                elif completeness_ratio > 1.5:
+                    logger.warning(f"  ⚠ 对话解析内容膨胀异常：原文 {original_length} 字符，解析后 {total_segment_length} 字符（{completeness_ratio:.1%}）")
 
                 # 添加片头片尾（使用 DialogueParser 的静态方法）
                 segments = DialogueParser.add_intro_outro_to_segments(
@@ -545,6 +561,24 @@ async def generate_from_file(
                 )
                 if intro and outro:
                     logger.info(f"  → 已添加片头片尾，对话片段总数: {len(segments)}")
+
+                # 生成输出路径（用于保存文本）
+                audio_path = audio_exporter.get_output_path(
+                    index=chapter.index,
+                    title=chapter.title,
+                    role="multi",
+                    custom_base_path=output_dir
+                )
+                audio_path.parent.mkdir(parents=True, exist_ok=True)
+
+                # 保存章节文本（多角色模式 - 在 TTS 生成前保存）
+                ChapterTextSaver.save_multi_voice_text(
+                    audio_path=audio_path,
+                    segments=segments,
+                    original_content=original_content,
+                    llm_content=colloquialized_content,
+                    enable_llm=enable_llm
+                )
 
                 # 2. 为每个片段生成音频
                 temp_audio_files = []
@@ -559,10 +593,20 @@ async def generate_from_file(
                     # 生成临时音频文件
                     temp_audio_path = temp_dir / f"segment_{i:03d}.mp3"
 
-                    logger.debug(f"  → 片段 {i+1}/{len(segments)}: {speaker} ({segment_voice})")
+                    # 处理纯标点文本，转换为感叹词
+                    tts_text = InterjectionMapper.process_text_for_tts(segment_text)
+
+                    # 显示片段信息（如果文本很短，显示完整文本）
+                    if len(segment_text) <= 10:
+                        if tts_text != segment_text:
+                            logger.debug(f"  → 片段 {i+1}/{len(segments)}: {speaker} ({segment_voice}), 原文: {repr(segment_text)}, TTS文本: {repr(tts_text)}")
+                        else:
+                            logger.debug(f"  → 片段 {i+1}/{len(segments)}: {speaker} ({segment_voice}), 文本长度: {len(segment_text)}, 文本: {repr(segment_text)}")
+                    else:
+                        logger.debug(f"  → 片段 {i+1}/{len(segments)}: {speaker} ({segment_voice}), 文本长度: {len(segment_text)}")
 
                     await tts_manager.generate_audio(
-                        text=segment_text,
+                        text=tts_text,
                         output_path=str(temp_audio_path),
                         voice=segment_voice
                     )
@@ -570,14 +614,6 @@ async def generate_from_file(
                     temp_audio_files.append(str(temp_audio_path))
 
                 # 3. 合并音频
-                audio_path = audio_exporter.get_output_path(
-                    index=chapter.index,
-                    title=chapter.title,
-                    role="multi",
-                    custom_base_path=output_dir
-                )
-                audio_path.parent.mkdir(parents=True, exist_ok=True)
-
                 # 处理文件已存在的情况
                 if audio_path.exists():
                     if config.OUTPUT_DUPLICATE_HANDLING == "skip":
@@ -602,15 +638,6 @@ async def generate_from_file(
                     audio_merger.cleanup_temp_files(temp_audio_files)
                     import shutil
                     shutil.rmtree(temp_dir, ignore_errors=True)
-
-                    # 保存章节文本（多角色模式）
-                    ChapterTextSaver.save_multi_voice_text(
-                        audio_path=audio_path,
-                        segments=segments,
-                        original_content=original_content,
-                        llm_content=colloquialized_content,
-                        enable_llm=enable_llm
-                    )
                 else:
                     logger.error(f"  ✗ 音频合并失败")
                     raise Exception("音频合并失败")

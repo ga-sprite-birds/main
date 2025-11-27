@@ -8,6 +8,7 @@ GA Sprite Birds - 文件处理工具
 
 from pathlib import Path
 from typing import Optional
+import re
 
 import chardet
 from pypdf import PdfReader
@@ -188,6 +189,61 @@ def preprocess_text(
         pass
     
     logger.info(f"文本预处理完成，处理前: {len(text)} 字符，处理后: {len(processed)} 字符")
-    
+
     return processed
+
+
+def clean_text_for_tts(text: str) -> str:
+    """
+    清理文本用于 TTS 生成
+
+    处理以下问题：
+    1. 移除文本两端的引号（中英文引号）
+    2. 如果文本只包含引号和标点，返回空字符串
+    3. 保留文本中间的引号和标点
+
+    Args:
+        text: 原始文本
+
+    Returns:
+        清理后的文本
+    """
+    if not text:
+        return ""
+
+    # 定义各种引号
+    quotes = [
+        '"', '"', '"',      # 英文双引号、中文左右双引号
+        "'", ''', ''',      # 英文单引号、中文左右单引号
+        '「', '」',         # 日文引号
+        '『', '』',         # 日文书名号
+        '《', '》',         # 中文书名号
+    ]
+
+    # 移除文本两端的引号和空白
+    cleaned = text.strip()
+
+    # 循环移除两端的引号，直到没有引号为止
+    while cleaned:
+        stripped = False
+        for quote in quotes:
+            if cleaned.startswith(quote):
+                cleaned = cleaned[len(quote):].lstrip()
+                stripped = True
+            if cleaned.endswith(quote):
+                cleaned = cleaned[:-len(quote)].rstrip()
+                stripped = True
+        if not stripped:
+            break
+
+    # 检查清理后的文本是否只包含标点符号
+    # 如果只有标点（如 "……"、"。。。"），返回空字符串
+    if cleaned:
+        # 移除所有标点后检查是否还有内容
+        text_without_punctuation = re.sub(r'[，。！？；：、,.!?;:\s…—\-\.\*]+', '', cleaned)
+        if not text_without_punctuation:
+            logger.debug(f"文本只包含标点，跳过: {repr(text)}")
+            return ""
+
+    return cleaned
 
