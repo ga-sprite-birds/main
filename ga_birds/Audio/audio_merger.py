@@ -28,32 +28,34 @@ class AudioMerger:
     def merge_audio_files(self, audio_files: List[str], output_path: str) -> bool:
         """
         合并多个音频文件
-        
+
         Args:
             audio_files: 音频文件路径列表
             output_path: 输出文件路径
-            
+
         Returns:
             是否成功
         """
         try:
             from pydub import AudioSegment
-            
+
             logger.info(f"开始合并 {len(audio_files)} 个音频片段")
-            
+
             # 加载第一个音频
             combined = AudioSegment.from_file(audio_files[0])
-            
+
             # 依次合并后续音频
             for i, audio_file in enumerate(audio_files[1:], start=2):
                 logger.debug(f"合并片段 {i}/{len(audio_files)}: {audio_file}")
                 segment = AudioSegment.from_file(audio_file)
                 combined += segment
-            
-            # 导出合并后的音频
+
+            # 导出合并后的音频（使用配置的比特率）
             output_format = Path(output_path).suffix[1:]  # 去掉点号
-            combined.export(output_path, format=output_format)
-            
+            bitrate = f"{config.OUTPUT_BITRATE}k"
+            combined.export(output_path, format=output_format, bitrate=bitrate)
+
+            logger.debug(f"音频导出参数: format={output_format}, bitrate={bitrate}")
             logger.info(f"音频合并完成: {output_path}")
             return True
             
