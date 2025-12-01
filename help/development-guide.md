@@ -1026,31 +1026,166 @@ for chapter in chapters:
 
 ## 10. 测试规范
 
-### 10.1 单元测试
+### 10.1 测试目录结构
 
-**位置**：`tests/`
+```
+tests/
+├── unit/                    # 单元测试（FastAPI TestClient）
+│   ├── test_root.py         # 测试根路径
+│   ├── test_upload.py       # 测试上传接口
+│   ├── test_parse.py        # 测试解析接口
+│   ├── test_generate.py     # 测试生成接口
+│   └── test_task_status.py  # 测试任务状态
+│
+├── integration/             # 集成测试（httpx）
+│   └── test_full_workflow.py # 完整流程测试
+│
+├── fixtures/                # 测试数据
+│   ├── sample.txt
+│   └── sample_multi_chapter.txt
+│
+├── conftest.py              # pytest 全局配置
+├── pytest.ini               # pytest 配置
+└── README.md                # 测试文档
+```
 
-**命名规范**：
-- 测试文件：`test_<模块名>.py`
-- 测试类：`Test<类名>`
-- 测试方法：`test_<功能描述>`
+### 10.2 单元测试（API）
+
+**技术栈**：FastAPI TestClient
+
+**特点**：
+- ✅ 不需要启动服务器
+- ✅ 测试速度快（毫秒级）
+- ✅ 适合测试单个接口逻辑
 
 **示例**：
 ```python
-# tests/test_common/test_chapter_processor.py
-class TestChapterProcessor:
-    def test_prepare_intro_outro(self):
-        intro, outro = ChapterProcessor.prepare_intro_outro(1, "第一章")
-        assert intro is not None
-        assert outro is not None
+# tests/unit/test_upload.py
+import pytest
+from fastapi.testclient import TestClient
+from fcgi-bin.api import app
+
+client = TestClient(app)
+
+@pytest.mark.unit
+def test_upload_with_file(sample_text_file):
+    """测试文件上传"""
+    with open(sample_text_file, "rb") as f:
+        response = client.post(
+            "/upload",
+            files={"file": ("sample.txt", f, "text/plain")}
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "task_id" in data
+    assert data["status"] == "pending"
 ```
 
-**运行测试**：
+**运行单元测试**：
 ```bash
-python -m pytest tests/ -v --tb=short
+# 运行所有单元测试
+pytest tests/unit -v
+
+# 运行特定测试文件
+pytest tests/unit/test_upload.py -v
+
+# 运行特定测试函数
+pytest tests/unit/test_upload.py::test_upload_with_file -v
 ```
 
-### 10.2 集成测试
+### 10.3 集成测试（API）
+
+**技术栈**：pytest + httpx
+
+**特点**：
+- ✅ 真实 HTTP 请求
+- ✅ 测试完整流程
+- ✅ 模拟真实用户场景
+
+**示例**：
+```python
+# tests/integration/test_full_workflow.py
+import pytest
+import httpx
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_complete_workflow(api_base_url, sample_text_file):
+    """测试完整工作流程"""
+    async with httpx.AsyncClient(base_url=api_base_url) as client:
+        # 1. 上传文件
+        with open(sample_text_file, "rb") as f:
+            response = await client.post(
+                "/upload",
+                files={"file": ("sample.txt", f, "text/plain")}
+            )
+        task_id = response.json()["task_id"]
+
+        # 2. 解析文本
+        await client.post("/parse", json={"task_id": task_id})
+
+        # 3. 生成音频
+        await client.post("/generate", json={"task_id": task_id})
+
+        # 4. 查询状态
+        response = await client.get(f"/task/{task_id}/status")
+        assert response.status_code == 200
+```
+
+**运行集成测试**：
+```bash
+# 步骤 1: 启动 API 服务器（新终端）
+uvicorn fcgi-bin.api:app --host 0.0.0.0 --port 8000
+
+# 步骤 2: 运行集成测试（另一个终端）
+pytest tests/integration -v
+```
+
+### 10.4 测试标记
+
+使用 pytest 标记来筛选测试：
+
+```bash
+# 只运行单元测试
+pytest -m unit
+
+# 只运行集成测试
+pytest -m integration
+
+# 排除慢速测试
+pytest -m "not slow"
+```
+
+**标记定义**（`pytest.ini`）：
+```ini
+markers =
+    unit: 单元测试（快速，不需要启动服务）
+    integration: 集成测试（需要启动服务）
+    slow: 慢速测试（超过 10 秒）
+```
+
+### 10.5 测试报告
+
+**生成 HTML 报告**：
+```bash
+# 安装 pytest-html
+pip install pytest-html
+
+# 生成报告
+pytest --html=report.html --self-contained-html
+```
+
+**测试覆盖率**：
+```bash
+# 安装 pytest-cov
+pip install pytest-cov
+
+# 生成覆盖率报告
+pytest --cov=ga_birds --cov=fcgi-bin --cov-report=html
+```
+
+### 10.6 功能测试（CLI）
 
 **实际功能测试**：
 ```bash

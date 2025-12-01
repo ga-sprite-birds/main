@@ -414,6 +414,51 @@ rm -rf ga-sprite-mp3
 
 ---
 
+## 可选：运行 API 测试
+
+安装完成后，可以运行 API 测试验证系统功能是否正常。
+
+### 运行单元测试（推荐）
+
+单元测试不需要启动服务器，速度快：
+
+```bash
+# 运行所有单元测试
+pytest tests/unit -v
+
+# 运行特定测试
+pytest tests/unit/test_upload.py -v
+```
+
+### 运行集成测试
+
+集成测试需要先启动 API 服务器：
+
+```bash
+# 终端 1: 启动 API 服务器
+uvicorn fcgi-bin.api:app --host 0.0.0.0 --port 8000
+
+# 终端 2: 运行集成测试
+pytest tests/integration -v
+```
+
+### 生成测试报告（可选）
+
+```bash
+# 安装测试报告工具
+pip install pytest-html pytest-cov
+
+# 生成 HTML 测试报告
+pytest --html=report.html --self-contained-html
+
+# 生成测试覆盖率报告
+pytest --cov=ga_birds --cov=fcgi-bin --cov-report=html
+```
+
+详细说明请参考 [tests/README.md](../tests/README.md)。
+
+---
+
 ## 下一步
 
 安装完成后，请阅读 [README.md](README.md) 了解如何使用系统。
