@@ -12,132 +12,171 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+from utils.try_tts.i18n import t, get_i18n
 from utils.try_tts.voice_fetcher import VoiceFetcher
 from utils.try_tts.sample_generator import SampleGenerator
 from utils.try_tts.doc_exporter import DocExporter
 
+# 默认语言（稍后会根据参数或配置更新）
+_default_lang = "en_US"
+try:
+    import config
+    _default_lang = config.LANGUAGE
+except ImportError:
+    pass
+
 
 def parse_args():
+    # 预解析 --language 参数以设置帮助文本语言
+    import sys
+    help_lang = _default_lang
+    if '--language' in sys.argv:
+        try:
+            lang_index = sys.argv.index('--language')
+            if lang_index + 1 < len(sys.argv):
+                help_lang = sys.argv[lang_index + 1]
+        except (ValueError, IndexError):
+            pass
+
+    # 设置帮助文本语言
+    get_i18n(help_lang)
     """解析命令行参数"""
-    parser = argparse.ArgumentParser(
-        description='Edge TTS 配音试听工具',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-使用示例:
-  # 列出所有音色
+    examples = f"""
+{t('help.examples')}
+  # {t('help.example_list_all')}
   python utils/try_tts/cli.py list
-  
-  # 列出中文音色
-  python utils/try_tts/cli.py list --language zh-CN
-  
-  # 列出中文男声
-  python utils/try_tts/cli.py list --language zh-CN --gender male
-  
-  # 生成所有中文音色的试听音频
-  python utils/try_tts/cli.py generate --language zh-CN
-  
-  # 生成指定音色的试听音频
+
+  # {t('help.example_list_lang')}
+  python utils/try_tts/cli.py list --lang zh-CN
+
+  # {t('help.example_list_gender')}
+  python utils/try_tts/cli.py list --lang zh-CN --gender male
+
+  # {t('help.example_generate_all')}
+  python utils/try_tts/cli.py generate --lang zh-CN
+
+  # {t('help.example_generate_one')}
   python utils/try_tts/cli.py generate --voice zh-CN-XiaoxiaoNeural
-  
-  # 导出音色列表为文档
-  python utils/try_tts/cli.py list --language zh-CN --save-doc voices.md
-        """
+
+  # {t('help.example_export')}
+  python utils/try_tts/cli.py list --lang zh-CN --save-doc voices.md
+    """
+
+    parser = argparse.ArgumentParser(
+        description=t('help.description'),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=examples
     )
-    
+
     parser.add_argument(
         'action',
         choices=['list', 'generate'],
-        help='操作类型: list(列出音色), generate(生成试听音频)'
+        help=t('help.action')
     )
-    
+
     parser.add_argument(
-        '--language',
-        help='语言代码（如 zh-CN, en-US），默认全部'
+        '--lang',
+        help=t('help.lang')
     )
-    
+
     parser.add_argument(
         '--gender',
         choices=['male', 'female', '1', '0'],
-        help='性别筛选: male/1(男), female/0(女)，默认全部'
+        help=t('help.gender')
     )
-    
+
     parser.add_argument(
         '--voice',
-        help='指定音色名称（仅用于 generate 操作）'
+        help=t('help.voice')
     )
-    
+
     parser.add_argument(
         '--text',
-        help='试听文本（默认使用内置文本）'
+        help=t('help.text')
     )
-    
+
     parser.add_argument(
         '--output',
         default='./output/tts_samples',
-        help='输出目录（默认 ./output/tts_samples）'
+        help=t('help.output')
     )
-    
+
     parser.add_argument(
         '--save-doc',
         metavar='FILE',
-        help='保存音色列表为 Markdown 文档'
+        help=t('help.save_doc')
     )
-    
+
+    parser.add_argument(
+        '--language',
+        choices=['en_US', 'zh_CN'],
+        help=t('help.ui_language')
+    )
+
     return parser.parse_args()
 
 
 def main():
     """主函数"""
     args = parse_args()
-    
+
+    # parse_args() 中已经设置了语言，这里不需要再设置
+    # 语言已经在 parse_args() 中根据 --language 参数设置好了
+
     print("=" * 100)
-    print("Edge TTS 配音试听工具")
+    print(t('help.description'))
     print("=" * 100)
-    
+
     fetcher = VoiceFetcher()
-    
-    print("\n📡 正在获取音色列表...")
+
+    print(f"\n📡 {t('fetching_voices')}")
     fetcher.get_voices_sync()
-    print(f"✓ 获取成功，共 {len(fetcher.voices)} 个音色")
-    
-    language_display = args.language or "全部"
-    gender_display = args.gender or "全部"
-    
+    print(f"✓ {t('voices_fetched', count=len(fetcher.voices))}")
+
+    language_display = args.lang or t("all")
+    gender_display = args.gender or t("all")
+
     filtered_voices = fetcher.filter_voices(
-        language=args.language,
+        language=args.lang,
         gender=args.gender
     )
-    
+
     if args.action == 'list':
-        print(f"\n📋 筛选条件: 语言={language_display}, 性别={gender_display}")
+        filter_msg = t('filter_condition',
+                       language=language_display,
+                       gender=gender_display)
+        print(f"\n📋 {filter_msg}")
         print()
         print(VoiceFetcher.format_voice_list(filtered_voices))
-        
+
         if args.save_doc:
-            print(f"\n💾 正在保存文档...")
+            print(f"\n💾 {t('saving_doc')}")
             doc_path = DocExporter.export_to_markdown(
                 filtered_voices,
                 args.save_doc,
                 language=language_display,
                 gender=gender_display
             )
-            print(f"✓ 文档已保存: {doc_path}")
+            print(f"✓ {t('list_exported', file=doc_path)}")
     
     elif args.action == 'generate':
         if args.voice:
-            print(f"\n🎵 生成单个音色试听: {args.voice}")
+            print(f"\n🎵 {t('single_generate', voice=args.voice)}")
             generator = SampleGenerator(args.output)
             output_file = generator.generate_sample_sync(args.voice, args.text)
-            print(f"✓ 试听音频已生成: {output_file}")
+            print(f"✓ {t('audio_generated', file=output_file)}")
         else:
             if not filtered_voices:
-                print("\n❌ 错误: 未找到匹配的音色")
+                print(f"\n❌ {t('no_voices')}")
                 sys.exit(1)
 
-            print(f"\n🎵 批量生成试听音频")
-            print(f"   筛选条件: 语言={language_display}, 性别={gender_display}")
-            print(f"   音色数量: {len(filtered_voices)}")
-            print(f"   输出目录: {args.output}")
+            print(f"\n🎵 {t('batch_generate')}")
+            filter_msg = t('filter_condition',
+                           language=language_display,
+                           gender=gender_display)
+            print(f"   {filter_msg}")
+            print(f"   {t('voice_count', count=len(filtered_voices))}")
+            print(f"   {t('output_dir', dir=args.output)}")
             print()
 
             generator = SampleGenerator(args.output)
@@ -150,12 +189,14 @@ def main():
             )
 
             print()
-            print(f"✓ 批量生成完成")
-            print(f"  状态: {result['msg']}")
-            print(f"  成功: {result['data']['success']} 个")
-            print(f"  失败: {result['data']['failed']} 个")
-            print(f"✓ 输出目录: {args.output}")
-            print(f"✓ 结果已保存: {args.output}/voices.json, {args.output}/voices.md")
+            print(f"✓ {t('batch_complete')}")
+            print(f"  {t('status', msg=result['msg'])}")
+            print(f"  {t('success_count', count=result['data']['success'])}")
+            print(f"  {t('failed_count', count=result['data']['failed'])}")
+            print(f"✓ {t('output_dir', dir=args.output)}")
+            json_file = f'{args.output}/voices.json'
+            md_file = f'{args.output}/voices.md'
+            print(f"✓ Results saved: {json_file}, {md_file}")
     
     print("\n" + "=" * 100)
 

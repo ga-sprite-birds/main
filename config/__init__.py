@@ -421,3 +421,13 @@ FFMPEG_PATH = os.getenv('FFMPEG_PATH', '')
 # 默认值：ga_birds
 # 说明：如果您修改了核心目录名称，需要同步修改此配置
 CORE_DIR = os.getenv('CORE_DIR', 'ga_birds')
+
+# ========== 多语言配置 ==========
+
+# LANGUAGE：系统语言
+# 作用：设置系统界面和输出的语言
+# 可选值：en_US(英语), zh_CN(简体中文), ja_JP(日语)
+# 影响：CLI 输出、API 响应、日志信息的语言
+# 建议：根据用户群体选择，默认英语
+# 默认：en_US
+LANGUAGE = os.getenv('LANGUAGE', 'en_US')

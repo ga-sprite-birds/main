@@ -15,6 +15,7 @@ Edge TTS 配音试听工具用于获取 Microsoft Edge TTS 支持的所有音色
 - ✅ 失败自动重试机制（等待 3 秒后重试一次）
 - ✅ 文件重名自动处理（Windows 风格：file.mp3 → file (1).mp3）
 - ✅ 导出音色列表为 Markdown 文档
+- ✅ **多语言支持**（英语/中文，可通过 CLI 参数或环境变量切换）
 
 ## 🚀 快速开始
 
@@ -25,13 +26,13 @@ Edge TTS 配音试听工具用于获取 Microsoft Edge TTS 支持的所有音色
 python utils/try_tts/cli.py list
 
 # 列出中文音色
-python utils/try_tts/cli.py list --language zh-CN
+python utils/try_tts/cli.py list --lang zh-CN
 
 # 列出中文男声
-python utils/try_tts/cli.py list --language zh-CN --gender male
+python utils/try_tts/cli.py list --lang zh-CN --gender male
 
 # 列出中文女声
-python utils/try_tts/cli.py list --language zh-CN --gender female
+python utils/try_tts/cli.py list --lang zh-CN --gender female
 ```
 
 ### 2. 生成试听音频
@@ -41,16 +42,16 @@ python utils/try_tts/cli.py list --language zh-CN --gender female
 python utils/try_tts/cli.py generate --voice zh-CN-XiaoxiaoNeural
 
 # 批量生成所有中文音色的试听音频
-python utils/try_tts/cli.py generate --language zh-CN
+python utils/try_tts/cli.py generate --lang zh-CN
 
 # 批量生成中文男声试听音频
-python utils/try_tts/cli.py generate --language zh-CN --gender male
+python utils/try_tts/cli.py generate --lang zh-CN --gender male
 
 # 使用自定义试听文本
 python utils/try_tts/cli.py generate --voice zh-CN-XiaoxiaoNeural --text "这是自定义的试听文本"
 
 # 指定输出目录
-python utils/try_tts/cli.py generate --language zh-CN --output ./my_samples
+python utils/try_tts/cli.py generate --lang zh-CN --output ./my_samples
 ```
 
 ### 3. 导出音色列表文档
@@ -60,8 +61,65 @@ python utils/try_tts/cli.py generate --language zh-CN --output ./my_samples
 python utils/try_tts/cli.py list --save-doc voices.md
 
 # 导出中文音色列表
-python utils/try_tts/cli.py list --language zh-CN --save-doc zh-CN-voices.md
+python utils/try_tts/cli.py list --lang zh-CN --save-doc zh-CN-voices.md
 ```
+
+## 🌍 多语言支持
+
+工具支持**英语**和**中文**界面输出，可通过以下方式切换：
+
+### 方式 1：环境变量（推荐）
+
+修改项目根目录的 `.env` 文件：
+
+```env
+# 英语界面（默认）
+LANGUAGE=en_US
+
+# 中文界面
+LANGUAGE=zh_CN
+```
+
+### 方式 2：CLI 参数
+
+```bash
+# 使用英语界面
+python utils/try_tts/cli.py list --language en_US
+
+# 使用中文界面
+python utils/try_tts/cli.py list --language zh_CN
+```
+
+### 方式 3：独立运行（自动检测）
+
+如果工具独立运行（不在项目环境中），会自动使用本地翻译文件：
+- 优先级：**本地翻译文件 > 项目多语言 > 硬编码默认翻译**
+- 本地翻译文件位置：`utils/try_tts/langues/`
+- **说明：** 工具优先使用自己的翻译文件，确保帮助文本等工具专属内容正确显示
+
+### 示例对比
+
+**英语界面**：
+```
+📡 Fetching voice list...
+✓ Fetched successfully, 550 voices available
+📋 Filter: Language=zh-CN, Gender=All
+```
+
+**中文界面**：
+```
+📡 正在获取音色列表...
+✓ 获取成功，共 550 个音色
+📋 筛选条件: 语言=zh-CN, 性别=全部
+```
+
+### 注意事项
+
+- `--lang` 参数：筛选**音色的语言**（如 zh-CN, en-US）
+- `--language` 参数：设置**界面输出语言**（en_US, zh_CN）
+- `.env` 的 `LANGUAGE`：全局设置**界面输出语言**
+
+---
 
 ## 📖 命令行参数
 
@@ -72,7 +130,7 @@ python utils/try_tts/cli.py list --language zh-CN --save-doc zh-CN-voices.md
 
 ### 筛选参数
 
-- `--language <语言代码>` - 按语言筛选（如 zh-CN, en-US, ja-JP）
+- `--lang <语言代码>` - 按音色语言筛选（如 zh-CN, en-US, ja-JP）
 - `--gender <性别>` - 按性别筛选
   - `male` 或 `1` - 男声
   - `female` 或 `0` - 女声
@@ -86,6 +144,10 @@ python utils/try_tts/cli.py list --language zh-CN --save-doc zh-CN-voices.md
 ### 导出参数
 
 - `--save-doc <文件路径>` - 保存音色列表为 Markdown 文档
+
+### 界面语言参数
+
+- `--language <语言代码>` - 设置界面输出语言（en_US, zh_CN）
 
 ## 📁 输出文件
 
@@ -197,13 +259,13 @@ output/tts_samples/
 
 1. **快速试听中文音色**
    ```bash
-   python utils/try_tts/cli.py generate --language zh-CN
+   python utils/try_tts/cli.py generate --lang zh-CN
    # 自动生成 voices.json 和 voices.md
    ```
 
 2. **只试听男声**
    ```bash
-   python utils/try_tts/cli.py generate --language zh-CN --gender male
+   python utils/try_tts/cli.py generate --lang zh-CN --gender male
    ```
 
 3. **导出完整音色列表供参考**
@@ -216,7 +278,13 @@ output/tts_samples/
    python utils/try_tts/cli.py generate --voice zh-CN-XiaoxiaoNeural --text "这是一段测试文本，用于评估音色效果。"
    ```
 
-5. **查看生成结果**
+5. **使用中文界面**
+   ```bash
+   python utils/try_tts/cli.py list --lang zh-CN --language zh_CN
+   # 或修改 .env: LANGUAGE=zh_CN
+   ```
+
+6. **查看生成结果**
    ```bash
    # 查看 JSON 结果（可用于 API 集成）
    cat output/tts_samples/voices.json
@@ -236,6 +304,10 @@ utils/try_tts/
 ├── voice_fetcher.py     # 音色列表获取器
 ├── sample_generator.py  # 试听音频生成器
 ├── doc_exporter.py      # 文档导出器
+├── i18n.py              # 多语言管理器
+├── langues/             # 本地翻译文件
+│   ├── en_US.json       # 英文翻译
+│   └── zh_CN.json       # 中文翻译
 └── README.md            # 工具说明文档
 ```
 
@@ -244,6 +316,7 @@ utils/try_tts/
 - **VoiceFetcher**: 从 Edge TTS API 获取音色列表并支持筛选
 - **SampleGenerator**: 生成试听音频文件
 - **DocExporter**: 导出音色列表为 Markdown 文档
+- **UtilsI18n**: 多语言管理器（支持三层回退机制）
 
 ## 🔄 自动重试机制
 
@@ -272,6 +345,13 @@ A: 运行 `python utils/try_tts/cli.py list` 查看所有音色，从 Locale 列
 **Q: 生成失败怎么办？**
 
 A: 工具会自动重试一次。如果仍然失败，会在 `voices.json` 和 `voices.md` 中记录失败原因。检查网络连接，确保可以访问 Microsoft Edge TTS 服务。
+
+**Q: 如何切换界面语言？**
+
+A:
+- 方式 1：修改 `.env` 文件中的 `LANGUAGE=zh_CN`
+- 方式 2：使用 `--language zh_CN` 参数
+- 方式 3：工具独立运行时自动使用本地翻译文件
 
 **Q: 如何在项目中使用这些音色？**
 

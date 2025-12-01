@@ -14,6 +14,7 @@ import edge_tts
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+from utils.try_tts.i18n import t
 from ga_birds.Utils import get_unique_filename
 
 
@@ -99,7 +100,7 @@ class SampleGenerator:
             voice_name = voice.get('ShortName')
 
             if show_progress:
-                print(f"[{i}/{total}] 正在生成: {voice_name}")
+                print(f"[{i}/{total}] {t('generating')}: {voice_name}")
 
             voice_result = {
                 "name": voice_name,
@@ -117,10 +118,10 @@ class SampleGenerator:
                 voice_result["status"] = "success"
 
                 if show_progress:
-                    print(f"  ✓ 已保存: {output_file}")
+                    print(f"  ✓ {t('saved')}: {output_file}")
             except Exception as e:
                 if show_progress:
-                    print(f"  ⚠ 首次失败，等待3秒后重试...")
+                    print(f"  ⚠ {t('retry')}")
 
                 await asyncio.sleep(3)
 
@@ -130,11 +131,11 @@ class SampleGenerator:
                     voice_result["status"] = "success"
 
                     if show_progress:
-                        print(f"  ✓ 重试成功: {output_file}")
+                        print(f"  ✓ {t('retry_success')}: {output_file}")
                 except Exception as retry_error:
                     voice_result["error"] = str(retry_error)
                     if show_progress:
-                        print(f"  ✗ 生成失败: {retry_error}")
+                        print(f"  ✗ {t('failed')}: {retry_error}")
 
             voice_results.append(voice_result)
 

@@ -6,19 +6,43 @@ GA Sprite Birds - CLI 命令行模式
 开发团队: Tiger
 """
 
+import sys
+from pathlib import Path
+
+# 添加项目根目录到 Python 路径
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
 import asyncio
 import argparse
 import importlib
 import json
-from pathlib import Path
 from typing import Optional
 
 from loguru import logger
 
 import config
 
+# 初始化多语言（默认使用配置文件，可通过 CLI 参数覆盖）
+_core_module_name = config.CORE_DIR.replace('-', '_')
+_i18n_module = importlib.import_module(f'{_core_module_name}.Common.i18n')
+_default_language = config.LANGUAGE
+
+# 预解析 --language 参数以设置多语言
+if '--language' in sys.argv:
+    try:
+        lang_index = sys.argv.index('--language')
+        if lang_index + 1 < len(sys.argv):
+            _default_language = sys.argv[lang_index + 1]
+    except (ValueError, IndexError):
+        pass
+
+_i18n_module.set_locale(_default_language)
+
+# 获取翻译函数
+t = _i18n_module.t
+
 # 动态导入核心模块（根据 config.CORE_DIR）
-_core_module_name = config.CORE_DIR.replace('-', '_')  # 将连字符转为下划线（Python 模块名规范）
 _utils_module = importlib.import_module(f'{_core_module_name}.Utils')
 _parser_module = importlib.import_module(f'{_core_module_name}.Parser')
 _llm_module = importlib.import_module(f'{_core_module_name}.LLM')
@@ -689,89 +713,89 @@ async def generate_from_file(
 
 def main():
     """CLI 主函数"""
-    parser = argparse.ArgumentParser(
-        description="GA Sprite Birds - 音频朗读系统 CLI 模式",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-示例:
-  # 基本使用（使用 .env 配置）
-  python cli.py -i debug/择天记_修复.txt
+    # 构建示例文本
+    examples = f"""{t('cli.examples.title')}
+  {t('cli.examples.basic')}
 
-  # 指定输出目录
-  python cli.py -i debug/择天记_修复.txt -o ./output/择天记
+  {t('cli.examples.output')}
 
-  # 指定音色（男声）
-  python cli.py -i debug/择天记_修复.txt --voice zh-CN-YunxiNeural
+  {t('cli.examples.voice')}
 
-  # 禁用 LLM 处理
-  python cli.py -i debug/择天记_修复.txt --no-llm
+  {t('cli.examples.no_llm')}
 
-  # 只生成第1-10章
-  python cli.py -i debug/择天记_修复.txt --start 1 --end 10
+  {t('cli.examples.chapters')}
 
-  # 角色分析（智能模式，自动合并重复角色）
-  python cli.py -i debug/择天记_修复.txt --analyze-characters
+  {t('cli.examples.analyze_auto')}
 
-  # 角色分析（混合模式，用户指定角色列表）
-  python cli.py -i debug/择天记_修复.txt --analyze-characters --character-list characters.txt
+  {t('cli.examples.analyze_hybrid')}
 
-  # 角色分析（强制使用混合模式）
-  python cli.py -i debug/择天记_修复.txt --analyze-characters --analysis-mode hybrid --character-list characters.txt
+  {t('cli.examples.analyze_force')}
         """
+
+    parser = argparse.ArgumentParser(
+        description=t('cli.description'),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=examples
     )
-    
+
     parser.add_argument(
         "-i", "--input",
         required=True,
-        help="输入文件路径（支持 .txt, .pdf）"
+        help=t('cli.help.input')
     )
-    
+
     parser.add_argument(
         "-o", "--output",
-        help="输出目录（默认使用 config.yaml 中的配置）"
+        help=t('cli.help.output')
     )
-    
+
     parser.add_argument(
         "--voice",
-        help="音色（覆盖配置文件，如: zh-CN-YunxiNeural）"
+        help=t('cli.help.voice')
     )
 
     parser.add_argument(
         "--rate",
         type=float,
-        help="语速（0.5-2.0，1.0为正常，默认使用配置文件）"
+        help=t('cli.help.rate')
     )
 
     parser.add_argument(
         "--no-llm",
         action="store_true",
-        help="禁用 LLM 口语化处理"
+        help=t('cli.help.no_llm')
     )
-    
+
     parser.add_argument(
         "--start",
         type=int,
         default=1,
-        help="起始章节（从1开始，默认: 1）"
+        help=t('cli.help.start')
     )
-    
+
     parser.add_argument(
         "--end",
         type=int,
-        help="结束章节（默认: 最后一章）"
+        help=t('cli.help.end')
     )
-    
+
     parser.add_argument(
         "--log-level",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
         default="INFO",
-        help="日志级别（默认: INFO）"
+        help=t('cli.help.log_level')
+    )
+
+    parser.add_argument(
+        "--language",
+        choices=["en_US", "zh_CN"],
+        help=t('cli.help.language')
     )
 
     parser.add_argument(
         "--analyze-characters",
         action="store_true",
-        help="角色分析模式：分析小说角色并生成配音模板（生成后退出）"
+        help=t('cli.help.analyze_characters')
     )
 
     parser.add_argument(
@@ -780,26 +804,26 @@ def main():
         const=None,
         type=str.lower,
         choices=["true", "false"],
-        help="是否启用多角色配音模式（true/false，不带值或不写则使用配置文件）"
+        help=t('cli.help.multi_voice')
     )
 
     parser.add_argument(
         "--character-template",
         type=str,
-        help="指定角色配音模板文件路径（可选，默认自动查找 cache/role/[文件名]_characters.json）"
+        help=t('cli.help.character_template')
     )
 
     parser.add_argument(
         "--character-list",
         type=str,
-        help="指定角色列表文件路径（混合模式）：每行一个角色名，可选格式 '角色名 性别'"
+        help=t('cli.help.character_list')
     )
 
     parser.add_argument(
         "--analysis-mode",
         type=str,
         choices=["auto", "hybrid"],
-        help="角色分析模式（覆盖配置文件的 CHARACTER_ANALYSIS_MODE）：auto=智能分析+自动合并, hybrid=用户指定角色列表"
+        help=t('cli.help.analysis_mode')
     )
 
     args = parser.parse_args()

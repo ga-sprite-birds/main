@@ -1,0 +1,56 @@
+{
+  "common": {
+    "success": "Success",
+    "failed": "Failed",
+    "processing": "Processing...",
+    "error": "Error",
+    "warning": "Warning",
+    "info": "Info",
+    "all": "All"
+  },
+  "cli": {
+    "title": "ga-sprite-birds - Video Sprite Search Tool",
+    "description": "GA Sprite Birds - Audio Reading System CLI Mode",
+    "help": {
+      "input": "Input file path (supports .txt, .pdf)",
+      "output": "Output directory (default: use config.yaml settings)",
+      "voice": "Voice (override config, e.g., zh-CN-YunxiNeural)",
+      "rate": "Speech rate (0.5-2.0, 1.0 is normal, default: use config)",
+      "no_llm": "Disable LLM colloquialization",
+      "start": "Start chapter (from 1, default: 1)",
+      "end": "End chapter (default: last chapter)",
+      "log_level": "Log level (default: INFO)",
+      "language": "Interface language (en_US, zh_CN, default: use config)",
+      "analyze_characters": "Character analysis mode: analyze novel characters and generate voice template (exit after generation)",
+      "multi_voice": "Enable multi-character voice mode (true/false, use config if not specified)",
+      "character_template": "Specify character voice template file path (optional, default: auto-find cache/role/[filename]_characters.json)",
+      "character_list": "Specify character list file path (hybrid mode): one character per line, optional format 'CharacterName Gender'",
+      "analysis_mode": "Character analysis mode (override CHARACTER_ANALYSIS_MODE in config): auto=smart analysis+auto merge, hybrid=user-specified character list"
+    },
+    "examples": {
+      "title": "Examples:",
+      "basic": "# Basic usage (use .env config)\n  python cli.py -i debug/test.txt",
+      "output": "# Specify output directory\n  python cli.py -i debug/test.txt -o ./output/test",
+      "voice": "# Specify voice (male)\n  python cli.py -i debug/test.txt --voice zh-CN-YunxiNeural",
+      "no_llm": "# Disable LLM processing\n  python cli.py -i debug/test.txt --no-llm",
+      "chapters": "# Generate chapters 1-10 only\n  python cli.py -i debug/test.txt --start 1 --end 10",
+      "analyze_auto": "# Character analysis (smart mode, auto-merge duplicate characters)\n  python cli.py -i debug/test.txt --analyze-characters",
+      "analyze_hybrid": "# Character analysis (hybrid mode, user-specified character list)\n  python cli.py -i debug/test.txt --analyze-characters --character-list characters.txt",
+      "analyze_force": "# Character analysis (force hybrid mode)\n  python cli.py -i debug/test.txt --analyze-characters --analysis-mode hybrid --character-list characters.txt"
+    }
+  },
+  "video": {
+    "processing": "Processing: {path}",
+    "frame_count": "  Frames: {count}",
+    "found_videos": "Found {count} video file(s)",
+    "no_videos": "No video files found: {pattern}",
+    "no_frames": "  No frames extracted"
+  },
+  "error": {
+    "file_not_found": "File not found: {path}",
+    "invalid_parameter": "Invalid parameter: {param}",
+    "network_error": "Network error: {error}",
+    "unknown_error": "Unknown error: {error}"
+  }
+}
+

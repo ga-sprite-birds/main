@@ -19,8 +19,12 @@ from loguru import logger
 
 import config
 
-# 动态导入核心模块（根据 config.CORE_DIR）
+# 初始化多语言（默认使用配置文件）
 _core_module_name = config.CORE_DIR.replace('-', '_')
+_i18n_module = importlib.import_module(f'{_core_module_name}.Common.i18n')
+_i18n_module.set_locale(config.LANGUAGE)
+
+# 动态导入核心模块（根据 config.CORE_DIR）
 _utils_module = importlib.import_module(f'{_core_module_name}.Utils')
 _parser_module = importlib.import_module(f'{_core_module_name}.Parser')
 _llm_module = importlib.import_module(f'{_core_module_name}.LLM')
@@ -72,11 +76,13 @@ class UploadRequest(BaseModel):
     """上传请求"""
     path: Optional[str] = None  # 本地文件路径
     output_path: Optional[str] = None  # 自定义输出路径
+    language: Optional[str] = None  # 界面语言（en_US, zh_CN）
 
 
 class ParseRequest(BaseModel):
     """解析请求"""
     task_id: str  # 任务 ID
+    language: Optional[str] = None  # 界面语言（en_US, zh_CN）
 
 
 class GenerateRequest(BaseModel):
@@ -85,6 +91,7 @@ class GenerateRequest(BaseModel):
     voice: Optional[str] = None  # 音色（覆盖配置）
     output_path: Optional[str] = None  # 输出路径（覆盖配置）
     enable_llm: bool = True  # 是否启用 LLM 口语化
+    language: Optional[str] = None  # 界面语言（en_US, zh_CN）
 
 
 class TaskResponse(BaseModel):
@@ -112,19 +119,25 @@ async def root():
 async def upload_file(
     file: Optional[UploadFile] = File(None),
     path: Optional[str] = None,
-    output_path: Optional[str] = None
+    output_path: Optional[str] = None,
+    language: Optional[str] = None
 ):
     """
     上传文本文件或指定本地路径
-    
+
     Args:
         file: 上传的文件对象
         path: 本地文件路径（优先使用）
         output_path: 自定义输出路径
-        
+        language: 界面语言（en_US, zh_CN）
+
     Returns:
         任务信息
     """
+    # 设置语言
+    if language:
+        _i18n_module.set_locale(language)
+
     try:
         # 优先使用本地路径
         if path:
@@ -169,13 +182,17 @@ async def upload_file(
 async def parse_text(request: ParseRequest):
     """
     解析文本，拆分章节
-    
+
     Args:
         request: 解析请求
-        
+
     Returns:
         任务信息
     """
+    # 设置语言
+    if request.language:
+        _i18n_module.set_locale(request.language)
+
     try:
         task = task_manager.get_task(request.task_id)
         if not task:
@@ -253,14 +270,18 @@ async def parse_text(request: ParseRequest):
 async def generate_audio(request: GenerateRequest, background_tasks: BackgroundTasks):
     """
     开始生成音频（异步）
-    
+
     Args:
         request: 生成请求
         background_tasks: 后台任务
-        
+
     Returns:
         任务信息
     """
+    # 设置语言
+    if request.language:
+        _i18n_module.set_locale(request.language)
+
     try:
         task = task_manager.get_task(request.task_id)
         if not task:

@@ -6,6 +6,7 @@
 import asyncio
 from typing import List, Dict, Optional
 import edge_tts
+from utils.try_tts.i18n import t
 
 
 class VoiceFetcher:
@@ -88,21 +89,21 @@ class VoiceFetcher:
     def format_voice_list(voices: List[Dict]) -> str:
         """
         格式化音色列表为表格形式
-        
+
         Args:
             voices: 音色列表
-            
+
         Returns:
             格式化后的表格字符串
         """
         if not voices:
-            return "未找到匹配的音色"
-        
+            return t('no_voices_found')
+
         lines = []
         lines.append("=" * 100)
-        lines.append(f"共找到 {len(voices)} 个音色")
+        lines.append(t('voice_count_found', count=len(voices)))
         lines.append("=" * 100)
-        lines.append(f"{'性别'} {'音色名称':35s} | {'语言':8s} | 友好名称")
+        lines.append(t('voice_table_header'))
         lines.append("-" * 100)
         
         for voice in voices:

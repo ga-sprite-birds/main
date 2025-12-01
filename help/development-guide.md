@@ -290,6 +290,9 @@ load_dotenv()
 # ===== 核心模块路径 =====
 CORE_DIR=ga_birds
 
+# ===== 多语言配置 =====
+LANGUAGE=en_US                  # 系统语言：en_US(英语), zh_CN(简体中文)
+
 # ===== TTS 配置 =====
 TTS_MODE=api                    # api（Edge TTS）/ local（本地 TTS）
 TTS_VOICE=zh-CN-XiaoxiaoNeural  # 默认音色
@@ -372,9 +375,23 @@ if ConfigManager.is_chapter_intro_outro_enabled():
 
 ### 6.3 命名规范
 
-**文件命名**：
+#### 6.3.1 文件和目录命名
+
+**Python 文件**：
 - 使用小写 + 下划线：`chapter_processor.py`
 - 避免缩写：`manager.py` 而非 `mgr.py`
+
+**目录命名**：
+- 核心模块目录：使用 `ga_` 前缀 + 项目名，如 `ga_birds`
+- 子模块目录：使用大驼峰，如 `Common/`, `Utils/`, `Parser/`
+- 缓存目录：使用小写 + 下划线，如 `audio_temp/`, `role/`
+
+**翻译文件**：
+- 格式：`<语言代码>.json`
+- 示例：`en_US.json`, `zh_CN.json`
+- 位置：`<模块>/Langues/` 或 `<模块>/langues/`
+
+#### 6.3.2 代码命名
 
 **类命名**：
 - 使用大驼峰：`ChapterProcessor`
@@ -388,7 +405,115 @@ if ConfigManager.is_chapter_intro_outro_enabled():
 **常量命名**：
 - 使用大写 + 下划线：`MAX_TOKENS`, `DEFAULT_VOICE`
 
-### 6.4 导入规范
+**翻译键命名**：
+- 使用点号分隔：`cli.help.input`, `common.success`
+- 分类清晰：`<模块>.<子分类>.<键名>`
+- 示例：
+  ```json
+  {
+    "cli": {
+      "help": {
+        "input": "Input file path"
+      }
+    }
+  }
+  ```
+
+#### 6.3.3 参数命名
+
+**CLI 参数**：
+- 长参数：使用小写 + 连字符：`--input-file`, `--log-level`
+- 短参数：使用单字母：`-i`, `-o`
+- 布尔参数：使用 `--no-` 前缀表示否定：`--no-llm`
+
+**API 参数**：
+- 使用小写 + 下划线：`task_id`, `output_path`
+- 保持与 Python 命名一致
+
+**环境变量**：
+- 使用大写 + 下划线：`LANGUAGE`, `TTS_VOICE`
+
+### 6.4 参数优先级规范
+
+系统采用 **三级参数优先级机制**，确保灵活性和可配置性。
+
+#### 6.4.1 优先级顺序
+
+```
+CLI/API 参数 > 环境变量（.env） > 代码默认值
+```
+
+**示例**：
+```bash
+# .env 文件
+LANGUAGE=zh_CN
+TTS_VOICE=zh-CN-XiaoxiaoNeural
+
+# CLI 参数覆盖配置
+python fcgi-bin/cli.py -i input.txt --language en_US --voice zh-CN-YunxiNeural
+# 实际使用：language=en_US, voice=zh-CN-YunxiNeural
+```
+
+#### 6.4.2 参数合并规则
+
+| 参数类型 | CLI 参数 | API 参数 | 环境变量 | 默认值 | 说明 |
+|---------|---------|---------|---------|--------|------|
+| **必填参数** | ✅ | ✅ | ❌ | ❌ | 必须通过 CLI/API 提供 |
+| **可选参数** | ✅ | ✅ | ✅ | ✅ | 优先级：CLI/API > 环境变量 > 默认值 |
+| **系统配置** | ❌ | ❌ | ✅ | ✅ | 只能通过环境变量配置 |
+
+**必填参数示例**：
+- CLI: `-i/--input` (输入文件)
+- API: `task_id` (任务 ID)
+
+**可选参数示例**：
+- `--language` / `language` (界面语言)
+- `--voice` / `voice` (音色)
+- `--output` / `output_path` (输出路径)
+
+**系统配置示例**：
+- `CORE_DIR` (核心模块路径)
+- `LLM_API_KEY` (LLM API 密钥)
+
+#### 6.4.3 参数处理实现
+
+**CLI 参数处理**：
+```python
+# fcgi-bin/cli.py
+
+# 1. 预解析 --language 参数（用于设置帮助文本语言）
+if '--language' in sys.argv:
+    try:
+        lang_index = sys.argv.index('--language')
+        if lang_index + 1 < len(sys.argv):
+            _default_language = sys.argv[lang_index + 1]
+    except (ValueError, IndexError):
+        pass
+
+# 2. 设置多语言
+_i18n_module.set_locale(_default_language)
+
+# 3. 参数合并（CLI 参数 > 配置文件）
+voice = args.voice or config.TTS_VOICE
+output_dir = args.output or config.OUTPUT_DIR
+```
+
+**API 参数处理**：
+```python
+# fcgi-bin/api.py
+
+@app.post("/generate")
+async def generate_audio(request: GenerateRequest):
+    # 1. 设置语言（如果提供）
+    if request.language:
+        _i18n_module.set_locale(request.language)
+
+    # 2. 参数合并（API 参数 > 配置文件）
+    voice = request.voice or config.TTS_VOICE
+    output_path = request.output_path or config.OUTPUT_DIR
+```
+
+### 6.5 导入规范
 
 **动态导入核心模块**：
 ```python
@@ -420,9 +545,319 @@ from ga_birds.Utils import read_file
 
 ---
 
-## 7. 业务流程规范
+## 7. 多语言（i18n）规范
 
-### 7.1 单角色配音流程
+### 7.1 多语言架构
+
+系统采用 **分层多语言架构**，支持项目级和工具级翻译。
+
+#### 7.1.1 项目级多语言
+
+**位置**：`ga_birds/Langues/`
+
+**职责**：核心项目的翻译（CLI、API、业务逻辑）
+
+**文件结构**：
+```
+ga_birds/Langues/
+├── en_US.json          # 英语翻译
+└── zh_CN.json          # 简体中文翻译
+```
+
+**翻译文件示例**：
+```json
+{
+  "common": {
+    "success": "Success",
+    "failed": "Failed"
+  },
+  "cli": {
+    "description": "GA Sprite Birds - Audio Reading System CLI Mode",
+    "help": {
+      "input": "Input file path (supports .txt, .pdf)",
+      "voice": "Voice (override config, e.g., zh-CN-YunxiNeural)"
+    }
+  }
+}
+```
+
+#### 7.1.2 工具级多语言
+
+**位置**：`utils/<工具名>/langues/`
+
+**职责**：独立工具的翻译（如 `utils/try_tts/`）
+
+**特点**：
+- ✅ 完全独立，不依赖项目翻译
+- ✅ 可作为第三方工具单独使用
+- ✅ 支持三级翻译回退机制
+
+**翻译优先级**：
+```
+本地翻译文件 > 项目多语言 > 硬编码默认值
+```
+
+### 7.2 多语言实现
+
+#### 7.2.1 项目级 i18n 实现
+
+**文件**：`ga_birds/Common/i18n.py`
+
+**核心功能**：
+```python
+class I18n:
+    def __init__(self, locale: str = "en_US"):
+        self.locale = locale
+        self.translations = {}
+        self._load_translations()
+
+    def t(self, key: str, **kwargs) -> str:
+        """翻译函数，支持点号分隔的键和占位符"""
+        keys = key.split('.')
+        text = self.translations
+        for k in keys:
+            if isinstance(text, dict):
+                text = text.get(k, key)
+            else:
+                text = key
+                break
+
+        if isinstance(text, str):
+            return text.format(**kwargs) if kwargs else text
+        return str(text)
+
+# 全局单例
+_i18n = None
+
+def t(key: str, **kwargs) -> str:
+    """全局翻译函数"""
+    global _i18n
+    if _i18n is None:
+        _i18n = I18n()
+    return _i18n.t(key, **kwargs)
+
+def set_locale(locale: str):
+    """设置语言"""
+    global _i18n
+    _i18n = I18n(locale)
+```
+
+**使用方式**：
+```python
+from ga_birds.Common.i18n import t, set_locale
+
+# 设置语言
+set_locale("zh_CN")
+
+# 使用翻译
+print(t('common.success'))  # 输出: 成功
+print(t('cli.help.input'))  # 输出: 输入文件路径（支持 .txt, .pdf）
+
+# 使用占位符
+print(t('error.file_not_found', path='/path/to/file'))
+# 输出: 文件不存在: /path/to/file
+```
+
+#### 7.2.2 工具级 i18n 实现
+
+**文件**：`utils/try_tts/i18n.py`
+
+**三级回退机制**：
+```python
+class UtilsI18n:
+    def _load_translations(self):
+        """加载翻译（优先级：本地 > 项目 > 硬编码）"""
+        # 1. 优先使用本地翻译文件（工具自己的翻译）
+        if self._try_load_from_local():
+            return
+        # 2. 其次尝试项目多语言（如果工具被集成到项目中）
+        if self._try_load_from_project():
+            return
+        # 3. 最后使用硬编码默认翻译
+        self._load_hardcoded()
+```
+
+### 7.3 多语言开发规范
+
+#### 7.3.1 翻译文件规范
+
+**文件命名**：
+- 格式：`<语言代码>.json`
+- 语言代码使用下划线：`en_US`, `zh_CN`（不是 `en-US`）
+
+**JSON 结构**：
+```json
+{
+  "模块名": {
+    "子分类": {
+      "键名": "翻译文本"
+    }
+  }
+}
+```
+
+**占位符规范**：
+- 使用 Python `.format()` 语法：`{变量名}`
+- 示例：`"Found {count} voices"` → `t('voice_count', count=10)`
+
+#### 7.3.2 翻译键命名规范
+
+**分类清晰**：
+```json
+{
+  "common": {},      // 通用翻译
+  "cli": {},         // CLI 相关
+  "api": {},         // API 相关
+  "error": {},       // 错误消息
+  "help": {}         // 帮助文本
+}
+```
+
+**层级合理**：
+```json
+{
+  "cli": {
+    "help": {
+      "input": "...",
+      "output": "..."
+    },
+    "examples": {
+      "basic": "...",
+      "advanced": "..."
+    }
+  }
+}
+```
+
+**避免重复**：
+- ✅ `common.success` → 多处复用
+- ❌ `cli.success`, `api.success` → 重复定义
+
+#### 7.3.3 代码中使用翻译
+
+**CLI 帮助文本**：
+```python
+parser = argparse.ArgumentParser(
+    description=t('cli.description'),
+    epilog=t('cli.examples.all')
+)
+
+parser.add_argument(
+    '-i', '--input',
+    help=t('cli.help.input')
+)
+```
+
+**日志消息**：
+```python
+logger.info(t('processing.start', file=input_file))
+logger.error(t('error.file_not_found', path=file_path))
+```
+
+**API 响应**：
+```python
+return {
+    "status": "success",
+    "message": t('api.upload_success', task_id=task_id)
+}
+```
+
+### 7.4 多语言参数支持
+
+#### 7.4.1 CLI 多语言参数
+
+**参数定义**：
+```python
+parser.add_argument(
+    '--language',
+    choices=['en_US', 'zh_CN'],
+    help=t('cli.help.language')
+)
+```
+
+**预解析机制**：
+```python
+# 在创建 ArgumentParser 之前预解析 --language
+if '--language' in sys.argv:
+    try:
+        lang_index = sys.argv.index('--language')
+        if lang_index + 1 < len(sys.argv):
+            _default_language = sys.argv[lang_index + 1]
+    except (ValueError, IndexError):
+        pass
+
+# 设置语言后再创建 parser（确保帮助文本使用正确语言）
+set_locale(_default_language)
+parser = argparse.ArgumentParser(...)
+```
+
+#### 7.4.2 API 多语言参数
+
+**请求模型**：
+```python
+class GenerateRequest(BaseModel):
+    task_id: str
+    voice: Optional[str] = None
+    language: Optional[str] = None  # 界面语言
+```
+
+**路由处理**：
+```python
+@app.post("/generate")
+async def generate_audio(request: GenerateRequest):
+    # 设置语言
+    if request.language:
+        _i18n_module.set_locale(request.language)
+
+    # 业务逻辑...
+```
+
+### 7.5 添加新语言
+
+**步骤**：
+
+1. **创建翻译文件**：
+   ```bash
+   # 项目级
+   cp ga_birds/Langues/en_US.json ga_birds/Langues/ja_JP.json
+
+   # 工具级
+   cp utils/try_tts/langues/en_US.json utils/try_tts/langues/ja_JP.json
+   ```
+
+2. **翻译所有键值对**：
+   ```json
+   {
+     "common": {
+       "success": "成功する",
+       "failed": "失敗"
+     }
+   }
+   ```
+
+3. **更新参数选项**：
+   ```python
+   # CLI
+   parser.add_argument(
+       '--language',
+       choices=['en_US', 'zh_CN', 'ja_JP'],  # 添加新语言
+       help=t('cli.help.language')
+   )
+
+   # API
+   class GenerateRequest(BaseModel):
+       language: Optional[str] = None  # 支持 en_US, zh_CN, ja_JP
+   ```
+
+4. **更新文档**：
+   - 更新 `docs/MULTILINGUAL.md`
+   - 更新 `.env` 配置说明
+
+---
+
+## 8. 业务流程规范
+
+### 8.1 单角色配音流程
 
 ```python
 # 1. 读取文件
@@ -458,7 +893,7 @@ for chapter in chapters:
     )
 ```
 
-### 7.2 多角色配音流程
+### 8.2 多角色配音流程
 
 ```python
 # 1-2. 同单角色（读取文件、章节拆分）
@@ -505,9 +940,9 @@ for chapter in chapters:
 
 ---
 
-## 8. 测试规范
+## 9. 测试规范
 
-### 8.1 单元测试
+### 9.1 单元测试
 
 **位置**：`tests/`
 
@@ -531,7 +966,7 @@ class TestChapterProcessor:
 python -m pytest tests/ -v --tb=short
 ```
 
-### 8.2 集成测试
+### 9.2 集成测试
 
 **实际功能测试**：
 ```bash
@@ -546,9 +981,9 @@ bash cli.sh -i debug/test.txt --multi-voice true \
 
 ---
 
-## 9. 常见问题与解决方案
+## 10. 常见问题与解决方案
 
-### 9.1 多角色配音内容不完整
+### 10.1 多角色配音内容不完整
 
 **原因**：LLM 输出 token 限制导致 JSON 输出被截断
 
@@ -556,14 +991,14 @@ bash cli.sh -i debug/test.txt --multi-voice true \
 - `DialogueParser` 自动计算输出限制：`max(4096, 输入长度 * 4 / 3)`
 - 支持分块处理：`DIALOGUE_CHUNK_SIZE=3000`
 
-### 9.2 音频有破音
+### 10.2 音频有破音
 
 **原因**：多角色模式合并音频时未指定比特率
 
 **解决方案**：
 - `AudioMerger` 使用配置的比特率：`OUTPUT_BITRATE=192`
 
-### 9.3 Edge TTS 请求失败
+### 10.3 Edge TTS 请求失败
 
 **原因**：请求频率过高被限流
 
@@ -573,23 +1008,25 @@ bash cli.sh -i debug/test.txt --multi-voice true \
 
 ---
 
-## 10. 版本历史
+## 11. 版本历史
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
 | v1.0 | 2025-01-27 | 初始版本，定义模块结构和开发规范 |
+| v1.1 | 2025-12-01 | 新增多语言规范、参数优先级规范、命名规范 |
 
 ---
 
-## 11. 参考文档
+## 12. 参考文档
 
 - [项目通用开发规范](../.augment/rules/imported/python.md)
+- [多语言使用文档](../docs/MULTILINGUAL.md)
 - [安装指南](../INSTALL.md)
 - [README](../README.md)
 
 ---
 
 **原稿**：2025-01-27
-**更新时间**：2025-01-27
+**更新时间**：2025-12-01
 **维护者**：GA Sprite Birds 开发团队
 
