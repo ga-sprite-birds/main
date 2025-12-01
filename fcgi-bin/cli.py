@@ -29,6 +29,7 @@ _common_module = importlib.import_module(f'{_core_module_name}.Common')
 # 导入需要的类和函数
 read_text_file = _utils_module.read_text_file
 extract_pdf_text = _utils_module.extract_pdf_text
+get_unique_filename = _utils_module.get_unique_filename
 ChapterParser = _parser_module.ChapterParser
 LLMManager = _llm_module.LLMManager
 TTSManager = _audio_module.TTSManager
@@ -45,33 +46,6 @@ CharacterMerger = _character_module.CharacterMerger
 ParamManager = _common_module.ParamManager
 ChapterProcessor = _common_module.ChapterProcessor
 ChapterTextSaver = _common_module.ChapterTextSaver
-
-
-def get_unique_filename(path: Path) -> Path:
-    """
-    如果文件已存在，生成唯一的文件名（类似 Windows 重命名方式）
-
-    Args:
-        path: 原始文件路径
-
-    Returns:
-        唯一的文件路径
-    """
-    if not path.exists():
-        return path
-
-    # 分离文件名和扩展名
-    stem = path.stem
-    suffix = path.suffix
-    parent = path.parent
-
-    # 尝试添加 (1), (2), (3) ...
-    counter = 1
-    while True:
-        new_path = parent / f"{stem} ({counter}){suffix}"
-        if not new_path.exists():
-            return new_path
-        counter += 1
 
 
 async def generate_from_file(

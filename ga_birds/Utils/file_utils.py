@@ -15,6 +15,31 @@ from pypdf import PdfReader
 from loguru import logger
 
 
+def get_unique_filename(path: Path) -> Path:
+    """
+    如果文件已存在，生成唯一的文件名（类似 Windows 重命名方式）
+
+    Args:
+        path: 原始文件路径
+
+    Returns:
+        唯一的文件路径
+    """
+    if not path.exists():
+        return path
+
+    stem = path.stem
+    suffix = path.suffix
+    parent = path.parent
+
+    counter = 1
+    while True:
+        new_path = parent / f"{stem} ({counter}){suffix}"
+        if not new_path.exists():
+            return new_path
+        counter += 1
+
+
 def detect_encoding(file_path: str) -> str:
     """
     检测文件编码

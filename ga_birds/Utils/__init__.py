@@ -9,7 +9,8 @@ from .file_utils import (
     read_file,
     extract_pdf_text,
     preprocess_text,
-    clean_text_for_tts
+    clean_text_for_tts,
+    get_unique_filename
 )
 from .model_manager import ModelManager
 
@@ -20,5 +21,6 @@ __all__ = [
     "extract_pdf_text",
     "preprocess_text",
     "clean_text_for_tts",
+    "get_unique_filename",
     "ModelManager",
 ]
