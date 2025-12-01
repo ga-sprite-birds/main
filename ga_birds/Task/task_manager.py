@@ -28,6 +28,7 @@ class TaskStatus(str, Enum):
     """任务状态"""
     PENDING = "pending"  # 等待中
     PARSING = "parsing"  # 解析中
+    PARSED = "parsed"  # 已解析
     GENERATING = "generating"  # 生成中
     COMPLETED = "completed"  # 已完成
     FAILED = "failed"  # 失败

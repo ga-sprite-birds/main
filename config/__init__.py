@@ -286,6 +286,12 @@ API_CORS_ORIGINS = os.getenv('API_CORS_ORIGINS', '*').split(',')
 # 作用：限制上传文件的最大大小（MB）
 API_MAX_UPLOAD_SIZE = int(os.getenv('API_MAX_UPLOAD_SIZE', '100'))
 
+# API_UPLOAD_DIR：上传文件存储目录
+# 作用：指定 API 上传文件的存储位置
+# 说明：此配置仅供 API 内部使用，不暴露给用户
+# 默认：./uploads
+API_UPLOAD_DIR = os.getenv('API_UPLOAD_DIR', './uploads')
+
 # ========== 任务配置 ==========
 
 # TASK_QUEUE_TYPE：任务队列类型

@@ -81,9 +81,9 @@ def test_generate_without_parse(sample_text_file):
         "/generate",
         json={"task_id": task_id}
     )
-    
+
     assert generate_response.status_code == 400
-    assert "detail" in response.json()
+    assert "detail" in generate_response.json()
 
 
 @pytest.mark.unit

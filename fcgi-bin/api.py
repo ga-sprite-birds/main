@@ -145,15 +145,15 @@ async def upload_file(
             if not os.path.exists(file_path):
                 raise HTTPException(status_code=404, detail=f"文件不存在: {file_path}")
         elif file:
-            # 保存上传的文件
-            upload_dir = Path("./uploads")
+            # 保存上传的文件（使用配置的上传目录）
+            upload_dir = Path(config.API_UPLOAD_DIR)
             upload_dir.mkdir(parents=True, exist_ok=True)
-            
+
             file_path = upload_dir / file.filename
             with open(file_path, "wb") as f:
                 content = await file.read()
                 f.write(content)
-            
+
             logger.info(f"文件上传成功: {file_path}")
         else:
             raise HTTPException(status_code=400, detail="必须提供文件或路径")
@@ -173,6 +173,9 @@ async def upload_file(
             message=f"文件上传成功，任务 ID: {task_id}"
         )
     
+    except HTTPException:
+        # 重新抛出 HTTPException，保持原有状态码
+        raise
     except Exception as e:
         logger.error(f"文件上传失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -214,19 +217,19 @@ async def parse_text(request: ParseRequest):
             text = read_text_file(file_path)
         
         # 文本预处理
-        if settings.text_preprocessing.enabled:
+        if config.TEXT_PREPROCESSING_ENABLED:
             text = preprocess_text(
                 text,
-                remove_extra_newlines=settings.text_preprocessing.remove_extra_newlines,
-                remove_headers_footers=settings.text_preprocessing.remove_headers_footers,
-                fix_pdf_linebreaks=settings.text_preprocessing.fix_pdf_linebreaks
+                remove_extra_newlines=True,
+                remove_headers_footers=True,
+                fix_pdf_linebreaks=True
             )
-        
+
         # 章节拆分
         parser = ChapterParser(
-            regex_patterns=settings.chapter.regex_patterns,
-            min_length=settings.chapter.min_length,
-            keep_title=settings.chapter.keep_title
+            regex_patterns=config.CHAPTER_REGEX_PATTERNS,
+            min_length=config.CHAPTER_MIN_LENGTH,
+            keep_title=config.CHAPTER_KEEP_TITLE
         )
         chapters = parser.parse(text)
         
@@ -251,15 +254,21 @@ async def parse_text(request: ParseRequest):
             }
             for ch in chapters
         ]
-        
+
+        # 更新任务状态为已解析
+        task_manager.update_task_status(request.task_id, TaskStatus.PARSED)
+
         logger.info(f"任务 {request.task_id} 解析完成，共 {len(chapters)} 章")
-        
+
         return TaskResponse(
             task_id=request.task_id,
             status="parsed",
             message=f"解析完成，共 {len(chapters)} 章"
         )
     
+    except HTTPException:
+        # 重新抛出 HTTPException，保持原有状态码
+        raise
     except Exception as e:
         logger.error(f"文本解析失败: {e}")
         task_manager.update_task_status(request.task_id, TaskStatus.FAILED)
@@ -309,6 +318,9 @@ async def generate_audio(request: GenerateRequest, background_tasks: BackgroundT
             message="音频生成已开始，请通过 /task/{id}/status 查询进度"
         )
     
+    except HTTPException:
+        # 重新抛出 HTTPException，保持原有状态码
+        raise
     except Exception as e:
         logger.error(f"生成音频失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -383,10 +395,10 @@ async def _generate_audio_task(
             logger.error(f"任务不存在: {task_id}")
             return
         
-        # 初始化管理器
-        llm_manager = LLMManager(settings) if enable_llm else None
-        tts_manager = TTSManager(settings)
-        audio_exporter = AudioExporter(settings)
+        # 初始化管理器（不需要传递 settings，管理器内部会使用 config）
+        llm_manager = LLMManager() if enable_llm else None
+        tts_manager = TTSManager()
+        audio_exporter = AudioExporter()
         
         # 获取章节数据
         chapters_data = task.metadata.get("chapters", [])
@@ -462,22 +474,22 @@ async def _generate_audio_task(
 
 if __name__ == "__main__":
     import uvicorn
-    
-    # 配置日志
-    from loguru import logger
-    logger.add(
-        settings.logging.file,
-        rotation=f"{settings.logging.max_file_size} MB",
-        retention=settings.logging.backup_count,
-        level=settings.logging.level,
-        format=settings.logging.format
-    )
-    
+
+    # 配置日志（使用 config 配置）
+    if config.LOG_FILE:
+        logger.add(
+            config.LOG_FILE,
+            rotation=f"{config.LOG_MAX_FILE_SIZE} MB",
+            retention=config.LOG_BACKUP_COUNT,
+            level=config.LOG_LEVEL,
+            format=config.LOG_FORMAT
+        )
+
     # 启动服务
     uvicorn.run(
         app,
-        host=settings.api.host,
-        port=settings.api.port,
-        log_level=settings.logging.level.lower()
+        host=config.API_HOST,
+        port=config.API_PORT,
+        log_level=config.LOG_LEVEL.lower()
     )
 
