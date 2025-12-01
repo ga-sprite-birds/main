@@ -226,9 +226,93 @@ uvicorn fcgi-bin.api:app --host 0.0.0.0 --port 8000
 
 ---
 
-## 4. 配音模式
+## 4. 重试机制规范
 
-### 4.1 单角色配音
+系统采用 **tenacity 库** 实现统一的重试机制，支持指数退避、错误分类、自动日志记录。
+
+### 4.1 重试工具模块
+
+**文件**：`ga_birds/Utils/retry_utils.py`
+
+**核心装饰器**：
+
+```python
+from ga_birds.Utils.retry_utils import tts_retry, llm_retry, file_io_retry
+
+# TTS 重试（最多 5 次，指数退避 1s-30s）
+@tts_retry
+async def generate_tts(text, voice):
+    return await edge_tts.communicate(text, voice)
+
+# LLM 重试（最多 3 次，指数退避 1s-10s）
+@llm_retry
+def call_llm(prompt):
+    return ollama.chat(prompt)
+
+# 文件 I/O 重试（最多 3 次，快速重试 100ms-1s）
+@file_io_retry
+def save_file(path, content):
+    with open(path, 'w') as f:
+        f.write(content)
+```
+
+### 4.2 自定义重试装饰器
+
+```python
+from ga_birds.Utils.retry_utils import create_retry_decorator
+
+# 创建自定义重试装饰器
+custom_retry = create_retry_decorator(
+    max_attempts=5,
+    base_delay=2.0,
+    max_delay=60.0,
+    retry_exceptions=(ConnectionError, TimeoutError)
+)
+
+@custom_retry
+async def my_function():
+    pass
+```
+
+### 4.3 重试策略对比
+
+| 装饰器 | 最大重试次数 | 重试间隔 | 适用场景 |
+|--------|------------|---------|---------|
+| `tts_retry` | 5 次 | 1s, 2s, 4s, 8s, 16s（最大 30s） | TTS API 请求 |
+| `llm_retry` | 3 次 | 1s, 2s, 4s（最大 10s） | LLM 本地/API 调用 |
+| `file_io_retry` | 3 次 | 100ms, 200ms, 400ms（最大 1s） | 文件读写操作 |
+
+### 4.4 错误分类
+
+```python
+from ga_birds.Utils.retry_utils import RetryableError, NonRetryableError
+
+# 可重试的错误
+raise RetryableError("Network timeout")  # 会自动重试
+
+# 不可重试的错误
+raise NonRetryableError("Invalid parameter")  # 直接抛出，不重试
+```
+
+### 4.5 使用规范
+
+**何时使用重试**：
+- ✅ 网络请求（TTS、LLM API）
+- ✅ 外部服务调用（Ollama、OpenAI）
+- ✅ 文件 I/O 操作（可能被占用）
+- ❌ 业务逻辑错误（参数错误、数据验证失败）
+- ❌ 用户输入错误
+
+**日志记录**：
+- 重试时自动记录 WARNING 级别日志
+- 包含重试次数、错误信息、等待时间
+- 示例：`WARNING - Attempt 1 failed: Connection timeout, retrying in 1.0s...`
+
+---
+
+## 5. 配音模式
+
+### 5.1 单角色配音
 
 **流程**：
 ```
@@ -247,7 +331,7 @@ uvicorn fcgi-bin.api:app --host 0.0.0.0 --port 8000
 
 ---
 
-### 4.2 多角色配音
+### 5.2 多角色配音
 
 **流程**：
 ```
@@ -270,9 +354,9 @@ uvicorn fcgi-bin.api:app --host 0.0.0.0 --port 8000
 
 ---
 
-## 5. 配置管理
+## 6. 配置管理
 
-### 5.1 配置文件
+### 6.1 配置文件
 
 **位置**：`.env`
 
@@ -324,7 +408,7 @@ OUTPUT_FORMAT=mp3
 OUTPUT_DUPLICATE_HANDLING=rename  # skip / rename / overwrite
 ```
 
-### 5.2 配置访问
+### 6.2 配置访问
 
 **方式 1：直接访问**（推荐用于简单场景）
 ```python
@@ -345,9 +429,9 @@ if ConfigManager.is_chapter_intro_outro_enabled():
 
 ---
 
-## 6. 开发规范
+## 7. 开发规范
 
-### 6.1 模块职责划分
+### 7.1 模块职责划分
 
 | 模块类型 | 职责 | 示例 | 禁止 |
 |---------|------|------|------|
@@ -355,7 +439,7 @@ if ConfigManager.is_chapter_intro_outro_enabled():
 | **Utils** | 独立工具函数 | 文件读写、Token 计算 | 依赖业务模块 |
 | **业务模块** | 具体业务逻辑 | 对话解析、角色分析、TTS 生成 | 放在 Common 中 |
 
-### 6.2 代码组织原则
+### 7.2 代码组织原则
 
 1. **Common 模块只包含基础设施**
    - ✅ 配置管理、参数管理
@@ -373,9 +457,9 @@ if ConfigManager.is_chapter_intro_outro_enabled():
    - Utils 不依赖任何业务模块
    - 业务模块可以依赖 Common 和 Utils
 
-### 6.3 命名规范
+### 7.3 命名规范
 
-#### 6.3.1 文件和目录命名
+#### 7.3.1 文件和目录命名
 
 **Python 文件**：
 - 使用小写 + 下划线：`chapter_processor.py`
@@ -391,7 +475,7 @@ if ConfigManager.is_chapter_intro_outro_enabled():
 - 示例：`en_US.json`, `zh_CN.json`
 - 位置：`<模块>/Langues/` 或 `<模块>/langues/`
 
-#### 6.3.2 代码命名
+#### 7.3.2 代码命名
 
 **类命名**：
 - 使用大驼峰：`ChapterProcessor`
@@ -419,7 +503,7 @@ if ConfigManager.is_chapter_intro_outro_enabled():
   }
   ```
 
-#### 6.3.3 参数命名
+#### 7.3.3 参数命名
 
 **CLI 参数**：
 - 长参数：使用小写 + 连字符：`--input-file`, `--log-level`
@@ -433,11 +517,11 @@ if ConfigManager.is_chapter_intro_outro_enabled():
 **环境变量**：
 - 使用大写 + 下划线：`LANGUAGE`, `TTS_VOICE`
 
-### 6.4 参数优先级规范
+### 7.4 参数优先级规范
 
 系统采用 **三级参数优先级机制**，确保灵活性和可配置性。
 
-#### 6.4.1 优先级顺序
+#### 7.4.1 优先级顺序
 
 ```
 CLI/API 参数 > 环境变量（.env） > 代码默认值
@@ -454,7 +538,7 @@ python fcgi-bin/cli.py -i input.txt --language en_US --voice zh-CN-YunxiNeural
 # 实际使用：language=en_US, voice=zh-CN-YunxiNeural
 ```
 
-#### 6.4.2 参数合并规则
+#### 7.4.2 参数合并规则
 
 | 参数类型 | CLI 参数 | API 参数 | 环境变量 | 默认值 | 说明 |
 |---------|---------|---------|---------|--------|------|
@@ -475,7 +559,7 @@ python fcgi-bin/cli.py -i input.txt --language en_US --voice zh-CN-YunxiNeural
 - `CORE_DIR` (核心模块路径)
 - `LLM_API_KEY` (LLM API 密钥)
 
-#### 6.4.3 参数处理实现
+#### 7.4.3 参数处理实现
 
 **CLI 参数处理**：
 ```python
@@ -513,7 +597,7 @@ async def generate_audio(request: GenerateRequest):
     output_path = request.output_path or config.OUTPUT_DIR
 ```
 
-### 6.5 导入规范
+### 7.5 导入规范
 
 **动态导入核心模块**：
 ```python
@@ -545,13 +629,13 @@ from ga_birds.Utils import read_file
 
 ---
 
-## 7. 多语言（i18n）规范
+## 8. 多语言（i18n）规范
 
-### 7.1 多语言架构
+### 8.1 多语言架构
 
 系统采用 **分层多语言架构**，支持项目级和工具级翻译。
 
-#### 7.1.1 项目级多语言
+#### 8.1.1 项目级多语言
 
 **位置**：`ga_birds/Langues/`
 
@@ -581,7 +665,7 @@ ga_birds/Langues/
 }
 ```
 
-#### 7.1.2 工具级多语言
+#### 8.1.2 工具级多语言
 
 **位置**：`utils/<工具名>/langues/`
 
@@ -597,9 +681,9 @@ ga_birds/Langues/
 本地翻译文件 > 项目多语言 > 硬编码默认值
 ```
 
-### 7.2 多语言实现
+### 8.2 多语言实现
 
-#### 7.2.1 项目级 i18n 实现
+#### 8.2.1 项目级 i18n 实现
 
 **文件**：`ga_birds/Common/i18n.py`
 
@@ -658,7 +742,7 @@ print(t('error.file_not_found', path='/path/to/file'))
 # 输出: 文件不存在: /path/to/file
 ```
 
-#### 7.2.2 工具级 i18n 实现
+#### 8.2.2 工具级 i18n 实现
 
 **文件**：`utils/try_tts/i18n.py`
 
@@ -677,9 +761,9 @@ class UtilsI18n:
         self._load_hardcoded()
 ```
 
-### 7.3 多语言开发规范
+### 8.3 多语言开发规范
 
-#### 7.3.1 翻译文件规范
+#### 8.3.1 翻译文件规范
 
 **文件命名**：
 - 格式：`<语言代码>.json`
@@ -700,7 +784,7 @@ class UtilsI18n:
 - 使用 Python `.format()` 语法：`{变量名}`
 - 示例：`"Found {count} voices"` → `t('voice_count', count=10)`
 
-#### 7.3.2 翻译键命名规范
+#### 8.3.2 翻译键命名规范
 
 **分类清晰**：
 ```json
@@ -733,7 +817,7 @@ class UtilsI18n:
 - ✅ `common.success` → 多处复用
 - ❌ `cli.success`, `api.success` → 重复定义
 
-#### 7.3.3 代码中使用翻译
+#### 8.3.3 代码中使用翻译
 
 **CLI 帮助文本**：
 ```python
@@ -762,9 +846,9 @@ return {
 }
 ```
 
-### 7.4 多语言参数支持
+### 8.4 多语言参数支持
 
-#### 7.4.1 CLI 多语言参数
+#### 8.4.1 CLI 多语言参数
 
 **参数定义**：
 ```python
@@ -791,7 +875,7 @@ set_locale(_default_language)
 parser = argparse.ArgumentParser(...)
 ```
 
-#### 7.4.2 API 多语言参数
+#### 8.4.2 API 多语言参数
 
 **请求模型**：
 ```python
@@ -812,7 +896,7 @@ async def generate_audio(request: GenerateRequest):
     # 业务逻辑...
 ```
 
-### 7.5 添加新语言
+### 8.5 添加新语言
 
 **步骤**：
 
@@ -855,9 +939,9 @@ async def generate_audio(request: GenerateRequest):
 
 ---
 
-## 8. 业务流程规范
+## 9. 业务流程规范
 
-### 8.1 单角色配音流程
+### 9.1 单角色配音流程
 
 ```python
 # 1. 读取文件
@@ -893,7 +977,7 @@ for chapter in chapters:
     )
 ```
 
-### 8.2 多角色配音流程
+### 9.2 多角色配音流程
 
 ```python
 # 1-2. 同单角色（读取文件、章节拆分）
@@ -940,9 +1024,9 @@ for chapter in chapters:
 
 ---
 
-## 9. 测试规范
+## 10. 测试规范
 
-### 9.1 单元测试
+### 10.1 单元测试
 
 **位置**：`tests/`
 
@@ -966,7 +1050,7 @@ class TestChapterProcessor:
 python -m pytest tests/ -v --tb=short
 ```
 
-### 9.2 集成测试
+### 10.2 集成测试
 
 **实际功能测试**：
 ```bash
@@ -981,9 +1065,9 @@ bash cli.sh -i debug/test.txt --multi-voice true \
 
 ---
 
-## 10. 常见问题与解决方案
+## 11. 常见问题与解决方案
 
-### 10.1 多角色配音内容不完整
+### 11.1 多角色配音内容不完整
 
 **原因**：LLM 输出 token 限制导致 JSON 输出被截断
 
@@ -991,14 +1075,14 @@ bash cli.sh -i debug/test.txt --multi-voice true \
 - `DialogueParser` 自动计算输出限制：`max(4096, 输入长度 * 4 / 3)`
 - 支持分块处理：`DIALOGUE_CHUNK_SIZE=3000`
 
-### 10.2 音频有破音
+### 11.2 音频有破音
 
 **原因**：多角色模式合并音频时未指定比特率
 
 **解决方案**：
 - `AudioMerger` 使用配置的比特率：`OUTPUT_BITRATE=192`
 
-### 10.3 Edge TTS 请求失败
+### 11.3 Edge TTS 请求失败
 
 **原因**：请求频率过高被限流
 
@@ -1008,7 +1092,7 @@ bash cli.sh -i debug/test.txt --multi-voice true \
 
 ---
 
-## 11. 版本历史
+## 12. 版本历史
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
@@ -1017,7 +1101,7 @@ bash cli.sh -i debug/test.txt --multi-voice true \
 
 ---
 
-## 12. 参考文档
+## 13. 参考文档
 
 - [项目通用开发规范](../.augment/rules/imported/python.md)
 - [多语言使用文档](../docs/MULTILINGUAL.md)

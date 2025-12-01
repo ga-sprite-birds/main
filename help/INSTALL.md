@@ -70,6 +70,7 @@ pip install \
     "loguru>=0.7.2" \
     "aiofiles>=23.2.1" \
     "python-dotenv>=1.0.0" \
+    "tenacity>=8.2.3" \
     "pytest>=7.4.4" \
     "pytest-asyncio>=0.23.3" \
     "black>=24.1.1" \
@@ -358,6 +359,8 @@ ollama list
 2. 切换到本地 TTS 模型
 3. 使用其他 API（阿里云、Azure）
 
+**注意**：系统已内置自动重试机制（指数退避，最多重试 5 次），大部分网络问题会自动恢复。
+
 ### 8. 内存不足
 
 如果运行本地 LLM 时内存不足：
@@ -365,6 +368,35 @@ ollama list
 1. 使用更小的模型（如 DeepSeek R1 1.5B）
 2. 切换到 API 模式
 3. 增加系统内存或使用 GPU
+
+---
+
+## 重试机制说明
+
+系统已内置智能重试机制，无需手动配置：
+
+### TTS 请求重试
+- **最大重试次数**：5 次
+- **重试策略**：指数退避（1s, 2s, 4s, 8s, 16s，最大 30s）
+- **适用场景**：网络超时、连接失败、临时故障
+
+### LLM 请求重试
+- **最大重试次数**：3 次
+- **重试策略**：指数退避（1s, 2s, 4s，最大 10s）
+- **适用场景**：本地 Ollama 连接失败、API 临时故障
+
+### 重试日志示例
+```
+WARNING - Attempt 1 failed: Connection timeout, retrying in 1.0s...
+WARNING - Attempt 2 failed: Connection timeout, retrying in 2.0s...
+INFO - TTS 生成成功（第 3 次尝试）
+```
+
+### 依赖说明
+重试机制使用 `tenacity` 库实现，已包含在 `requirements.txt` 中：
+```bash
+pip install "tenacity>=8.2.3"
+```
 
 ---
 

@@ -320,10 +320,25 @@ utils/try_tts/
 
 ## 🔄 自动重试机制
 
-当音频生成失败时，工具会自动：
-1. 等待 3 秒
-2. 重试一次
-3. 如果仍然失败，记录错误信息并继续处理下一个
+工具内置智能重试机制（基于 `tenacity` 库）：
+
+### 重试策略
+- **最大重试次数**：3 次
+- **重试间隔**：指数退避（1s, 2s, 4s，最大 10s）
+- **适用场景**：网络超时、连接失败、临时故障
+
+### 工作流程
+1. 第 1 次尝试失败 → 等待 1 秒后重试
+2. 第 2 次尝试失败 → 等待 2 秒后重试
+3. 第 3 次尝试失败 → 等待 4 秒后重试
+4. 仍然失败 → 标记为 `failed`，继续处理下一个
+
+### 日志示例
+```
+WARNING - Attempt 1 failed: Connection timeout, retrying in 1.0s...
+WARNING - Attempt 2 failed: Connection timeout, retrying in 2.0s...
+✓ 已保存: output/tts_samples/zh-CN-XiaoxiaoNeural.mp3
+```
 
 失败的音色会在 `voices.json` 和 `voices.md` 中标记为 `failed` 状态。
 

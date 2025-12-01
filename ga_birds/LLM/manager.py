@@ -16,6 +16,7 @@ from openai import OpenAI
 from loguru import logger
 
 import config
+from ga_birds.Utils.retry_utils import llm_retry
 
 # 动态导入核心模块
 _core_module_name = config.CORE_DIR.replace('-', '_')
@@ -115,13 +116,14 @@ class LLMManager:
             logger.error(f"LLM 生成失败: {e}")
             raise
 
+    @llm_retry
     def _generate_local(
         self,
         prompt: str,
         system_prompt: Optional[str] = None,
         max_tokens: Optional[int] = None
     ) -> str:
-        """使用 Ollama 本地生成"""
+        """使用 Ollama 本地生成（带自动重试）"""
         if max_tokens is None:
             max_tokens = config.LLM_MAX_TOKENS
 
@@ -207,13 +209,14 @@ class LLMManager:
         logger.debug(f"使用策略2过滤，结果长度: {len(filtered)}")
         return filtered
     
+    @llm_retry
     def _generate_api(
         self,
         prompt: str,
         system_prompt: Optional[str] = None,
         max_tokens: Optional[int] = None
     ) -> str:
-        """使用 API 生成"""
+        """使用 API 生成（带自动重试）"""
         if max_tokens is None:
             max_tokens = config.LLM_MAX_TOKENS
 

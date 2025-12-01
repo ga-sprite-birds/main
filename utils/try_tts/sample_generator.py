@@ -10,12 +10,24 @@ from pathlib import Path
 from typing import List, Dict, Optional
 from datetime import datetime
 import edge_tts
+from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log
+import logging
 
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from utils.try_tts.i18n import t
 from ga_birds.Utils import get_unique_filename
+
+logger = logging.getLogger(__name__)
+
+# TTS 重试装饰器（用于 utils 工具）
+tts_sample_retry = retry(
+    stop=stop_after_attempt(3),  # 试听工具重试 3 次即可
+    wait=wait_exponential(multiplier=1, min=1, max=10),
+    before_sleep=before_sleep_log(logger, logging.WARNING),
+    reraise=True
+)
 
 
 class SampleGenerator:
@@ -33,6 +45,7 @@ class SampleGenerator:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
     
+    @tts_sample_retry
     async def generate_sample(
         self,
         voice: str,
@@ -42,7 +55,7 @@ class SampleGenerator:
         pitch: str = "+0Hz"
     ) -> str:
         """
-        为单个音色生成试听音频
+        为单个音色生成试听音频（带自动重试）
 
         Args:
             voice: 音色名称（如 zh-CN-XiaoxiaoNeural）
@@ -113,29 +126,18 @@ class SampleGenerator:
             }
 
             try:
+                # generate_sample 已经有 @tts_sample_retry 装饰器，会自动重试
                 output_file = await self.generate_sample(voice_name, text)
                 voice_result["audio_file"] = output_file
                 voice_result["status"] = "success"
 
                 if show_progress:
                     print(f"  ✓ {t('saved')}: {output_file}")
-            except Exception as e:
+            except Exception as error:
+                # 重试 3 次后仍然失败
+                voice_result["error"] = str(error)
                 if show_progress:
-                    print(f"  ⚠ {t('retry')}")
-
-                await asyncio.sleep(3)
-
-                try:
-                    output_file = await self.generate_sample(voice_name, text)
-                    voice_result["audio_file"] = output_file
-                    voice_result["status"] = "success"
-
-                    if show_progress:
-                        print(f"  ✓ {t('retry_success')}: {output_file}")
-                except Exception as retry_error:
-                    voice_result["error"] = str(retry_error)
-                    if show_progress:
-                        print(f"  ✗ {t('failed')}: {retry_error}")
+                    print(f"  ✗ {t('failed')}: {error}")
 
             voice_results.append(voice_result)
 

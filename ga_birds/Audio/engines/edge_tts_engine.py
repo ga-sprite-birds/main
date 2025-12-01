@@ -9,6 +9,7 @@ from loguru import logger
 
 import config
 from .base import BaseTTSEngine
+from ga_birds.Utils.retry_utils import tts_retry
 
 
 class EdgeTTSEngine(BaseTTSEngine):
@@ -26,6 +27,7 @@ class EdgeTTSEngine(BaseTTSEngine):
         
         logger.info(f"Edge TTS 引擎初始化完成，默认音色: {self.default_voice}")
 
+    @tts_retry
     async def generate(
         self,
         text: str,
@@ -36,7 +38,7 @@ class EdgeTTSEngine(BaseTTSEngine):
         pitch: Optional[int] = None,
     ) -> str:
         """
-        使用 Edge TTS 生成音频
+        使用 Edge TTS 生成音频（带自动重试）
 
         Args:
             text: 要转换的文本
@@ -48,6 +50,9 @@ class EdgeTTSEngine(BaseTTSEngine):
 
         Returns:
             生成的音频文件路径
+
+        Raises:
+            Exception: TTS 生成失败（已重试 5 次）
         """
         # 使用传入参数或默认值
         voice = voice or self.default_voice
@@ -70,7 +75,7 @@ class EdgeTTSEngine(BaseTTSEngine):
             pitch=self._format_pitch(pitch),
         )
 
-        # 生成音频文件
+        # 生成音频文件（如果失败会自动重试）
         await communicate.save(str(output_file))
 
         # 记录完成日志
