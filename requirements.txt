@@ -29,7 +29,8 @@ pydantic-settings>=2.1.0
 # ============================================
 chardet>=5.2.0
 pypdf>=3.17.0
-python-magic-bin>=0.4.14  # Windows 需要，Linux/Mac 使用 python-magic
+python-magic ; sys_platform != "win32"  # Linux/Mac 使用 python-magic（需系统 libmagic）
+python-magic-bin>=0.4.14 ; sys_platform == "win32"  # Windows 专用
 
 # ============================================
 # LLM 调用
