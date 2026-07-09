@@ -191,7 +191,7 @@ vim .env
 
 ```bash
 # 运行测试
-python run_test.py
+pytest
 ```
 
 ---
