@@ -1,6 +1,6 @@
 """
-文本解析模块
-负责章节拆分、文本解析等
+Text parsing module
+Responsible for chapter splitting, text parsing, etc.
 """
 
 from .chapter_parser import ChapterParser, Chapter

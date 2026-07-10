@@ -1,6 +1,6 @@
 """
-GA Sprite Birds - API 测试工具
-用于测试 API 接口的功能和完整性
+GA Sprite Birds - API test utilities
+Used to test the functionality and completeness of API endpoints
 """
 
 __version__ = "1.0.0"

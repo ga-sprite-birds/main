@@ -1,6 +1,6 @@
 """
-LLM 处理模块
-支持本地（Ollama）和 API 调用
+LLM processing module
+Supports local (Ollama) and API calls
 """
 
 from .manager import LLMManager

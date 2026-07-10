@@ -1,6 +1,6 @@
 """
-试听音频生成器
-为指定音色生成试听音频文件
+Audition audio generator
+Generates audition audio files for specified voices
 """
 
 import asyncio
@@ -21,9 +21,9 @@ from ga_birds.Utils import get_unique_filename
 
 logger = logging.getLogger(__name__)
 
-# TTS 重试装饰器（用于 utils 工具）
+# TTS retry decorator (for utils tooling)
 tts_sample_retry = retry(
-    stop=stop_after_attempt(3),  # 试听工具重试 3 次即可
+    stop=stop_after_attempt(3),  # 3 retries are enough for the audition tool
     wait=wait_exponential(multiplier=1, min=1, max=10),
     before_sleep=before_sleep_log(logger, logging.WARNING),
     reraise=True
@@ -31,16 +31,16 @@ tts_sample_retry = retry(
 
 
 class SampleGenerator:
-    """试听音频生成器"""
+    """Audition audio generator"""
     
     DEFAULT_TEXT = "你好，我是微软语音合成服务。这是一段试听音频，用于测试音色效果。"
     
     def __init__(self, output_dir: str = "./output/tts_samples"):
         """
-        初始化试听音频生成器
+        Initialize the audition audio generator
         
         Args:
-            output_dir: 输出目录
+            output_dir: output directory
         """
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -55,17 +55,17 @@ class SampleGenerator:
         pitch: str = "+0Hz"
     ) -> str:
         """
-        为单个音色生成试听音频（带自动重试）
+        Generate audition audio for a single voice (with automatic retry)
 
         Args:
-            voice: 音色名称（如 zh-CN-XiaoxiaoNeural）
-            text: 试听文本（None 则使用默认文本）
-            rate: 语速（如 "+0%"）
-            volume: 音量（如 "+0%"）
-            pitch: 音调（如 "+0Hz"）
+            voice: voice name (e.g. zh-CN-XiaoxiaoNeural)
+            text: audition text (uses the default text if None)
+            rate: speech rate (e.g. "+0%")
+            volume: volume (e.g. "+0%")
+            pitch: pitch (e.g. "+0Hz")
 
         Returns:
-            生成的音频文件路径
+            path to the generated audio file
         """
         text = text or self.DEFAULT_TEXT
 
@@ -93,17 +93,17 @@ class SampleGenerator:
         gender: str = "全部"
     ) -> Dict:
         """
-        批量生成试听音频
+        Batch-generate audition audio
 
         Args:
-            voices: 音色列表（从 VoiceFetcher 获取）
-            text: 试听文本（None 则使用默认文本）
-            show_progress: 是否显示进度
-            language: 筛选的语言（用于保存记录）
-            gender: 筛选的性别（用于保存记录）
+            voices: voice list (fetched from VoiceFetcher)
+            text: audition text (uses the default text if None)
+            show_progress: whether to show progress
+            language: filtered language (used for saved records)
+            gender: filtered gender (used for saved records)
 
         Returns:
-            生成结果（包含 code, msg, data）
+            generation result (containing code, msg, data)
         """
         text = text or self.DEFAULT_TEXT
         total = len(voices)
@@ -126,7 +126,7 @@ class SampleGenerator:
             }
 
             try:
-                # generate_sample 已经有 @tts_sample_retry 装饰器，会自动重试
+                # generate_sample already has the @tts_sample_retry decorator, which retries automatically
                 output_file = await self.generate_sample(voice_name, text)
                 voice_result["audio_file"] = output_file
                 voice_result["status"] = "success"
@@ -134,7 +134,7 @@ class SampleGenerator:
                 if show_progress:
                     print(f"  ✓ {t('saved')}: {output_file}")
             except Exception as error:
-                # 重试 3 次后仍然失败
+                # Still failed after 3 retries
                 voice_result["error"] = str(error)
                 if show_progress:
                     print(f"  ✗ {t('failed')}: {error}")
@@ -181,14 +181,14 @@ class SampleGenerator:
         text: Optional[str] = None
     ) -> str:
         """
-        同步方式生成单个试听音频
+        Generate a single audition audio synchronously
         
         Args:
-            voice: 音色名称
-            text: 试听文本
+            voice: voice name
+            text: audition text
             
         Returns:
-            生成的音频文件路径
+            path to the generated audio file
         """
         return asyncio.run(self.generate_sample(voice, text))
     
@@ -201,17 +201,17 @@ class SampleGenerator:
         gender: str = "全部"
     ) -> Dict:
         """
-        同步方式批量生成试听音频
+        Batch-generate audition audio synchronously
 
         Args:
-            voices: 音色列表
-            text: 试听文本
-            show_progress: 是否显示进度
-            language: 筛选的语言
-            gender: 筛选的性别
+            voices: voice list
+            text: audition text
+            show_progress: whether to show progress
+            language: filtered language
+            gender: filtered gender
 
         Returns:
-            生成结果（包含 code, msg, data）
+            generation result (containing code, msg, data)
         """
         return asyncio.run(
             self.generate_batch(voices, text, show_progress, language, gender)
@@ -219,10 +219,10 @@ class SampleGenerator:
 
     def _save_results(self, result: Dict):
         """
-        保存生成结果为 JSON 和 Markdown 文件
+        Save the generation result to JSON and Markdown files
 
         Args:
-            result: 生成结果
+            result: generation result
         """
         json_file = self.output_dir / "voices.json"
         md_file = self.output_dir / "voices.md"
@@ -234,11 +234,11 @@ class SampleGenerator:
 
     def _save_markdown(self, result: Dict, output_path: Path):
         """
-        保存结果为 Markdown 格式
+        Save the result in Markdown format
 
         Args:
-            result: 生成结果
-            output_path: 输出文件路径
+            result: generation result
+            output_path: output file path
         """
         data = result["data"]
         lines = []

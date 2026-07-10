@@ -1,5 +1,5 @@
 """
-测试上传接口
+Test the upload endpoint
 """
 
 import sys
@@ -7,11 +7,11 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-# 添加项目根目录到 Python 路径
+# Add the project root directory to the Python path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-# 动态导入 fcgi-bin.api
+# Dynamically import fcgi-bin.api
 import importlib.util
 api_path = project_root / "fcgi-bin" / "api.py"
 spec = importlib.util.spec_from_file_location("api", api_path)
@@ -24,7 +24,7 @@ client = TestClient(app)
 
 @pytest.mark.unit
 def test_upload_with_file(sample_text_file):
-    """测试文件上传"""
+    """Test file upload"""
     with open(sample_text_file, "rb") as f:
         response = client.post(
             "/upload",
@@ -34,19 +34,19 @@ def test_upload_with_file(sample_text_file):
     assert response.status_code == 200
     data = response.json()
     
-    # 验证响应结构
+    # Verify response structure
     assert "task_id" in data
     assert "status" in data
     assert "message" in data
     
-    # 验证状态
+    # Verify status
     assert data["status"] == "pending"
     assert len(data["task_id"]) > 0
 
 
 @pytest.mark.unit
 def test_upload_with_path(sample_text_file):
-    """测试本地路径上传"""
+    """Test upload via local path"""
     response = client.post(
         "/upload",
         params={"path": str(sample_text_file)}
@@ -61,7 +61,7 @@ def test_upload_with_path(sample_text_file):
 
 @pytest.mark.unit
 def test_upload_without_file_or_path():
-    """测试缺少文件和路径的错误"""
+    """Test error when both file and path are missing"""
     response = client.post("/upload")
     
     assert response.status_code == 400
@@ -70,7 +70,7 @@ def test_upload_without_file_or_path():
 
 @pytest.mark.unit
 def test_upload_with_nonexistent_path():
-    """测试不存在的文件路径"""
+    """Test a non-existent file path"""
     response = client.post(
         "/upload",
         params={"path": "/nonexistent/file.txt"}
@@ -82,7 +82,7 @@ def test_upload_with_nonexistent_path():
 
 @pytest.mark.unit
 def test_upload_with_language_en(sample_text_file):
-    """测试英语界面"""
+    """Test the English interface"""
     response = client.post(
         "/upload",
         params={
@@ -96,7 +96,7 @@ def test_upload_with_language_en(sample_text_file):
 
 @pytest.mark.unit
 def test_upload_with_language_zh(sample_text_file):
-    """测试中文界面"""
+    """Test the Chinese interface"""
     response = client.post(
         "/upload",
         params={
@@ -110,7 +110,7 @@ def test_upload_with_language_zh(sample_text_file):
 
 @pytest.mark.unit
 def test_upload_with_custom_output_path(sample_text_file):
-    """测试自定义输出路径"""
+    """Test a custom output path"""
     response = client.post(
         "/upload",
         params={

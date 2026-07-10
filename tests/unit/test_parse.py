@@ -1,5 +1,5 @@
 """
-测试解析接口
+Test the parsing endpoint
 """
 
 import sys
@@ -7,11 +7,11 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-# 添加项目根目录到 Python 路径
+# Add the project root directory to the Python path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-# 动态导入 fcgi-bin.api
+# Dynamically import fcgi-bin.api
 import importlib.util
 api_path = project_root / "fcgi-bin" / "api.py"
 spec = importlib.util.spec_from_file_location("api", api_path)
@@ -24,15 +24,15 @@ client = TestClient(app)
 
 @pytest.mark.unit
 def test_parse_success(sample_multi_chapter_file):
-    """测试解析成功"""
-    # 1. 先上传文件
+    """Test parsing succeeds"""
+    # 1. Upload the file first
     upload_response = client.post(
         "/upload",
         params={"path": str(sample_multi_chapter_file)}
     )
     task_id = upload_response.json()["task_id"]
     
-    # 2. 解析文本
+    # 2. Parse text
     parse_response = client.post(
         "/parse",
         json={"task_id": task_id}
@@ -41,19 +41,19 @@ def test_parse_success(sample_multi_chapter_file):
     assert parse_response.status_code == 200
     data = parse_response.json()
     
-    # 验证响应结构
+    # Verify response structure
     assert "task_id" in data
     assert "status" in data
     assert "message" in data
     
-    # 验证状态
+    # Verify status
     assert data["status"] == "parsed"
     assert data["task_id"] == task_id
 
 
 @pytest.mark.unit
 def test_parse_nonexistent_task():
-    """测试解析不存在的任务"""
+    """Test parsing a non-existent task"""
     response = client.post(
         "/parse",
         json={"task_id": "nonexistent_task_id"}
@@ -65,15 +65,15 @@ def test_parse_nonexistent_task():
 
 @pytest.mark.unit
 def test_parse_with_language(sample_text_file):
-    """测试多语言解析"""
-    # 上传文件
+    """Test multi-language parsing"""
+    # Upload file
     upload_response = client.post(
         "/upload",
         params={"path": str(sample_text_file)}
     )
     task_id = upload_response.json()["task_id"]
     
-    # 使用英语界面解析
+    # Parse using the English interface
     parse_response = client.post(
         "/parse",
         json={
@@ -87,15 +87,15 @@ def test_parse_with_language(sample_text_file):
 
 @pytest.mark.unit
 def test_parse_response_structure(sample_multi_chapter_file):
-    """测试解析响应结构"""
-    # 上传文件
+    """Test the parsing response structure"""
+    # Upload file
     upload_response = client.post(
         "/upload",
         params={"path": str(sample_multi_chapter_file)}
     )
     task_id = upload_response.json()["task_id"]
     
-    # 解析
+    # Parse
     parse_response = client.post(
         "/parse",
         json={"task_id": task_id}
@@ -103,7 +103,7 @@ def test_parse_response_structure(sample_multi_chapter_file):
     
     data = parse_response.json()
     
-    # 验证必需字段
+    # Verify required fields
     required_fields = ["task_id", "status", "message"]
     for field in required_fields:
         assert field in data, f"缺少必需字段: {field}"

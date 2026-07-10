@@ -116,14 +116,7 @@ python fcgi-bin/cli.py -i novel.txt --analyze-characters \
 
 #### API 使用
 
-```bash
-curl -X POST "http://localhost:8000/analyze-characters" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task_id": "abc123",
-    "mode": "auto"
-  }'
-```
+> 注意：角色分析（character analysis）当前版本仅通过 CLI 提供（`--analyze-characters`，见上方「CLI 使用」）。分析完成后会生成角色模板文件 `cache/role/novel_characters.json`，该模板可在下方的「多角色生成」API 中通过 `character_template` 参数引用。
 
 **输出**：生成角色模板文件 `cache/role/novel_characters.json`
 
@@ -415,7 +408,7 @@ curl -X POST "http://localhost:8000/upload" \
 
 ```env
 # .env 文件
-OUTPUT_DIR=./output
+OUTPUT_BASE_PATH=./output
 OUTPUT_FORMAT=mp3
 OUTPUT_BITRATE=192
 ```
@@ -424,9 +417,8 @@ OUTPUT_BITRATE=192
 
 ## 📚 参考文档
 
-- [开发规范](./development-guide.md) - 开发者必读
-- [多语言文档](../docs/MULTILINGUAL.md) - 多语言使用指南
-- [安装指南](../INSTALL.md) - 环境安装说明
+- [开发规范](./development-guide.zh.md) - 开发者必读
+- [安装指南](./INSTALL.zh.md) - 环境安装说明
 
 ---
 

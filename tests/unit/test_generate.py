@@ -1,5 +1,5 @@
 """
-测试生成接口
+Test the generation endpoint
 """
 
 import sys
@@ -7,11 +7,11 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-# 添加项目根目录到 Python 路径
+# Add the project root directory to the Python path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-# 动态导入 fcgi-bin.api
+# Dynamically import fcgi-bin.api
 import importlib.util
 api_path = project_root / "fcgi-bin" / "api.py"
 spec = importlib.util.spec_from_file_location("api", api_path)
@@ -24,18 +24,18 @@ client = TestClient(app)
 
 @pytest.mark.unit
 def test_generate_success(sample_text_file):
-    """测试生成音频请求成功"""
-    # 1. 上传文件
+    """Test that an audio generation request succeeds"""
+    # 1. Upload file
     upload_response = client.post(
         "/upload",
         params={"path": str(sample_text_file)}
     )
     task_id = upload_response.json()["task_id"]
     
-    # 2. 解析文本
+    # 2. Parse text
     client.post("/parse", json={"task_id": task_id})
     
-    # 3. 生成音频
+    # 3. Generate audio
     generate_response = client.post(
         "/generate",
         json={"task_id": task_id}
@@ -44,19 +44,19 @@ def test_generate_success(sample_text_file):
     assert generate_response.status_code == 200
     data = generate_response.json()
     
-    # 验证响应结构
+    # Verify response structure
     assert "task_id" in data
     assert "status" in data
     assert "message" in data
     
-    # 验证状态
+    # Verify status
     assert data["status"] == "generating"
     assert data["task_id"] == task_id
 
 
 @pytest.mark.unit
 def test_generate_nonexistent_task():
-    """测试生成不存在的任务"""
+    """Test generating for a non-existent task"""
     response = client.post(
         "/generate",
         json={"task_id": "nonexistent_task_id"}
@@ -68,15 +68,15 @@ def test_generate_nonexistent_task():
 
 @pytest.mark.unit
 def test_generate_without_parse(sample_text_file):
-    """测试未解析就生成"""
-    # 只上传，不解析
+    """Test generating without parsing first"""
+    # Only upload, do not parse
     upload_response = client.post(
         "/upload",
         params={"path": str(sample_text_file)}
     )
     task_id = upload_response.json()["task_id"]
     
-    # 直接生成
+    # Generate directly
     generate_response = client.post(
         "/generate",
         json={"task_id": task_id}
@@ -88,8 +88,8 @@ def test_generate_without_parse(sample_text_file):
 
 @pytest.mark.unit
 def test_generate_with_custom_voice(sample_text_file):
-    """测试自定义音色"""
-    # 上传和解析
+    """Test custom voice"""
+    # Upload and parse
     upload_response = client.post(
         "/upload",
         params={"path": str(sample_text_file)}
@@ -97,7 +97,7 @@ def test_generate_with_custom_voice(sample_text_file):
     task_id = upload_response.json()["task_id"]
     client.post("/parse", json={"task_id": task_id})
     
-    # 使用自定义音色生成
+    # Generate using a custom voice
     generate_response = client.post(
         "/generate",
         json={
@@ -111,8 +111,8 @@ def test_generate_with_custom_voice(sample_text_file):
 
 @pytest.mark.unit
 def test_generate_disable_llm(sample_text_file):
-    """测试禁用 LLM"""
-    # 上传和解析
+    """Test disabling the LLM"""
+    # Upload and parse
     upload_response = client.post(
         "/upload",
         params={"path": str(sample_text_file)}
@@ -120,7 +120,7 @@ def test_generate_disable_llm(sample_text_file):
     task_id = upload_response.json()["task_id"]
     client.post("/parse", json={"task_id": task_id})
     
-    # 禁用 LLM 生成
+    # Generate with the LLM disabled
     generate_response = client.post(
         "/generate",
         json={
@@ -134,8 +134,8 @@ def test_generate_disable_llm(sample_text_file):
 
 @pytest.mark.unit
 def test_generate_with_language(sample_text_file):
-    """测试多语言生成"""
-    # 上传和解析
+    """Test multi-language generation"""
+    # Upload and parse
     upload_response = client.post(
         "/upload",
         params={"path": str(sample_text_file)}
@@ -143,7 +143,7 @@ def test_generate_with_language(sample_text_file):
     task_id = upload_response.json()["task_id"]
     client.post("/parse", json={"task_id": task_id})
     
-    # 使用英语界面生成
+    # Generate using the English interface
     generate_response = client.post(
         "/generate",
         json={

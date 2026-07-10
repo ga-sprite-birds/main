@@ -1,6 +1,6 @@
 """
-音频合并器
-合并多个音频片段为一个完整的音频文件
+Audio merger
+Merges multiple audio segments into a single complete audio file
 """
 
 import os
@@ -23,35 +23,35 @@ class AudioMerger:
         if config.FFMPEG_PATH:
             logger.info(f"  ffmpeg PATH: {config.FFMPEG_PATH}")
 
-        logger.info("音频合并器初始化完成")
+        logger.info("Audio merger initialized")
     
     def merge_audio_files(self, audio_files: List[str], output_path: str) -> bool:
         """
-        合并多个音频文件
+        Merge multiple audio files
 
         Args:
-            audio_files: 音频文件路径列表
-            output_path: 输出文件路径
+            audio_files: list of audio file paths
+            output_path: output file path
 
         Returns:
-            是否成功
+            whether successful
         """
         try:
             from pydub import AudioSegment
 
-            logger.info(f"开始合并 {len(audio_files)} 个音频片段")
+            logger.info(f"Start merging {len(audio_files)} audio segments")
 
-            # 加载第一个音频
+            # Load the first audio
             combined = AudioSegment.from_file(audio_files[0])
 
-            # 依次合并后续音频
+            # Merge the subsequent audio files in sequence
             for i, audio_file in enumerate(audio_files[1:], start=2):
                 logger.debug(f"合并片段 {i}/{len(audio_files)}: {audio_file}")
                 segment = AudioSegment.from_file(audio_file)
                 combined += segment
 
-            # 导出合并后的音频（使用配置的比特率）
-            output_format = Path(output_path).suffix[1:]  # 去掉点号
+            # Export merged audio (using configured bitrate)
+            output_format = Path(output_path).suffix[1:]  # strip the dot
             bitrate = f"{config.OUTPUT_BITRATE}k"
             combined.export(output_path, format=output_format, bitrate=bitrate)
 
@@ -68,33 +68,33 @@ class AudioMerger:
     
     def _merge_with_ffmpeg(self, audio_files: List[str], output_path: str) -> bool:
         """
-        使用 ffmpeg 合并音频（备用方案）
+        Merge audio using ffmpeg (fallback method)
 
         Args:
-            audio_files: 音频文件路径列表
-            output_path: 输出文件路径
+            audio_files: list of audio file paths
+            output_path: output file path
 
         Returns:
-            是否成功
+            whether successful
         """
         try:
             import subprocess
 
-            # 创建文件列表
+            # Create file list
             list_file = self.temp_dir / "concat_list.txt"
             with open(list_file, 'w', encoding='utf-8') as f:
                 for audio_file in audio_files:
-                    # ffmpeg concat 需要绝对路径
+                    # ffmpeg concat requires absolute paths
                     abs_path = Path(audio_file).resolve()
                     f.write(f"file '{abs_path}'\n")
 
-            # 确定 ffmpeg 路径
+            # Determine ffmpeg path
             if config.FFMPEG_PATH:
                 ffmpeg_bin = str(Path(config.FFMPEG_PATH) / 'ffmpeg')
             else:
                 ffmpeg_bin = 'ffmpeg'
 
-            # 使用 ffmpeg concat
+            # Use ffmpeg concat
             cmd = [
                 ffmpeg_bin,
                 '-f', 'concat',
@@ -131,10 +131,10 @@ class AudioMerger:
     
     def cleanup_temp_files(self, audio_files: List[str]):
         """
-        清理临时音频文件
-        
+        Clean up temporary audio files
+
         Args:
-            audio_files: 要删除的音频文件列表
+            audio_files: list of audio files to delete
         """
         for audio_file in audio_files:
             try:

@@ -1,267 +1,267 @@
-# GA Sprite Birds 开发规范
+# GA Sprite Birds Development Guide
 
-本文档定义了 GA Sprite Birds 项目的开发标准与规范，包括模块结构、代码组织、业务流程、配置管理等核心开发规范。
+This document defines the development standards and conventions for the GA Sprite Birds project, including core development conventions such as module structure, code organization, business processes, and configuration management.
 
-**项目简介**：GA Sprite Birds 是一个智能音频朗读系统，支持将文本（小说、文章）转换为高质量音频，支持单角色和多角色配音模式。
+**Project Overview**: GA Sprite Birds is an intelligent audio narration system that converts text (novels, articles) into high-quality audio, supporting both single-voice and multi-voice narration modes.
 
 ---
 
-## 1. 项目目录结构
+## 1. Project Directory Structure
 
 ```
 ga-sprite-birds/
-├── config/                 # 配置模块（根目录）
-│   ├── __init__.py         # 配置加载器
-│   └── defaults.py         # 默认配置（如需要）
-├── fcgi-bin/               # 对外统一入口
-│   ├── api.py              # FastAPI HTTP 服务入口
-│   └── cli.py              # CLI 命令行入口
-├── ga_birds/               # 核心业务模块（CORE_DIR）
-│   ├── Common/             # 公共基础模块
-│   ├── Utils/              # 通用工具模块
-│   ├── Parser/             # 解析器模块
-│   ├── LLM/                # LLM 调用模块
-│   ├── Audio/              # 音频处理模块
-│   ├── character_analyzer/ # 角色分析模块（多角色专用）
-│   ├── Task/               # 任务管理模块（API 专用）
-│   └── Sprite/             # 精灵管理模块（API 专用）
-├── cache/                  # 缓存目录
-│   ├── audio_temp/         # 临时音频文件
-│   ├── dialogue/           # 对话解析缓存
-│   └── role/               # 角色模板缓存
-├── output/                 # 输出目录
-├── models/                 # AI 模型文件
-├── logs/                   # 日志目录
-├── tests/                  # 单元测试
-├── help/                   # 开发文档
-├── .env                    # 环境配置文件
-└── requirements.txt        # Python 依赖
+├── config/                 # Configuration module (root directory)
+│   ├── __init__.py         # Configuration loader
+│   └── defaults.py         # Default configuration (if needed)
+├── fcgi-bin/               # Unified external entry point
+│   ├── api.py              # FastAPI HTTP service entry point
+│   └── cli.py              # CLI command-line entry point
+├── ga_birds/               # Core business module (CORE_DIR)
+│   ├── Common/             # Common infrastructure module
+│   ├── Utils/              # General-purpose utilities module
+│   ├── Parser/             # Parser module
+│   ├── LLM/                # LLM invocation module
+│   ├── Audio/              # Audio processing module
+│   ├── character_analyzer/ # Character analysis module (multi-voice only)
+│   ├── Task/               # Task management module (API only)
+│   └── Sprite/             # Sprite management module (API only)
+├── cache/                  # Cache directory
+│   ├── audio_temp/         # Temporary audio files
+│   ├── dialogue/           # Dialogue parsing cache
+│   └── role/               # Character template cache
+├── output/                 # Output directory
+├── models/                 # AI model files
+├── logs/                   # Log directory
+├── tests/                  # Unit tests
+├── help/                   # Development documentation
+├── .env                    # Environment configuration file
+└── requirements.txt        # Python dependencies
 ```
 
 ---
 
-## 2. 模块分类与职责
+## 2. Module Classification and Responsibilities
 
-### 2.1 公共基础模块（Common）
+### 2.1 Common Infrastructure Module (Common)
 
-**位置**：`ga_birds/Common/`
+**Location**: `ga_birds/Common/`
 
-**职责**：提供 CLI 和 API 共用的基础设施，**不包含业务逻辑**。
+**Responsibility**: Provides the infrastructure shared by both the CLI and the API, and **does not contain business logic**.
 
-**包含模块**：
+**Included modules**:
 
-| 模块 | 文件 | 职责 | 使用场景 |
-|------|------|------|----------|
-| ConfigManager | `config_manager.py` | 配置管理封装 | 所有模块读取配置 |
-| ParamManager | `param_manager.py` | 参数合并与验证 | CLI/API 参数处理 |
-| ChapterProcessor | `chapter_processor.py` | 片头片尾处理 | 单角色/多角色通用 |
-| ChapterTextSaver | `text_saver.py` | 文本保存 | 单角色/多角色通用 |
+| Module | File | Responsibility | Usage Scenario |
+|--------|------|----------------|----------------|
+| ConfigManager | `config_manager.py` | Configuration management wrapper | All modules reading configuration |
+| ParamManager | `param_manager.py` | Parameter merging and validation | CLI/API parameter handling |
+| ChapterProcessor | `chapter_processor.py` | Intro/outro handling | Common to single-voice/multi-voice |
+| ChapterTextSaver | `text_saver.py` | Text saving | Common to single-voice/multi-voice |
 
-**设计原则**：
-- ✅ 只包含跨业务共享的基础设施
-- ❌ 不包含业务逻辑（如对话解析、角色分析）
-- ✅ 单角色和多角色模式都能使用
-- ✅ 无外部业务依赖
+**Design principles**:
+- ✅ Only contains cross-business shared infrastructure
+- ❌ Does not contain business logic (e.g., dialogue parsing, character analysis)
+- ✅ Usable in both single-voice and multi-voice modes
+- ✅ No external business dependencies
 
-**示例**：
+**Example**:
 ```python
 from ga_birds.Common import ChapterProcessor, ChapterTextSaver
 
-# 准备片头片尾（单角色/多角色通用）
-intro, outro = ChapterProcessor.prepare_intro_outro(1, "第一章")
+# Prepare intro/outro (common to single-voice/multi-voice)
+intro, outro = ChapterProcessor.prepare_intro_outro(1, "Chapter 1")
 
-# 保存文本（单角色模式）
+# Save text (single-voice mode)
 ChapterTextSaver.save_single_voice_text(audio_path, content)
 ```
 
 ---
 
-### 2.2 工具模块（Utils）
+### 2.2 Utilities Module (Utils)
 
-**位置**：`ga_birds/Utils/`
+**Location**: `ga_birds/Utils/`
 
-**职责**：提供独立的工具函数，**无业务逻辑**。
+**Responsibility**: Provides standalone utility functions, **with no business logic**.
 
-**包含模块**：
+**Included modules**:
 
-| 模块 | 文件 | 职责 |
-|------|------|------|
-| 文件处理 | `file_utils.py` | 文件读写、编码检测、文本预处理 |
-| Token 工具 | `token_utils.py` | Token 计算、文本智能分段 |
-| 模型管理 | `model_manager.py` | AI 模型下载与管理 |
+| Module | File | Responsibility |
+|--------|------|----------------|
+| File handling | `file_utils.py` | File read/write, encoding detection, text preprocessing |
+| Token utilities | `token_utils.py` | Token calculation, intelligent text segmentation |
+| Model management | `model_manager.py` | AI model download and management |
 
-**设计原则**：
-- ✅ 纯工具函数，无状态
-- ✅ 可独立测试
-- ❌ 不依赖业务模块
+**Design principles**:
+- ✅ Pure utility functions, stateless
+- ✅ Independently testable
+- ❌ Does not depend on business modules
 
-**示例**：
+**Example**:
 ```python
 from ga_birds.Utils import read_file, preprocess_text
 
-# 智能读取文件（自动识别 .txt/.pdf）
+# Intelligently read a file (auto-detects .txt/.pdf)
 content = read_file("novel.txt")
 
-# 文本预处理
+# Text preprocessing
 content = preprocess_text(content, remove_extra_newlines=True)
 ```
 
 ---
 
-### 2.3 业务模块
+### 2.3 Business Modules
 
-#### Parser（解析器）
+#### Parser
 
-**位置**：`ga_birds/Parser/`
+**Location**: `ga_birds/Parser/`
 
-**职责**：章节拆分
+**Responsibility**: Chapter splitting
 
-| 模块 | 文件 | 职责 |
-|------|------|------|
-| ChapterParser | `chapter_parser.py` | 使用正则表达式识别章节标题，拆分章节 |
-
----
-
-#### LLM（大语言模型）
-
-**位置**：`ga_birds/LLM/`
-
-**职责**：LLM 调用与文本处理
-
-| 模块 | 文件 | 职责 |
-|------|------|------|
-| LLMManager | `manager.py` | 统一管理本地（Ollama）和 API（OpenAI）模式的 LLM 调用 |
-
-**功能**：
-- 口语化处理（`colloquialize_text`）
-- 自动分段处理（超长文本）
-- 支持自定义 `max_tokens`
+| Module | File | Responsibility |
+|--------|------|----------------|
+| ChapterParser | `chapter_parser.py` | Identifies chapter titles using regular expressions and splits chapters |
 
 ---
 
-#### Audio（音频处理）
+#### LLM (Large Language Model)
 
-**位置**：`ga_birds/Audio/`
+**Location**: `ga_birds/LLM/`
 
-**职责**：TTS 生成与音频处理
+**Responsibility**: LLM invocation and text processing
 
-| 模块 | 文件 | 职责 |
-|------|------|------|
-| TTSManager | `tts_manager.py` | TTS 引擎管理（Edge TTS / 本地 TTS） |
-| AudioExporter | `audio_exporter.py` | 音频导出路径管理 |
-| AudioMerger | `audio_merger.py` | 音频合并（多角色模式） |
-| Engines | `engines/` | TTS 引擎实现 |
+| Module | File | Responsibility |
+|--------|------|----------------|
+| LLMManager | `manager.py` | Unified management of LLM invocation in local (Ollama) and API (OpenAI) modes |
+
+**Features**:
+- Colloquialization (`colloquialize_text`)
+- Automatic segmentation (for overly long text)
+- Supports custom `max_tokens`
 
 ---
 
-#### character_analyzer（角色分析）
+#### Audio
 
-**位置**：`ga_birds/character_analyzer/`
+**Location**: `ga_birds/Audio/`
 
-**职责**：多角色配音专用业务模块
+**Responsibility**: TTS generation and audio processing
 
-| 模块 | 文件 | 职责 |
-|------|------|------|
-| CharacterAnalyzer | `analyzer.py` | 从文本中提取角色信息 |
-| DialogueParser | `dialogue_parser.py` | 解析对话，识别说话人 |
-| VoiceAssigner | `voice_assigner.py` | 为角色分配音色 |
-| CharacterListParser | `character_list_parser.py` | 解析用户提供的角色列表 |
-| CharacterMerger | `character_merger.py` | 合并重复角色 |
+| Module | File | Responsibility |
+|--------|------|----------------|
+| TTSManager | `tts_manager.py` | TTS engine management (Edge TTS / local TTS) |
+| AudioExporter | `audio_exporter.py` | Audio export path management |
+| AudioMerger | `audio_merger.py` | Audio merging (multi-voice mode) |
+| Engines | `engines/` | TTS engine implementations |
 
-**重要方法**：
+---
+
+#### character_analyzer
+
+**Location**: `ga_birds/character_analyzer/`
+
+**Responsibility**: Business module dedicated to multi-voice narration
+
+| Module | File | Responsibility |
+|--------|------|----------------|
+| CharacterAnalyzer | `analyzer.py` | Extracts character information from text |
+| DialogueParser | `dialogue_parser.py` | Parses dialogue and identifies speakers |
+| VoiceAssigner | `voice_assigner.py` | Assigns voices to characters |
+| CharacterListParser | `character_list_parser.py` | Parses a user-provided character list |
+| CharacterMerger | `character_merger.py` | Merges duplicate characters |
+
+**Important methods**:
 ```python
-# DialogueParser 新增的静态方法（多角色专用）
+# DialogueParser static method added (multi-voice only)
 DialogueParser.add_intro_outro_to_segments(segments, intro, outro)
 ```
 
 ---
 
-#### Task（任务管理）
+#### Task
 
-**位置**：`ga_birds/Task/`
+**Location**: `ga_birds/Task/`
 
-**职责**：API 模式的任务队列管理
-
----
-
-#### Sprite（精灵管理）
-
-**位置**：`ga_birds/Sprite/`
-
-**职责**：API 模式的精灵资源管理
+**Responsibility**: Task queue management for API mode
 
 ---
 
-## 3. 调用方式
+#### Sprite
 
-### 3.1 CLI 模式
+**Location**: `ga_birds/Sprite/`
 
-**入口**：`fcgi-bin/cli.py`
+**Responsibility**: Sprite resource management for API mode
 
-**启动方式**：
+---
+
+## 3. Invocation Methods
+
+### 3.1 CLI Mode
+
+**Entry point**: `fcgi-bin/cli.py`
+
+**How to launch**:
 ```bash
-bash cli.sh -i <文件> [参数]
+bash cli.sh -i <file> [parameters]
 ```
 
-**特点**：
-- 命令行直接执行
-- 同步处理
-- 适合本地批量生成、调试
+**Characteristics**:
+- Runs directly from the command line
+- Synchronous processing
+- Suitable for local batch generation and debugging
 
 ---
 
-### 3.2 API 模式
+### 3.2 API Mode
 
-**入口**：`fcgi-bin/api.py`
+**Entry point**: `fcgi-bin/api.py`
 
-**启动方式**：
+**How to launch**:
 ```bash
 uvicorn fcgi-bin.api:app --host 0.0.0.0 --port 8000
 ```
 
-**特点**：
-- FastAPI HTTP 服务
-- 异步任务
-- 适合 Web 服务、远程调用
+**Characteristics**:
+- FastAPI HTTP service
+- Asynchronous tasks
+- Suitable for web services and remote calls
 
 ---
 
-## 4. 重试机制规范
+## 4. Retry Mechanism Conventions
 
-系统采用 **tenacity 库** 实现统一的重试机制，支持指数退避、错误分类、自动日志记录。
+The system uses the **tenacity library** to implement a unified retry mechanism, supporting exponential backoff, error classification, and automatic logging.
 
-### 4.1 重试工具模块
+### 4.1 Retry Utility Module
 
-**文件**：`ga_birds/Utils/retry_utils.py`
+**File**: `ga_birds/Utils/retry_utils.py`
 
-**核心装饰器**：
+**Core decorators**:
 
 ```python
 from ga_birds.Utils.retry_utils import tts_retry, llm_retry, file_io_retry
 
-# TTS 重试（最多 5 次，指数退避 1s-30s）
+# TTS retry (up to 5 times, exponential backoff 1s-30s)
 @tts_retry
 async def generate_tts(text, voice):
     return await edge_tts.communicate(text, voice)
 
-# LLM 重试（最多 3 次，指数退避 1s-10s）
+# LLM retry (up to 3 times, exponential backoff 1s-10s)
 @llm_retry
 def call_llm(prompt):
     return ollama.chat(prompt)
 
-# 文件 I/O 重试（最多 3 次，快速重试 100ms-1s）
+# File I/O retry (up to 3 times, fast retry 100ms-1s)
 @file_io_retry
 def save_file(path, content):
     with open(path, 'w') as f:
         f.write(content)
 ```
 
-### 4.2 自定义重试装饰器
+### 4.2 Custom Retry Decorators
 
 ```python
 from ga_birds.Utils.retry_utils import create_retry_decorator
 
-# 创建自定义重试装饰器
+# Create a custom retry decorator
 custom_retry = create_retry_decorator(
     max_attempts=5,
     base_delay=2.0,
@@ -274,93 +274,95 @@ async def my_function():
     pass
 ```
 
-### 4.3 重试策略对比
+### 4.3 Retry Strategy Comparison
 
-| 装饰器 | 最大重试次数 | 重试间隔 | 适用场景 |
-|--------|------------|---------|---------|
-| `tts_retry` | 5 次 | 1s, 2s, 4s, 8s, 16s（最大 30s） | TTS API 请求 |
-| `llm_retry` | 3 次 | 1s, 2s, 4s（最大 10s） | LLM 本地/API 调用 |
-| `file_io_retry` | 3 次 | 100ms, 200ms, 400ms（最大 1s） | 文件读写操作 |
+| Decorator | Max retries | Retry interval | Applicable scenario |
+|-----------|-------------|----------------|---------------------|
+| `tts_retry` | 5 times | 1s, 2s, 4s, 8s, 16s (max 30s) | TTS API requests |
+| `llm_retry` | 3 times | 1s, 2s, 4s (max 10s) | LLM local/API calls |
+| `file_io_retry` | 3 times | 100ms, 200ms, 400ms (max 1s) | File read/write operations |
 
-### 4.4 错误分类
+### 4.4 Error Classification
 
 ```python
 from ga_birds.Utils.retry_utils import RetryableError, NonRetryableError
 
-# 可重试的错误
-raise RetryableError("Network timeout")  # 会自动重试
+# Retryable error
+raise RetryableError("Network timeout")  # will be retried automatically
 
-# 不可重试的错误
-raise NonRetryableError("Invalid parameter")  # 直接抛出，不重试
+# Non-retryable error
+raise NonRetryableError("Invalid parameter")  # raised directly, not retried
 ```
 
-### 4.5 使用规范
+### 4.5 Usage Conventions
 
-**何时使用重试**：
-- ✅ 网络请求（TTS、LLM API）
-- ✅ 外部服务调用（Ollama、OpenAI）
-- ✅ 文件 I/O 操作（可能被占用）
-- ❌ 业务逻辑错误（参数错误、数据验证失败）
-- ❌ 用户输入错误
+**When to use retries**:
+- ✅ Network requests (TTS, LLM API)
+- ✅ External service calls (Ollama, OpenAI)
+- ✅ File I/O operations (may be locked)
+- ❌ Business logic errors (invalid parameters, data validation failures)
+- ❌ User input errors
 
-**日志记录**：
-- 重试时自动记录 WARNING 级别日志
-- 包含重试次数、错误信息、等待时间
-- 示例：`WARNING - Attempt 1 failed: Connection timeout, retrying in 1.0s...`
+**Logging**:
+- Automatically logs a WARNING-level message on each retry
+- Includes retry count, error message, and wait time
+- Example: `WARNING - Attempt 1 failed: Connection timeout, retrying in 1.0s...`
 
 ---
 
-## 5. 配音模式
+## 5. Narration Modes
 
-### 5.1 单角色配音
+### 5.1 Single-voice Narration
 
-**流程**：
+**Flow**:
 ```
-文本文件 
-  → 章节拆分（ChapterParser）
-  → [可选] LLM 口语化（LLMManager）
-  → 添加片头片尾（ChapterProcessor）
-  → TTS 生成音频（TTSManager）
-  → 保存文本（ChapterTextSaver）
+Text file
+  → Chapter splitting (ChapterParser)
+  → [Optional] LLM colloquialization (LLMManager)
+  → Add intro/outro (ChapterProcessor)
+  → TTS audio generation (TTSManager)
+  → Save text (ChapterTextSaver)
 ```
 
-**特点**：
-- 整章内容一次性生成
-- 使用单一音色
-- 流程简单，速度快
+**Characteristics**:
+- An entire chapter is generated at once
+- Uses a single voice
+- Simple flow, fast speed
 
 ---
 
-### 5.2 多角色配音
+### 5.2 Multi-voice Narration
 
-**流程**：
+**Flow**:
 ```
-文本文件 
-  → 章节拆分（ChapterParser）
-  → [可选] LLM 口语化（LLMManager）
-  → 对话解析（DialogueParser + LLM）
-  → 角色音色分配（VoiceAssigner）
-  → 添加片头片尾（DialogueParser.add_intro_outro_to_segments）
-  → 逐片段 TTS 生成（TTSManager）
-  → 音频合并（AudioMerger）
-  → 保存文本（ChapterTextSaver）
+Text file
+  → Chapter splitting (ChapterParser)
+  → [Optional] LLM colloquialization (LLMManager)
+  → Dialogue parsing (DialogueParser + LLM)
+  → Voice assignment (VoiceAssigner)
+  → Add intro/outro (DialogueParser.add_intro_outro_to_segments)
+  → Per-segment TTS generation (TTSManager)
+  → Audio merging (AudioMerger)
+  → Save text (ChapterTextSaver)
 ```
 
-**特点**：
-- 需要角色模板（`characters.json`）
-- 每个对话片段单独生成
-- 支持多音色
-- 流程复杂，需要 LLM 解析对话
+**Characteristics**:
+- Requires a character template (`characters.json`)
+- Each dialogue segment is generated separately
+- Supports multiple voices
+- More complex flow, requires LLM dialogue parsing
 
 ---
 
-## 6. 配置管理
+## 6. Configuration Management
 
-### 6.1 配置文件
+### 6.1 Configuration File
 
-**位置**：`.env`
+**Location**: `.env`
 
-**加载方式**：
+**Loaded by**: `config/__init__.py`
+
+**How it is loaded**:
 ```python
 from dotenv import load_dotenv
 import os
@@ -368,49 +370,49 @@ import os
 load_dotenv()
 ```
 
-**配置分类**：
+**Configuration categories**:
 
 ```env
-# ===== 核心模块路径 =====
+# ===== Core module path =====
 CORE_DIR=ga_birds
 
-# ===== 多语言配置 =====
-LANGUAGE=en_US                  # 系统语言：en_US(英语), zh_CN(简体中文)
+# ===== Multilingual configuration =====
+LANGUAGE=en_US                  # System language: en_US(English), zh_CN(Simplified Chinese), ja_JP(Japanese)
 
-# ===== TTS 配置 =====
-TTS_MODE=api                    # api（Edge TTS）/ local（本地 TTS）
-TTS_VOICE=zh-CN-XiaoxiaoNeural  # 默认音色
-TTS_RATE=1.0                    # 语速
-OUTPUT_BITRATE=192              # 输出比特率
+# ===== TTS configuration =====
+TTS_MODE=api                    # api (Edge TTS) / local (local TTS)
+TTS_VOICE=zh-CN-XiaoxiaoNeural  # Default voice
+TTS_RATE=1.0                    # Speech rate
+OUTPUT_BITRATE=192              # Output bitrate
 
-# ===== LLM 配置 =====
-LLM_MODE=api                    # api / local（Ollama）
+# ===== LLM configuration =====
+LLM_MODE=api                    # api / local (Ollama)
 LLM_API_KEY=your_key
 LLM_API_MODEL=deepseek-chat
-LLM_MAX_TOKENS=2048             # 默认输出限制
-LLM_NUM_CTX=8192                # 上下文窗口
+LLM_MAX_TOKENS=2048             # Default output limit
+LLM_NUM_CTX=8192                # Context window
 
-# ===== 对话解析配置 =====
-DIALOGUE_CHUNK_SIZE=3000        # 对话解析分块大小
-DIALOGUE_CHUNK_OVERLAP=200      # 分块重叠
+# ===== Dialogue parsing configuration =====
+DIALOGUE_CHUNK_SIZE=3000        # Dialogue parsing chunk size
+DIALOGUE_CHUNK_OVERLAP=200      # Chunk overlap
 
-# ===== 章节配置 =====
+# ===== Chapter configuration =====
 CHAPTER_REGEX_PATTERNS=["^第[0-9一二三四五六七八九十百千]+[章回节].*$"]
 CHAPTER_MIN_LENGTH=100
 CHAPTER_KEEP_TITLE=false
 CHAPTER_INTRO_OUTRO_ENABLED=true
-CHAPTER_INTRO_TEMPLATE=第{index}章开始
-CHAPTER_OUTRO_TEMPLATE=本章播讲完毕
+CHAPTER_INTRO_TEMPLATE=Chapter {index} begins
+CHAPTER_OUTRO_TEMPLATE=This chapter has finished
 
-# ===== 输出配置 =====
-OUTPUT_DIR=./output
+# ===== Output configuration =====
+OUTPUT_BASE_PATH=./output
 OUTPUT_FORMAT=mp3
 OUTPUT_DUPLICATE_HANDLING=rename  # skip / rename / overwrite
 ```
 
-### 6.2 配置访问
+### 6.2 Configuration Access
 
-**方式 1：直接访问**（推荐用于简单场景）
+**Method 1: Direct access** (recommended for simple scenarios)
 ```python
 import config
 
@@ -418,81 +420,81 @@ device = config.AI_DEVICE
 model_dir = config.MODEL_DIR
 ```
 
-**方式 2：通过 ConfigManager**（推荐用于复杂场景）
+**Method 2: Via ConfigManager** (recommended for complex scenarios)
 ```python
 from ga_birds.Common import ConfigManager
 
-# 检查功能是否启用
+# Check whether a feature is enabled
 if ConfigManager.is_chapter_intro_outro_enabled():
     intro = ConfigManager.get_chapter_intro_template()
 ```
 
 ---
 
-## 7. 开发规范
+## 7. Development Conventions
 
-### 7.1 模块职责划分
+### 7.1 Module Responsibility Allocation
 
-| 模块类型 | 职责 | 示例 | 禁止 |
-|---------|------|------|------|
-| **Common** | 公共基础设施 | 配置管理、参数管理、片头片尾 | 业务逻辑、LLM 调用 |
-| **Utils** | 独立工具函数 | 文件读写、Token 计算 | 依赖业务模块 |
-| **业务模块** | 具体业务逻辑 | 对话解析、角色分析、TTS 生成 | 放在 Common 中 |
+| Module type | Responsibility | Example | Forbidden |
+|-------------|----------------|---------|-----------|
+| **Common** | Common infrastructure | Configuration management, parameter management, intro/outro | Business logic, LLM calls |
+| **Utils** | Standalone utility functions | File read/write, token calculation | Depending on business modules |
+| **Business modules** | Specific business logic | Dialogue parsing, character analysis, TTS generation | Placing in Common |
 
-### 7.2 代码组织原则
+### 7.2 Code Organization Principles
 
-1. **Common 模块只包含基础设施**
-   - ✅ 配置管理、参数管理
-   - ✅ 单角色/多角色通用的功能
-   - ❌ 业务逻辑（如对话解析）
-   - ❌ 只在某一模式使用的功能
+1. **Common modules only contain infrastructure**
+   - ✅ Configuration management, parameter management
+   - ✅ Features common to single-voice/multi-voice
+   - ❌ Business logic (e.g., dialogue parsing)
+   - ❌ Features used only in a single mode
 
-2. **业务逻辑放在对应的业务模块**
-   - 多角色专用 → `character_analyzer/`
-   - LLM 相关 → `LLM/`
-   - 音频处理 → `Audio/`
+2. **Business logic goes in the corresponding business module**
+   - Multi-voice specific → `character_analyzer/`
+   - LLM related → `LLM/`
+   - Audio processing → `Audio/`
 
-3. **避免循环依赖**
-   - Common 不依赖业务模块
-   - Utils 不依赖任何业务模块
-   - 业务模块可以依赖 Common 和 Utils
+3. **Avoid circular dependencies**
+   - Common does not depend on business modules
+   - Utils does not depend on any business module
+   - Business modules may depend on Common and Utils
 
-### 7.3 命名规范
+### 7.3 Naming Conventions
 
-#### 7.3.1 文件和目录命名
+#### 7.3.1 File and Directory Naming
 
-**Python 文件**：
-- 使用小写 + 下划线：`chapter_processor.py`
-- 避免缩写：`manager.py` 而非 `mgr.py`
+**Python files**:
+- Use lowercase + underscores: `chapter_processor.py`
+- Avoid abbreviations: `manager.py` rather than `mgr.py`
 
-**目录命名**：
-- 核心模块目录：使用 `ga_` 前缀 + 项目名，如 `ga_birds`
-- 子模块目录：使用大驼峰，如 `Common/`, `Utils/`, `Parser/`
-- 缓存目录：使用小写 + 下划线，如 `audio_temp/`, `role/`
+**Directory naming**:
+- Core module directory: use `ga_` prefix + project name, e.g., `ga_birds`
+- Submodule directories: use PascalCase, e.g., `Common/`, `Utils/`, `Parser/`
+- Cache directories: use lowercase + underscores, e.g., `audio_temp/`, `role/`
 
-**翻译文件**：
-- 格式：`<语言代码>.json`
-- 示例：`en_US.json`, `zh_CN.json`
-- 位置：`<模块>/Langues/` 或 `<模块>/langues/`
+**Translation files**:
+- Format: `<language_code>.json`
+- Examples: `en_US.json`, `zh_CN.json`
+- Location: `<module>/Langues/` or `<module>/langues/`
 
-#### 7.3.2 代码命名
+#### 7.3.2 Code Naming
 
-**类命名**：
-- 使用大驼峰：`ChapterProcessor`
-- 管理器类：`XXXManager`
-- 解析器类：`XXXParser`
+**Class naming**:
+- Use PascalCase: `ChapterProcessor`
+- Manager classes: `XXXManager`
+- Parser classes: `XXXParser`
 
-**函数命名**：
-- 使用小写 + 下划线：`prepare_intro_outro()`
-- 布尔函数：`is_enabled()`, `has_content()`
+**Function naming**:
+- Use lowercase + underscores: `prepare_intro_outro()`
+- Boolean functions: `is_enabled()`, `has_content()`
 
-**常量命名**：
-- 使用大写 + 下划线：`MAX_TOKENS`, `DEFAULT_VOICE`
+**Constant naming**:
+- Use uppercase + underscores: `MAX_TOKENS`, `DEFAULT_VOICE`
 
-**翻译键命名**：
-- 使用点号分隔：`cli.help.input`, `common.success`
-- 分类清晰：`<模块>.<子分类>.<键名>`
-- 示例：
+**Translation key naming**:
+- Use dot-separated notation: `cli.help.input`, `common.success`
+- Clear categorization: `<module>.<subcategory>.<key>`
+- Example:
   ```json
   {
     "cli": {
@@ -503,69 +505,69 @@ if ConfigManager.is_chapter_intro_outro_enabled():
   }
   ```
 
-#### 7.3.3 参数命名
+#### 7.3.3 Parameter Naming
 
-**CLI 参数**：
-- 长参数：使用小写 + 连字符：`--input-file`, `--log-level`
-- 短参数：使用单字母：`-i`, `-o`
-- 布尔参数：使用 `--no-` 前缀表示否定：`--no-llm`
+**CLI parameters**:
+- Long parameters: use lowercase + hyphens: `--input-file`, `--log-level`
+- Short parameters: use single letters: `-i`, `-o`
+- Boolean parameters: use `--no-` prefix for negation: `--no-llm`
 
-**API 参数**：
-- 使用小写 + 下划线：`task_id`, `output_path`
-- 保持与 Python 命名一致
+**API parameters**:
+- Use lowercase + underscores: `task_id`, `output_path`
+- Keep consistent with Python naming
 
-**环境变量**：
-- 使用大写 + 下划线：`LANGUAGE`, `TTS_VOICE`
+**Environment variables**:
+- Use uppercase + underscores: `LANGUAGE`, `TTS_VOICE`
 
-### 7.4 参数优先级规范
+### 7.4 Parameter Priority Conventions
 
-系统采用 **三级参数优先级机制**，确保灵活性和可配置性。
+The system adopts a **three-tier parameter priority mechanism** to ensure flexibility and configurability.
 
-#### 7.4.1 优先级顺序
+#### 7.4.1 Priority Order
 
 ```
-CLI/API 参数 > 环境变量（.env） > 代码默认值
+CLI/API parameters > Environment variables (.env) > Code defaults
 ```
 
-**示例**：
+**Example**:
 ```bash
-# .env 文件
+# .env file
 LANGUAGE=zh_CN
 TTS_VOICE=zh-CN-XiaoxiaoNeural
 
-# CLI 参数覆盖配置
+# CLI parameters override configuration
 python fcgi-bin/cli.py -i input.txt --language en_US --voice zh-CN-YunxiNeural
-# 实际使用：language=en_US, voice=zh-CN-YunxiNeural
+# Actually used: language=en_US, voice=zh-CN-YunxiNeural
 ```
 
-#### 7.4.2 参数合并规则
+#### 7.4.2 Parameter Merging Rules
 
-| 参数类型 | CLI 参数 | API 参数 | 环境变量 | 默认值 | 说明 |
-|---------|---------|---------|---------|--------|------|
-| **必填参数** | ✅ | ✅ | ❌ | ❌ | 必须通过 CLI/API 提供 |
-| **可选参数** | ✅ | ✅ | ✅ | ✅ | 优先级：CLI/API > 环境变量 > 默认值 |
-| **系统配置** | ❌ | ❌ | ✅ | ✅ | 只能通过环境变量配置 |
+| Parameter type | CLI parameter | API parameter | Env variable | Default | Notes |
+|----------------|---------------|---------------|--------------|---------|-------|
+| **Required parameter** | ✅ | ✅ | ❌ | ❌ | Must be provided via CLI/API |
+| **Optional parameter** | ✅ | ✅ | ✅ | ✅ | Priority: CLI/API > env variable > default |
+| **System config** | ❌ | ❌ | ✅ | ✅ | Can only be configured via env variable |
 
-**必填参数示例**：
-- CLI: `-i/--input` (输入文件)
-- API: `task_id` (任务 ID)
+**Required parameter examples**:
+- CLI: `-i/--input` (input file)
+- API: `task_id` (task ID)
 
-**可选参数示例**：
-- `--language` / `language` (界面语言)
-- `--voice` / `voice` (音色)
-- `--output` / `output_path` (输出路径)
+**Optional parameter examples**:
+- `--language` / `language` (UI language)
+- `--voice` / `voice` (voice)
+- `--output` / `output_path` (output path)
 
-**系统配置示例**：
-- `CORE_DIR` (核心模块路径)
-- `LLM_API_KEY` (LLM API 密钥)
+**System config examples**:
+- `CORE_DIR` (core module path)
+- `LLM_API_KEY` (LLM API key)
 
-#### 7.4.3 参数处理实现
+#### 7.4.3 Parameter Handling Implementation
 
-**CLI 参数处理**：
+**CLI parameter handling**:
 ```python
 # fcgi-bin/cli.py
 
-# 1. 预解析 --language 参数（用于设置帮助文本语言）
+# 1. Pre-parse the --language parameter (used to set the help text language)
 if '--language' in sys.argv:
     try:
         lang_index = sys.argv.index('--language')
@@ -574,32 +576,32 @@ if '--language' in sys.argv:
     except (ValueError, IndexError):
         pass
 
-# 2. 设置多语言
+# 2. Set the locale
 _i18n_module.set_locale(_default_language)
 
-# 3. 参数合并（CLI 参数 > 配置文件）
+# 3. Merge parameters (CLI parameters > config file)
 voice = args.voice or config.TTS_VOICE
-output_dir = args.output or config.OUTPUT_DIR
+output_dir = args.output or config.OUTPUT_BASE_PATH
 ```
 
-**API 参数处理**：
+**API parameter handling**:
 ```python
 # fcgi-bin/api.py
 
 @app.post("/generate")
 async def generate_audio(request: GenerateRequest):
-    # 1. 设置语言（如果提供）
+    # 1. Set the language (if provided)
     if request.language:
         _i18n_module.set_locale(request.language)
 
-    # 2. 参数合并（API 参数 > 配置文件）
+    # 2. Merge parameters (API parameters > config file)
     voice = request.voice or config.TTS_VOICE
-    output_path = request.output_path or config.OUTPUT_DIR
+    output_path = request.output_path or config.OUTPUT_BASE_PATH
 ```
 
-### 7.5 导入规范
+### 7.5 Import Conventions
 
-**动态导入核心模块**：
+**Dynamically import the core module**:
 ```python
 import importlib
 import config
@@ -608,47 +610,47 @@ _core_module_name = config.CORE_DIR.replace('-', '_')
 _utils_module = importlib.import_module(f'{_core_module_name}.Utils')
 ```
 
-**标准导入顺序**：
+**Standard import order**:
 ```python
-# 1. 标准库
+# 1. Standard library
 import os
 import json
 from pathlib import Path
 
-# 2. 第三方库
+# 2. Third-party libraries
 from loguru import logger
 from fastapi import FastAPI
 
-# 3. 项目配置
+# 3. Project configuration
 import config
 
-# 4. 项目模块
+# 4. Project modules
 from ga_birds.Common import ChapterProcessor
 from ga_birds.Utils import read_file
 ```
 
 ---
 
-## 8. 多语言（i18n）规范
+## 8. Internationalization (i18n) Conventions
 
-### 8.1 多语言架构
+### 8.1 Internationalization Architecture
 
-系统采用 **分层多语言架构**，支持项目级和工具级翻译。
+The system adopts a **layered internationalization architecture**, supporting both project-level and utility-level translations.
 
-#### 8.1.1 项目级多语言
+#### 8.1.1 Project-level Internationalization
 
-**位置**：`ga_birds/Langues/`
+**Location**: `ga_birds/Langues/`
 
-**职责**：核心项目的翻译（CLI、API、业务逻辑）
+**Responsibility**: Translations for the core project (CLI, API, business logic)
 
-**文件结构**：
+**File structure**:
 ```
 ga_birds/Langues/
-├── en_US.json          # 英语翻译
-└── zh_CN.json          # 简体中文翻译
+├── en_US.json          # English translation
+└── zh_CN.json          # Simplified Chinese translation
 ```
 
-**翻译文件示例**：
+**Translation file example**:
 ```json
 {
   "common": {
@@ -665,29 +667,29 @@ ga_birds/Langues/
 }
 ```
 
-#### 8.1.2 工具级多语言
+#### 8.1.2 Utility-level Internationalization
 
-**位置**：`utils/<工具名>/langues/`
+**Location**: `utils/<tool_name>/langues/`
 
-**职责**：独立工具的翻译（如 `utils/try_tts/`）
+**Responsibility**: Translations for standalone tools (e.g., `utils/try_tts/`)
 
-**特点**：
-- ✅ 完全独立，不依赖项目翻译
-- ✅ 可作为第三方工具单独使用
-- ✅ 支持三级翻译回退机制
+**Characteristics**:
+- ✅ Fully independent, does not depend on project translations
+- ✅ Can be used standalone as a third-party tool
+- ✅ Supports a three-tier translation fallback mechanism
 
-**翻译优先级**：
+**Translation priority**:
 ```
-本地翻译文件 > 项目多语言 > 硬编码默认值
+Local translation file > Project internationalization > Hardcoded default value
 ```
 
-### 8.2 多语言实现
+### 8.2 Internationalization Implementation
 
-#### 8.2.1 项目级 i18n 实现
+#### 8.2.1 Project-level i18n Implementation
 
-**文件**：`ga_birds/Common/i18n.py`
+**File**: `ga_birds/Common/i18n.py`
 
-**核心功能**：
+**Core functionality**:
 ```python
 class I18n:
     def __init__(self, locale: str = "en_US"):
@@ -696,7 +698,7 @@ class I18n:
         self._load_translations()
 
     def t(self, key: str, **kwargs) -> str:
-        """翻译函数，支持点号分隔的键和占位符"""
+        """Translation function, supports dot-separated keys and placeholders"""
         keys = key.split('.')
         text = self.translations
         for k in keys:
@@ -710,94 +712,94 @@ class I18n:
             return text.format(**kwargs) if kwargs else text
         return str(text)
 
-# 全局单例
+# Global singleton
 _i18n = None
 
 def t(key: str, **kwargs) -> str:
-    """全局翻译函数"""
+    """Global translation function"""
     global _i18n
     if _i18n is None:
         _i18n = I18n()
     return _i18n.t(key, **kwargs)
 
 def set_locale(locale: str):
-    """设置语言"""
+    """Set the language"""
     global _i18n
     _i18n = I18n(locale)
 ```
 
-**使用方式**：
+**Usage**:
 ```python
 from ga_birds.Common.i18n import t, set_locale
 
-# 设置语言
+# Set the language
 set_locale("zh_CN")
 
-# 使用翻译
-print(t('common.success'))  # 输出: 成功
-print(t('cli.help.input'))  # 输出: 输入文件路径（支持 .txt, .pdf）
+# Use translations
+print(t('common.success'))  # Output: 成功
+print(t('cli.help.input'))  # Output: 输入文件路径（支持 .txt, .pdf）
 
-# 使用占位符
+# Use placeholders
 print(t('error.file_not_found', path='/path/to/file'))
-# 输出: 文件不存在: /path/to/file
+# Output: 文件不存在: /path/to/file
 ```
 
-#### 8.2.2 工具级 i18n 实现
+#### 8.2.2 Utility-level i18n Implementation
 
-**文件**：`utils/try_tts/i18n.py`
+**File**: `utils/try_tts/i18n.py`
 
-**三级回退机制**：
+**Three-tier fallback mechanism**:
 ```python
 class UtilsI18n:
     def _load_translations(self):
-        """加载翻译（优先级：本地 > 项目 > 硬编码）"""
-        # 1. 优先使用本地翻译文件（工具自己的翻译）
+        """Load translations (priority: local > project > hardcoded)"""
+        # 1. Prefer local translation files (the tool's own translations)
         if self._try_load_from_local():
             return
-        # 2. 其次尝试项目多语言（如果工具被集成到项目中）
+        # 2. Then try project internationalization (if the tool is integrated into the project)
         if self._try_load_from_project():
             return
-        # 3. 最后使用硬编码默认翻译
+        # 3. Finally use hardcoded default translations
         self._load_hardcoded()
 ```
 
-### 8.3 多语言开发规范
+### 8.3 Internationalization Development Conventions
 
-#### 8.3.1 翻译文件规范
+#### 8.3.1 Translation File Conventions
 
-**文件命名**：
-- 格式：`<语言代码>.json`
-- 语言代码使用下划线：`en_US`, `zh_CN`（不是 `en-US`）
+**File naming**:
+- Format: `<language_code>.json`
+- Language code uses underscores: `en_US`, `zh_CN` (not `en-US`)
 
-**JSON 结构**：
+**JSON structure**:
 ```json
 {
-  "模块名": {
-    "子分类": {
-      "键名": "翻译文本"
+  "module_name": {
+    "subcategory": {
+      "key": "translation text"
     }
   }
 }
 ```
 
-**占位符规范**：
-- 使用 Python `.format()` 语法：`{变量名}`
-- 示例：`"Found {count} voices"` → `t('voice_count', count=10)`
+**Placeholder conventions**:
+- Use Python `.format()` syntax: `{variable_name}`
+- Example: `"Found {count} voices"` → `t('voice_count', count=10)`
 
-#### 8.3.2 翻译键命名规范
+#### 8.3.2 Translation Key Naming Conventions
 
-**分类清晰**：
+**Clear categorization**:
 ```json
 {
-  "common": {},      // 通用翻译
-  "cli": {},         // CLI 相关
-  "api": {},         // API 相关
-  "error": {},       // 错误消息
-  "help": {}         // 帮助文本
+  "common": {},      // General translations
+  "cli": {},         // CLI related
+  "api": {},         // API related
+  "error": {},       // Error messages
+  "help": {}         // Help text
 }
 ```
 
-**层级合理**：
+**Reasonable hierarchy**:
 ```json
 {
   "cli": {
@@ -813,13 +815,13 @@ class UtilsI18n:
 }
 ```
 
-**避免重复**：
-- ✅ `common.success` → 多处复用
-- ❌ `cli.success`, `api.success` → 重复定义
+**Avoid duplication**:
+- ✅ `common.success` → reused in multiple places
+- ❌ `cli.success`, `api.success` → duplicated definitions
 
-#### 8.3.3 代码中使用翻译
+#### 8.3.3 Using Translations in Code
 
-**CLI 帮助文本**：
+**CLI help text**:
 ```python
 parser = argparse.ArgumentParser(
     description=t('cli.description'),
@@ -832,13 +834,13 @@ parser.add_argument(
 )
 ```
 
-**日志消息**：
+**Log messages**:
 ```python
 logger.info(t('processing.start', file=input_file))
 logger.error(t('error.file_not_found', path=file_path))
 ```
 
-**API 响应**：
+**API response**:
 ```python
 return {
     "status": "success",
@@ -846,11 +848,11 @@ return {
 }
 ```
 
-### 8.4 多语言参数支持
+### 8.4 Internationalization Parameter Support
 
-#### 8.4.1 CLI 多语言参数
+#### 8.4.1 CLI Internationalization Parameter
 
-**参数定义**：
+**Parameter definition**:
 ```python
 parser.add_argument(
     '--language',
@@ -859,9 +861,9 @@ parser.add_argument(
 )
 ```
 
-**预解析机制**：
+**Pre-parsing mechanism**:
 ```python
-# 在创建 ArgumentParser 之前预解析 --language
+# Pre-parse --language before creating the ArgumentParser
 if '--language' in sys.argv:
     try:
         lang_index = sys.argv.index('--language')
@@ -870,46 +872,46 @@ if '--language' in sys.argv:
     except (ValueError, IndexError):
         pass
 
-# 设置语言后再创建 parser（确保帮助文本使用正确语言）
+# Set the language before creating the parser (ensures the help text uses the correct language)
 set_locale(_default_language)
 parser = argparse.ArgumentParser(...)
 ```
 
-#### 8.4.2 API 多语言参数
+#### 8.4.2 API Internationalization Parameter
 
-**请求模型**：
+**Request model**:
 ```python
 class GenerateRequest(BaseModel):
     task_id: str
     voice: Optional[str] = None
-    language: Optional[str] = None  # 界面语言
+    language: Optional[str] = None  # UI language
 ```
 
-**路由处理**：
+**Route handling**:
 ```python
 @app.post("/generate")
 async def generate_audio(request: GenerateRequest):
-    # 设置语言
+    # Set the language
     if request.language:
         _i18n_module.set_locale(request.language)
 
-    # 业务逻辑...
+    # Business logic...
 ```
 
-### 8.5 添加新语言
+### 8.5 Adding a New Language
 
-**步骤**：
+**Steps**:
 
-1. **创建翻译文件**：
+1. **Create the translation file**:
    ```bash
-   # 项目级
+   # Project level
    cp ga_birds/Langues/en_US.json ga_birds/Langues/ja_JP.json
 
-   # 工具级
+   # Utility level
    cp utils/try_tts/langues/en_US.json utils/try_tts/langues/ja_JP.json
    ```
 
-2. **翻译所有键值对**：
+2. **Translate all key-value pairs**:
    ```json
    {
      "common": {
@@ -919,45 +921,45 @@ async def generate_audio(request: GenerateRequest):
    }
    ```
 
-3. **更新参数选项**：
+3. **Update the parameter options**:
    ```python
    # CLI
    parser.add_argument(
        '--language',
-       choices=['en_US', 'zh_CN', 'ja_JP'],  # 添加新语言
+       choices=['en_US', 'zh_CN', 'ja_JP'],  # add the new language
        help=t('cli.help.language')
    )
 
    # API
    class GenerateRequest(BaseModel):
-       language: Optional[str] = None  # 支持 en_US, zh_CN, ja_JP
+       language: Optional[str] = None  # supports en_US, zh_CN, ja_JP
    ```
 
-4. **更新文档**：
-   - 更新 `docs/MULTILINGUAL.md`
-   - 更新 `.env` 配置说明
+4. **Update the documentation**:
+   - Update `docs/MULTILINGUAL.md`
+   - Update the `.env` configuration description
 
 ---
 
-## 9. 业务流程规范
+## 9. Business Process Conventions
 
-### 9.1 单角色配音流程
+### 9.1 Single-voice Narration Flow
 
 ```python
-# 1. 读取文件
+# 1. Read the file
 content = read_file(input_file)
 
-# 2. 章节拆分
+# 2. Split into chapters
 parser = ChapterParser()
 chapters = parser.parse(content)
 
-# 3. 处理每章
+# 3. Process each chapter
 for chapter in chapters:
-    # 3.1 LLM 口语化（可选）
+    # 3.1 LLM colloquialization (optional)
     if enable_llm:
         content = llm_manager.colloquialize_text(chapter.content)
 
-    # 3.2 添加片头片尾
+    # 3.2 Add intro/outro
     intro, outro = ChapterProcessor.prepare_intro_outro(
         chapter.index, chapter.title
     )
@@ -965,34 +967,34 @@ for chapter in chapters:
         content, intro, outro
     )
 
-    # 3.3 TTS 生成
+    # 3.3 TTS generation
     await tts_manager.generate_audio(
         text=final_content,
         output_path=audio_path
     )
 
-    # 3.4 保存文本
+    # 3.4 Save text
     ChapterTextSaver.save_single_voice_text(
         audio_path, final_content
     )
 ```
 
-### 9.2 多角色配音流程
+### 9.2 Multi-voice Narration Flow
 
 ```python
-# 1-2. 同单角色（读取文件、章节拆分）
+# 1-2. Same as single-voice (read file, split chapters)
 
-# 3. 处理每章
+# 3. Process each chapter
 for chapter in chapters:
-    # 3.1 LLM 口语化（可选）
+    # 3.1 LLM colloquialization (optional)
     if enable_llm:
         content = llm_manager.colloquialize_text(chapter.content)
 
-    # 3.2 对话解析
+    # 3.2 Dialogue parsing
     dialogue_parser = DialogueParser(llm_manager, characters)
     segments = dialogue_parser.parse_chapter(content, chapter.index)
 
-    # 3.3 添加片头片尾
+    # 3.3 Add intro/outro
     intro, outro = ChapterProcessor.prepare_intro_outro(
         chapter.index, chapter.title
     )
@@ -1000,7 +1002,7 @@ for chapter in chapters:
         segments, intro, outro
     )
 
-    # 3.4 逐片段 TTS 生成
+    # 3.4 Per-segment TTS generation
     temp_audio_files = []
     for segment in segments:
         voice = VoiceAssigner.get_voice_for_speaker(
@@ -1013,10 +1015,10 @@ for chapter in chapters:
         )
         temp_audio_files.append(temp_audio_path)
 
-    # 3.5 音频合并
+    # 3.5 Audio merging
     audio_merger.merge_audio_files(temp_audio_files, audio_path)
 
-    # 3.6 保存文本
+    # 3.6 Save text
     ChapterTextSaver.save_multi_voice_text(
         audio_path, segments
     )
@@ -1024,41 +1026,41 @@ for chapter in chapters:
 
 ---
 
-## 10. 测试规范
+## 10. Testing Conventions
 
-### 10.1 测试目录结构
+### 10.1 Test Directory Structure
 
 ```
 tests/
-├── unit/                    # 单元测试（FastAPI TestClient）
-│   ├── test_root.py         # 测试根路径
-│   ├── test_upload.py       # 测试上传接口
-│   ├── test_parse.py        # 测试解析接口
-│   ├── test_generate.py     # 测试生成接口
-│   └── test_task_status.py  # 测试任务状态
+├── unit/                    # Unit tests (FastAPI TestClient)
+│   ├── test_root.py         # Test root path
+│   ├── test_upload.py       # Test upload endpoint
+│   ├── test_parse.py        # Test parse endpoint
+│   ├── test_generate.py     # Test generate endpoint
+│   └── test_task_status.py  # Test task status
 │
-├── integration/             # 集成测试（httpx）
-│   └── test_full_workflow.py # 完整流程测试
+├── integration/             # Integration tests (httpx)
+│   └── test_full_workflow.py # Full workflow test
 │
-├── fixtures/                # 测试数据
+├── fixtures/                # Test data
 │   ├── sample.txt
 │   └── sample_multi_chapter.txt
 │
-├── conftest.py              # pytest 全局配置
-├── pytest.ini               # pytest 配置
-└── README.md                # 测试文档
+├── conftest.py              # pytest global config
+├── pytest.ini               # pytest config
+└── README.md                # Test docs
 ```
 
-### 10.2 单元测试（API）
+### 10.2 Unit Tests (API)
 
-**技术栈**：FastAPI TestClient
+**Tech stack**: FastAPI TestClient
 
-**特点**：
-- ✅ 不需要启动服务器
-- ✅ 测试速度快（毫秒级）
-- ✅ 适合测试单个接口逻辑
+**Characteristics**:
+- ✅ No need to start a server
+- ✅ Fast execution (millisecond level)
+- ✅ Suitable for testing individual endpoint logic
 
-**示例**：
+**Example**:
 ```python
 # tests/unit/test_upload.py
 import pytest
@@ -1069,7 +1071,7 @@ client = TestClient(app)
 
 @pytest.mark.unit
 def test_upload_with_file(sample_text_file):
-    """测试文件上传"""
+    """Test file upload"""
     with open(sample_text_file, "rb") as f:
         response = client.post(
             "/upload",
@@ -1082,28 +1084,28 @@ def test_upload_with_file(sample_text_file):
     assert data["status"] == "pending"
 ```
 
-**运行单元测试**：
+**Run unit tests**:
 ```bash
-# 运行所有单元测试
+# Run all unit tests
 pytest tests/unit -v
 
-# 运行特定测试文件
+# Run a specific test file
 pytest tests/unit/test_upload.py -v
 
-# 运行特定测试函数
+# Run a specific test function
 pytest tests/unit/test_upload.py::test_upload_with_file -v
 ```
 
-### 10.3 集成测试（API）
+### 10.3 Integration Tests (API)
 
-**技术栈**：pytest + httpx
+**Tech stack**: pytest + httpx
 
-**特点**：
-- ✅ 真实 HTTP 请求
-- ✅ 测试完整流程
-- ✅ 模拟真实用户场景
+**Characteristics**:
+- ✅ Real HTTP requests
+- ✅ Tests the complete flow
+- ✅ Simulates real user scenarios
 
-**示例**：
+**Example**:
 ```python
 # tests/integration/test_full_workflow.py
 import pytest
@@ -1112,9 +1114,9 @@ import httpx
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_complete_workflow(api_base_url, sample_text_file):
-    """测试完整工作流程"""
+    """Test the complete workflow"""
     async with httpx.AsyncClient(base_url=api_base_url) as client:
-        # 1. 上传文件
+        # 1. Upload the file
         with open(sample_text_file, "rb") as f:
             response = await client.post(
                 "/upload",
@@ -1122,77 +1124,77 @@ async def test_complete_workflow(api_base_url, sample_text_file):
             )
         task_id = response.json()["task_id"]
 
-        # 2. 解析文本
+        # 2. Parse the text
         await client.post("/parse", json={"task_id": task_id})
 
-        # 3. 生成音频
+        # 3. Generate audio
         await client.post("/generate", json={"task_id": task_id})
 
-        # 4. 查询状态
+        # 4. Query status
         response = await client.get(f"/task/{task_id}/status")
         assert response.status_code == 200
 ```
 
-**运行集成测试**：
+**Run integration tests**:
 ```bash
-# 步骤 1: 启动 API 服务器（新终端）
+# Step 1: Start the API server (new terminal)
 uvicorn fcgi-bin.api:app --host 0.0.0.0 --port 8000
 
-# 步骤 2: 运行集成测试（另一个终端）
+# Step 2: Run integration tests (another terminal)
 pytest tests/integration -v
 ```
 
-### 10.4 测试标记
+### 10.4 Test Markers
 
-使用 pytest 标记来筛选测试：
+Use pytest markers to filter tests:
 
 ```bash
-# 只运行单元测试
+# Run only unit tests
 pytest -m unit
 
-# 只运行集成测试
+# Run only integration tests
 pytest -m integration
 
-# 排除慢速测试
+# Exclude slow tests
 pytest -m "not slow"
 ```
 
-**标记定义**（`pytest.ini`）：
+**Marker definitions** (`pytest.ini`):
 ```ini
 markers =
-    unit: 单元测试（快速，不需要启动服务）
-    integration: 集成测试（需要启动服务）
-    slow: 慢速测试（超过 10 秒）
+    unit: Unit tests (fast, no server needed)
+    integration: Integration tests (requires a running server)
+    slow: Slow tests (over 10 seconds)
 ```
 
-### 10.5 测试报告
+### 10.5 Test Reports
 
-**生成 HTML 报告**：
+**Generate HTML report**:
 ```bash
-# 安装 pytest-html
+# Install pytest-html
 pip install pytest-html
 
-# 生成报告
+# Generate report
 pytest --html=report.html --self-contained-html
 ```
 
-**测试覆盖率**：
+**Test coverage**:
 ```bash
-# 安装 pytest-cov
+# Install pytest-cov
 pip install pytest-cov
 
-# 生成覆盖率报告
+# Generate coverage report
 pytest --cov=ga_birds --cov=fcgi-bin --cov-report=html
 ```
 
-### 10.6 功能测试（CLI）
+### 10.6 Functional Tests (CLI)
 
-**实际功能测试**：
+**Actual functional tests**:
 ```bash
-# 单角色模式
+# Single-voice mode
 bash cli.sh -i debug/test.txt --start 1 --end 2
 
-# 多角色模式
+# Multi-voice mode
 bash cli.sh -i debug/test.txt --multi-voice true \
   --character-template cache/role/test_characters.json \
   --start 1 --end 2
@@ -1200,52 +1202,57 @@ bash cli.sh -i debug/test.txt --multi-voice true \
 
 ---
 
-## 11. 常见问题与解决方案
+## 11. FAQ and Solutions
 
-### 11.1 多角色配音内容不完整
+### 11.1 Incomplete Multi-voice Narration Content
 
-**原因**：LLM 输出 token 限制导致 JSON 输出被截断
+**Cause**: The LLM's output token limit causes the JSON output to be truncated
 
-**解决方案**：
-- `DialogueParser` 自动计算输出限制：`max(4096, 输入长度 * 4 / 3)`
-- 支持分块处理：`DIALOGUE_CHUNK_SIZE=3000`
+**Solution**:
+- `DialogueParser` automatically calculates the output limit: `max(4096, input_length * 4 / 3)`
+- Supports chunked processing: `DIALOGUE_CHUNK_SIZE=3000`
 
-### 11.2 音频有破音
+### 11.2 Audio Has Crackling/Popping
 
-**原因**：多角色模式合并音频时未指定比特率
+**Cause**: The bitrate was not specified when merging audio in multi-voice mode
 
-**解决方案**：
-- `AudioMerger` 使用配置的比特率：`OUTPUT_BITRATE=192`
+**Solution**:
+- `AudioMerger` uses the configured bitrate: `OUTPUT_BITRATE=192`
 
-### 11.3 Edge TTS 请求失败
+### 11.3 Edge TTS Request Failed
 
-**原因**：请求频率过高被限流
+**Cause**: Rate-limited due to excessive request frequency
 
-**解决方案**：
-- 系统有自动重试机制
-- 等待一段时间后重试
-
----
-
-## 12. 版本历史
-
-| 版本 | 日期 | 说明 |
-|------|------|------|
-| v1.0 | 2025-01-27 | 初始版本，定义模块结构和开发规范 |
-| v1.1 | 2025-12-01 | 新增多语言规范、参数优先级规范、命名规范 |
+**Solution**:
+- The system has an automatic retry mechanism
+- Wait a while before retrying
 
 ---
 
-## 13. 参考文档
+## 12. Version History
 
-- [项目通用开发规范](../.augment/rules/imported/python.md)
-- [多语言使用文档](../docs/MULTILINGUAL.md)
-- [安装指南](../INSTALL.md)
+| Version | Date | Description |
+|---------|------|-------------|
+| v1.0 | 2025-01-27 | Initial version; defines module structure and development conventions |
+| v1.1 | 2025-12-01 | Added internationalization conventions, parameter priority conventions, and naming conventions |
+
+---
+
+## 13. References
+
+- [Project General Development Conventions](../.augment/rules/imported/python.md)
+- [Installation Guide](./INSTALL.md)
 - [README](../README.md)
 
 ---
 
-**原稿**：2025-01-27
-**更新时间**：2025-12-01
-**维护者**：GA Sprite Birds 开发团队
+**Original draft**: 2025-01-27
+**Last updated**: 2025-12-01
+**Maintainer**: GA Sprite Birds Development Team
 
+---
+
+**Author:** adam
+**Email:** dev@ebf.hk
+**Website:** http://ebf.cc
+**Source:** https://github.com/tiger-sprite/ga-sprite-birds

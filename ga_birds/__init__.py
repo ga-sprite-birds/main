@@ -1,5 +1,5 @@
 """
-音频朗读系统核心模块
+Core module of the audio narration system
 GA Sprite MP3 - Audio Reading System
 """
 

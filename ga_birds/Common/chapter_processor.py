@@ -1,9 +1,9 @@
 """
-GA Sprite Birds - 章节处理器
-处理片头片尾等公共逻辑（单角色/多角色通用）
+GA Sprite Birds - Chapter processor
+Handles intro/outro and other common logic (shared by single-character / multi-character modes)
 
-版本: v1.0
-开发团队: Tiger
+Version: v1.0
+Dev team: Tiger
 """
 
 from typing import Tuple, Optional
@@ -13,7 +13,7 @@ from .config_manager import ConfigManager
 
 
 class ChapterProcessor:
-    """章节处理器 - 处理片头片尾逻辑（公共基础设施）"""
+    """Chapter processor - handles intro/outro logic (common infrastructure)"""
 
     @staticmethod
     def prepare_intro_outro(
@@ -21,14 +21,14 @@ class ChapterProcessor:
         chapter_title: str
     ) -> Tuple[Optional[str], Optional[str]]:
         """
-        准备片头片尾文本
+        Prepare the intro and outro text
 
         Args:
-            chapter_index: 章节序号
-            chapter_title: 章节标题
+            chapter_index: chapter number
+            chapter_title: chapter title
 
         Returns:
-            (intro, outro) 元组，如果未启用则返回 (None, None)
+            (intro, outro) tuple, or (None, None) if not enabled
         """
         if not ConfigManager.is_chapter_intro_outro_enabled():
             logger.debug("  → 片头片尾未启用")
@@ -52,15 +52,15 @@ class ChapterProcessor:
         outro: Optional[str]
     ) -> str:
         """
-        组合内容和片头片尾（单人配音模式）
+        Combine content with intro and outro (single-character voice mode)
 
         Args:
-            content: 正文内容
-            intro: 片头文本
-            outro: 片尾文本
+            content: main body content
+            intro: intro text
+            outro: outro text
 
         Returns:
-            组合后的完整文本
+            combined full text
         """
         if intro and outro:
             return f"{intro}。\n\n{content}\n\n{outro}。"

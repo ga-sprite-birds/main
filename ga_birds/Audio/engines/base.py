@@ -1,6 +1,6 @@
 """
-TTS 引擎基类
-定义统一的 TTS 引擎接口
+TTS engine base class
+Defines a unified TTS engine interface
 """
 
 from abc import ABC, abstractmethod
@@ -10,10 +10,10 @@ from loguru import logger
 
 
 class BaseTTSEngine(ABC):
-    """TTS 引擎基类"""
+    """TTS engine base class"""
 
     def __init__(self):
-        """初始化引擎"""
+        """Initialize the engine"""
         self.engine_name = self.__class__.__name__
         logger.info(f"初始化 TTS 引擎: {self.engine_name}")
 
@@ -28,40 +28,40 @@ class BaseTTSEngine(ABC):
         pitch: Optional[int] = None,
     ) -> str:
         """
-        生成音频文件
+        Generate audio file
 
         Args:
-            text: 要转换的文本
-            output_path: 输出文件路径
-            voice: 音色/说话人（如果为 None，使用配置中的默认值）
-            rate: 语速倍数（1.0 = 正常，0.5-2.0，如果为 None，使用配置中的默认值）
-            volume: 音量倍数（1.0 = 正常，0.0-2.0，如果为 None，使用配置中的默认值）
-            pitch: 音调偏移（Hz，0 = 正常，-20 到 +20，如果为 None，使用配置中的默认值）
+            text: text to convert
+            output_path: output file path
+            voice: voice / speaker (uses configured default if None)
+            rate: speech rate multiplier (1.0 = normal, 0.5-2.0; uses configured default if None)
+            volume: volume multiplier (1.0 = normal, 0.0-2.0; uses configured default if None)
+            pitch: pitch offset (Hz, 0 = normal, -20 to +20; uses configured default if None)
 
         Returns:
-            生成的音频文件路径
+            generated audio file path
         """
         pass
 
     @abstractmethod
     def validate_setup(self) -> bool:
         """
-        验证引擎设置是否正确
+        Verify whether the engine setup is correct
 
         Returns:
-            设置有效返回 True，否则返回 False
+            True if the setup is valid, otherwise False
         """
         pass
 
     def _ensure_output_dir(self, output_path: str) -> Path:
         """
-        确保输出目录存在
+        Ensure the output directory exists
 
         Args:
-            output_path: 输出文件路径
+            output_path: output file path
 
         Returns:
-            Path 对象
+            Path object
         """
         output_file = Path(output_path)
         output_file.parent.mkdir(parents=True, exist_ok=True)
@@ -74,7 +74,7 @@ class BaseTTSEngine(ABC):
         rate: float,
         text_length: int
     ):
-        """记录生成开始日志"""
+        """Log the generation start"""
         logger.info(
             f"开始生成音频: {output_path}, "
             f"音色: {voice}, "
@@ -83,6 +83,6 @@ class BaseTTSEngine(ABC):
         )
 
     def _log_generation_complete(self, output_path: str):
-        """记录生成完成日志"""
+        """Log the generation completion"""
         logger.info(f"音频生成完成: {output_path}")
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-命令执行器 - 直接执行重试命令
+Command executor - directly executes retry commands
 """
 
 import subprocess
@@ -11,22 +11,22 @@ from pathlib import Path
 
 
 class CommandExecutor:
-    """命令执行器"""
+    """Command executor"""
     
     def __init__(self, batches: List[Tuple[int, int]], input_file: str):
         """
-        初始化命令执行器
+        Initialize the command executor
         
         Args:
-            batches: 批次列表
-            input_file: 输入文件路径
+            batches: list of batches
+            input_file: path to the input file
         """
         self.batches = batches
         self.input_file = input_file
         self.project_root = Path(__file__).parent.parent.parent
     
     def execute(self):
-        """执行所有批次"""
+        """Execute all batches"""
         print("\n" + "=" * 60)
         print("⚠️  直接执行模式")
         print("=" * 60)
@@ -98,7 +98,7 @@ class CommandExecutor:
                     print("用户取消执行")
                     break
         
-        # 输出总结
+        # Output summary
         print("\n" + "=" * 60)
         print("执行完成")
         print("=" * 60)

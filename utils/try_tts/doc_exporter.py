@@ -1,6 +1,6 @@
 """
-文档导出器
-将音色列表导出为 Markdown 文档
+Document exporter
+Exports the voice list to a Markdown document
 """
 
 from pathlib import Path
@@ -9,7 +9,7 @@ from datetime import datetime
 
 
 class DocExporter:
-    """文档导出器"""
+    """Document exporter"""
     
     @staticmethod
     def export_to_markdown(
@@ -19,16 +19,16 @@ class DocExporter:
         gender: str = "全部"
     ) -> str:
         """
-        将音色列表导出为 Markdown 文档
+        Export the voice list to a Markdown document
         
         Args:
-            voices: 音色列表
-            output_path: 输出文件路径
-            language: 筛选的语言（用于文档标题）
-            gender: 筛选的性别（用于文档标题）
+            voices: voice list
+            output_path: output file path
+            language: filtered language (used in the document title)
+            gender: filtered gender (used in the document title)
             
         Returns:
-            输出文件路径
+            output file path
         """
         output_file = Path(output_path)
         output_file.parent.mkdir(parents=True, exist_ok=True)
@@ -76,14 +76,14 @@ class DocExporter:
         output_path: str
     ) -> str:
         """
-        导出音色名称列表（纯文本，每行一个）
+        Export the voice name list (plain text, one per line)
         
         Args:
-            voices: 音色列表
-            output_path: 输出文件路径
+            voices: voice list
+            output_path: output file path
             
         Returns:
-            输出文件路径
+            output file path
         """
         output_file = Path(output_path)
         output_file.parent.mkdir(parents=True, exist_ok=True)

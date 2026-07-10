@@ -1,6 +1,6 @@
 """
-测试完整工作流程
-需要先启动 API 服务器：uvicorn fcgi-bin.api:app --host 0.0.0.0 --port 8000
+Test the complete workflow
+Requires the API server to be running first: uvicorn fcgi-bin.api:app --host 0.0.0.0 --port 8000
 """
 
 import pytest
@@ -13,10 +13,10 @@ import time
 @pytest.mark.slow
 @pytest.mark.asyncio
 async def test_complete_workflow_simple(api_base_url, sample_text_file):
-    """测试完整工作流程（简单文本，禁用 LLM）"""
+    """Test the complete workflow (simple text, LLM disabled)"""
     
     async with httpx.AsyncClient(base_url=api_base_url, timeout=120.0) as client:
-        # 1. 上传文件
+        # 1. Upload file
         print("\n📤 步骤 1: 上传文件...")
         with open(sample_text_file, "rb") as f:
             response = await client.post(
@@ -28,7 +28,7 @@ async def test_complete_workflow_simple(api_base_url, sample_text_file):
         task_id = response.json()["task_id"]
         print(f"✓ 上传成功，task_id: {task_id}")
         
-        # 2. 解析文本
+        # 2. Parse text
         print("\n📝 步骤 2: 解析文本...")
         response = await client.post(
             "/parse",
@@ -39,13 +39,13 @@ async def test_complete_workflow_simple(api_base_url, sample_text_file):
         assert response.json()["status"] == "parsed"
         print(f"✓ 解析成功")
         
-        # 3. 生成音频（禁用 LLM 加快测试速度）
+        # 3. Generate audio (disable LLM to speed up testing)
         print("\n🎵 步骤 3: 生成音频...")
         response = await client.post(
             "/generate",
             json={
                 "task_id": task_id,
-                "enable_llm": False  # 禁用 LLM 加快测试
+                "enable_llm": False  # Disable LLM to speed up testing
             }
         )
         
@@ -53,7 +53,7 @@ async def test_complete_workflow_simple(api_base_url, sample_text_file):
         assert response.json()["status"] == "generating"
         print(f"✓ 生成任务已启动")
         
-        # 4. 轮询查询任务状态（最多等待 60 秒）
+        # 4. Poll task status (wait up to 60 seconds)
         print("\n⏳ 步骤 4: 等待生成完成...")
         max_wait = 60
         start_time = time.time()
@@ -76,7 +76,7 @@ async def test_complete_workflow_simple(api_base_url, sample_text_file):
                 error_msg = status_data.get("error", "未知错误")
                 pytest.fail(f"任务失败: {error_msg}")
             
-            await asyncio.sleep(2)  # 每 2 秒查询一次
+            await asyncio.sleep(2)  # Poll every 2 seconds
         else:
             pytest.fail(f"任务超时（超过 {max_wait} 秒）")
         
@@ -87,10 +87,10 @@ async def test_complete_workflow_simple(api_base_url, sample_text_file):
 @pytest.mark.slow
 @pytest.mark.asyncio
 async def test_complete_workflow_multi_chapter(api_base_url, sample_multi_chapter_file):
-    """测试完整工作流程（多章节文本）"""
+    """Test the complete workflow (multi-chapter text)"""
 
     async with httpx.AsyncClient(base_url=api_base_url, timeout=180.0) as client:
-        # 1. 上传文件
+        # 1. Upload file
         print("\n📤 步骤 1: 上传多章节文件...")
         with open(sample_multi_chapter_file, "rb") as f:
             response = await client.post(
@@ -102,7 +102,7 @@ async def test_complete_workflow_multi_chapter(api_base_url, sample_multi_chapte
         task_id = response.json()["task_id"]
         print(f"✓ 上传成功，task_id: {task_id}")
 
-        # 2. 解析文本
+        # 2. Parse text
         print("\n📝 步骤 2: 解析章节...")
         response = await client.post(
             "/parse",
@@ -113,7 +113,7 @@ async def test_complete_workflow_multi_chapter(api_base_url, sample_multi_chapte
         parse_data = response.json()
         print(f"✓ 解析成功，消息: {parse_data.get('message', '')}")
 
-        # 3. 生成音频
+        # 3. Generate audio
         print("\n🎵 步骤 3: 生成多章节音频...")
         response = await client.post(
             "/generate",
@@ -126,7 +126,7 @@ async def test_complete_workflow_multi_chapter(api_base_url, sample_multi_chapte
         assert response.status_code == 200
         print(f"✓ 生成任务已启动")
 
-        # 4. 轮询状态
+        # 4. Poll status
         print("\n⏳ 步骤 4: 等待生成完成...")
         max_wait = 120
         start_time = time.time()
@@ -156,10 +156,10 @@ async def test_complete_workflow_multi_chapter(api_base_url, sample_multi_chapte
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_multi_language_interface(api_base_url, sample_text_file):
-    """测试多语言界面"""
+    """Test the multi-language interface"""
 
     async with httpx.AsyncClient(base_url=api_base_url, timeout=30.0) as client:
-        # 测试英语界面
+        # Test the English interface
         print("\n🌐 测试英语界面...")
         response = await client.post(
             "/upload",
@@ -171,7 +171,7 @@ async def test_multi_language_interface(api_base_url, sample_text_file):
         assert response.status_code == 200
         print("✓ 英语界面正常")
 
-        # 测试中文界面
+        # Test the Chinese interface
         print("\n🌐 测试中文界面...")
         response = await client.post(
             "/upload",
@@ -189,10 +189,10 @@ async def test_multi_language_interface(api_base_url, sample_text_file):
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_error_handling(api_base_url):
-    """测试错误处理"""
+    """Test error handling"""
 
     async with httpx.AsyncClient(base_url=api_base_url, timeout=30.0) as client:
-        # 测试不存在的文件
+        # Test a non-existent file
         print("\n❌ 测试不存在的文件...")
         response = await client.post(
             "/upload",
@@ -201,7 +201,7 @@ async def test_error_handling(api_base_url):
         assert response.status_code == 404
         print("✓ 正确返回 404")
 
-        # 测试不存在的任务
+        # Test a non-existent task
         print("\n❌ 测试不存在的任务...")
         response = await client.post(
             "/parse",
@@ -210,7 +210,7 @@ async def test_error_handling(api_base_url):
         assert response.status_code == 404
         print("✓ 正确返回 404")
 
-        # 测试缺少参数
+        # Test missing parameters
         print("\n❌ 测试缺少参数...")
         response = await client.post("/upload")
         assert response.status_code == 400

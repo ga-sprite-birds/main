@@ -1,6 +1,6 @@
 """
-Edge TTS 引擎
-微软 Edge TTS API 实现
+Edge TTS engine
+Microsoft Edge TTS API implementation
 """
 
 from typing import Optional
@@ -13,13 +13,13 @@ from ga_birds.Utils.retry_utils import tts_retry
 
 
 class EdgeTTSEngine(BaseTTSEngine):
-    """Edge TTS 引擎（API 模式）"""
+    """Edge TTS engine (API mode)"""
 
     def __init__(self):
-        """初始化 Edge TTS 引擎"""
+        """Initialize the Edge TTS engine"""
         super().__init__()
-        
-        # 默认配置
+
+        # Default configuration
         self.default_voice = config.TTS_VOICE
         self.default_rate = config.TTS_RATE
         self.default_volume = config.TTS_VOLUME
@@ -38,35 +38,35 @@ class EdgeTTSEngine(BaseTTSEngine):
         pitch: Optional[int] = None,
     ) -> str:
         """
-        使用 Edge TTS 生成音频（带自动重试）
+        Generate audio using Edge TTS (with automatic retry)
 
         Args:
-            text: 要转换的文本
-            output_path: 输出文件路径
-            voice: 音色（如 zh-CN-YunxiNeural）
-            rate: 语速倍数（1.0 = 正常）
-            volume: 音量倍数（1.0 = 正常）
-            pitch: 音调偏移（Hz，0 = 正常）
+            text: text to convert
+            output_path: output file path
+            voice: voice (e.g. zh-CN-YunxiNeural)
+            rate: speech rate multiplier (1.0 = normal)
+            volume: volume multiplier (1.0 = normal)
+            pitch: pitch offset (Hz, 0 = normal)
 
         Returns:
-            生成的音频文件路径
+            generated audio file path
 
         Raises:
-            Exception: TTS 生成失败（已重试 5 次）
+            Exception: TTS generation failed (retried 5 times)
         """
-        # 使用传入参数或默认值
+        # Use passed parameters or defaults
         voice = voice or self.default_voice
         rate = rate if rate is not None else self.default_rate
         volume = volume if volume is not None else self.default_volume
         pitch = pitch if pitch is not None else self.default_pitch
 
-        # 确保输出目录存在
+        # Ensure output directory exists
         output_file = self._ensure_output_dir(output_path)
 
-        # 记录日志
+        # Log
         self._log_generation_start(output_path, voice, rate, len(text))
 
-        # 创建 TTS 通信对象
+        # Create TTS communication object
         communicate = edge_tts.Communicate(
             text=text,
             voice=voice,
@@ -75,34 +75,34 @@ class EdgeTTSEngine(BaseTTSEngine):
             pitch=self._format_pitch(pitch),
         )
 
-        # 生成音频文件（如果失败会自动重试）
+        # Generate audio file (auto-retried on failure)
         await communicate.save(str(output_file))
 
-        # 记录完成日志
+        # Log completion
         self._log_generation_complete(output_path)
 
         return str(output_file)
 
     def validate_setup(self) -> bool:
         """
-        验证 Edge TTS 设置
+        Validate Edge TTS setup
 
         Returns:
-            始终返回 True（Edge TTS 是在线服务，无需验证）
+            always True (Edge TTS is an online service and requires no validation)
         """
-        logger.info("✓ Edge TTS 无需验证（在线服务）")
+        logger.info("✓ Edge TTS requires no validation (online service)")
         return True
 
     @staticmethod
     def _format_rate(rate: float) -> str:
         """
-        格式化语速参数为 Edge TTS 格式
+        Format the speech rate parameter into Edge TTS format
 
         Args:
-            rate: 语速倍数（1.0 = 正常）
+            rate: speech rate multiplier (1.0 = normal)
 
         Returns:
-            Edge TTS 格式的语速字符串（如 "+30%"）
+            Edge TTS format rate string (e.g. "+30%")
         """
         percent = int((rate - 1.0) * 100)
         return f"{percent:+d}%"
@@ -110,13 +110,13 @@ class EdgeTTSEngine(BaseTTSEngine):
     @staticmethod
     def _format_volume(volume: float) -> str:
         """
-        格式化音量参数为 Edge TTS 格式
+        Format the volume parameter into Edge TTS format
 
         Args:
-            volume: 音量倍数（1.0 = 正常）
+            volume: volume multiplier (1.0 = normal)
 
         Returns:
-            Edge TTS 格式的音量字符串（如 "+0%"）
+            Edge TTS format volume string (e.g. "+0%")
         """
         percent = int((volume - 1.0) * 100)
         return f"{percent:+d}%"
@@ -124,13 +124,13 @@ class EdgeTTSEngine(BaseTTSEngine):
     @staticmethod
     def _format_pitch(pitch: int) -> str:
         """
-        格式化音调参数为 Edge TTS 格式
+        Format the pitch parameter into Edge TTS format
 
         Args:
-            pitch: 音调偏移（Hz，0 = 正常）
+            pitch: pitch offset (Hz, 0 = normal)
 
         Returns:
-            Edge TTS 格式的音调字符串（如 "+0Hz"）
+            Edge TTS format pitch string (e.g. "+0Hz")
         """
         return f"{pitch:+d}Hz"
 

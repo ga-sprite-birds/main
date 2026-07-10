@@ -1,12 +1,12 @@
 """
-多语言支持（可选接入项目多语言）
+Internationalization support (optional integration with the project's i18n)
 
-使用方式：
-1. 独立运行：使用本地翻译文件（utils/try_tts/langues/）
-2. 项目集成：自动检测并使用项目多语言（ga_birds/Langues/）
-3. 保底方案：硬编码默认翻译
+Usage:
+1. Standalone: use local translation files (utils/try_tts/langues/)
+2. Project integration: auto-detect and use the project's i18n (ga_birds/Langues/)
+3. Fallback: hardcoded default translations
 
-优先级：项目多语言 > 本地翻译文件 > 硬编码默认翻译
+Priority: project i18n > local translation files > hardcoded default translations
 """
 
 import sys
@@ -23,18 +23,18 @@ class UtilsI18n:
         self._load_translations()
 
     def _load_translations(self):
-        """加载翻译（优先级：本地 > 项目 > 硬编码）"""
-        # 优先使用本地翻译文件（工具自己的翻译）
+        """Load translations (priority: local > project > hardcoded)"""
+        # Prefer local translation files (the tool's own translations)
         if self._try_load_from_local():
             return
-        # 其次尝试项目多语言（如果工具被集成到项目中）
+        # Then try the project's i18n (if the tool is integrated into the project)
         if self._try_load_from_project():
             return
-        # 最后使用硬编码默认翻译
+        # Finally fall back to hardcoded default translations
         self._load_hardcoded()
 
     def _try_load_from_project(self) -> bool:
-        """尝试从项目多语言加载"""
+        """Attempt to load from the project's i18n"""
         try:
             project_root = Path(__file__).parent.parent.parent
             sys.path.insert(0, str(project_root))
@@ -49,7 +49,7 @@ class UtilsI18n:
             return False
 
     def _try_load_from_local(self) -> bool:
-        """从本地 JSON 文件加载"""
+        """Load from a local JSON file"""
         local_file = Path(__file__).parent / "langues" / f"{self.locale}.json"
 
         if local_file.exists():
@@ -59,7 +59,7 @@ class UtilsI18n:
         return False
 
     def _load_hardcoded(self):
-        """硬编码默认翻译（保底方案）"""
+        """Hardcoded default translations (fallback)"""
         if self.locale == "zh_CN":
             self.translations = {
                 "fetching_voices": "正在获取音色列表...",
@@ -116,13 +116,13 @@ class UtilsI18n:
             }
 
     def t(self, key: str, **kwargs) -> str:
-        """翻译函数"""
+        """Translation function"""
         if self._use_project:
-            # 如果键不是以 tts. 开头，则添加前缀
+            # If the key does not start with tts., add the prefix
             project_key = key if key.startswith('tts.') else f"tts.{key}"
             return self._project_i18n.t(project_key, **kwargs)
 
-        # 支持点号分隔的嵌套键
+        # Support dot-separated nested keys
         keys = key.split('.')
         text = self.translations
         for k in keys:
@@ -141,17 +141,17 @@ _i18n = None
 
 
 def get_i18n(locale: str = None) -> UtilsI18n:
-    """获取或创建 i18n 实例
+    """Get or create the i18n instance
 
     Args:
-        locale: 语言代码。如果为 None，返回现有实例或创建默认实例
+        locale: language code. If None, returns the existing instance or creates a default one
     """
     global _i18n
     if locale is not None:
-        # 如果指定了语言，重新创建实例
+        # If a language is specified, recreate the instance
         _i18n = UtilsI18n(locale)
     elif _i18n is None:
-        # 如果没有指定语言且实例不存在，创建默认实例
+        # If no language is specified and no instance exists, create a default one
         _i18n = UtilsI18n("en_US")
     return _i18n
 

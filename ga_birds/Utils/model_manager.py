@@ -1,9 +1,9 @@
 """
-GA Sprite Birds - 模型管理器
-负责模型检测、下载、缓存目录管理和设备选择
+GA Sprite Birds - Model manager
+Responsible for model detection, download, cache directory management, and device selection
 
-版本: v1.0
-开发团队: Tiger
+Version: v1.0
+Dev team: Tiger
 """
 
 import os
@@ -18,18 +18,18 @@ import config
 
 
 class ModelManager:
-    """模型管理器"""
+    """Model manager"""
 
     def __init__(self):
-        """初始化模型管理器"""
+        """Initialize the model manager"""
         self.cache_dir = Path(config.MODEL_CACHE_DIR)
         
     def ensure_cache_dir(self) -> bool:
         """
-        确保缓存目录存在
-        
+        Ensure the cache directory exists
+
         Returns:
-            bool: 成功返回 True，失败返回 False
+            bool: True on success, False on failure
         """
         try:
             self.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -43,32 +43,32 @@ class ModelManager:
             logger.error(f"❌ 创建缓存目录失败: {e}")
             logger.error(f"路径: {self.cache_dir.absolute()}")
             return False
-    
+
     def check_ollama_model(self, model_name: str) -> bool:
         """
-        检查 Ollama 模型是否存在
+        Check whether the Ollama model exists
 
         Args:
-            model_name: 模型名称
+            model_name: model name
 
         Returns:
-            bool: 模型存在返回 True，否则返回 False
+            bool: True if the model exists, otherwise False
         """
         try:
-            # 获取已安装的模型列表
+            # Get the list of installed models
             models = ollama.list()
 
-            # 处理不同的返回格式
+            # Handle different return formats
             if hasattr(models, 'models'):
-                # 新版 ollama 返回对象
+                # Newer ollama returns an object
                 model_list = models.models
             else:
-                # 旧版返回字典
+                # Older version returns a dict
                 model_list = models.get('models', [])
 
-            # 检查模型是否存在
+            # Check whether the model exists
             for model in model_list:
-                # 尝试获取模型名称（支持不同的字段名）
+                # Try to get the model name (supports different field names)
                 current_model_name = None
                 if hasattr(model, 'model'):
                     current_model_name = model.model
@@ -89,20 +89,20 @@ class ModelManager:
     
     def download_ollama_model(self, model_name: str) -> bool:
         """
-        下载 Ollama 模型
-        
+        Download the Ollama model
+
         Args:
-            model_name: 模型名称
-            
+            model_name: model name
+
         Returns:
-            bool: 下载成功返回 True，否则返回 False
+            bool: True if download succeeded, otherwise False
         """
         try:
             logger.info(f"正在下载 Ollama 模型: {model_name}")
             logger.info("这可能需要几分钟到几小时，取决于模型大小和网络速度...")
-            
-            # 使用 ollama.pull() 下载模型
-            # 这会显示下载进度
+
+            # Use ollama.pull() to download the model
+            # This shows download progress
             for progress in ollama.pull(model_name, stream=True):
                 status = progress.get('status', '')
                 if 'total' in progress and 'completed' in progress:
@@ -112,10 +112,10 @@ class ModelManager:
                     logger.info(f"下载进度: {percent:.1f}% ({completed}/{total} bytes)")
                 else:
                     logger.info(f"状态: {status}")
-            
+
             logger.info(f"✓ 模型下载完成: {model_name}")
             return True
-            
+
         except KeyboardInterrupt:
             logger.warning("⚠ 用户中断下载")
             return False
@@ -123,47 +123,47 @@ class ModelManager:
             logger.error(f"❌ 下载 Ollama 模型失败: {e}")
             logger.error(f"请手动下载: ollama pull {model_name}")
             return False
-    
+
     def ensure_ollama_model(self, model_name: str) -> bool:
         """
-        确保 Ollama 模型可用（检测 + 下载）
-        
+        Ensure the Ollama model is available (detect + download)
+
         Args:
-            model_name: 模型名称
-            
+            model_name: model name
+
         Returns:
-            bool: 模型可用返回 True，否则返回 False
+            bool: True if the model is available, otherwise False
         """
-        # 1. 检查模型是否存在
+        # 1. Check whether the model exists
         if self.check_ollama_model(model_name):
             return True
-        
-        # 2. 模型不存在，尝试下载
+
+        # 2. Model does not exist, try to download
         logger.info(f"本地未找到模型 {model_name}，准备下载...")
-        
-        # 询问用户是否下载（如果是交互式环境）
+
+        # Ask the user whether to download (if in an interactive environment)
         if sys.stdin.isatty():
             response = input(f"是否下载模型 {model_name}? (y/n): ").strip().lower()
             if response != 'y':
                 logger.warning("用户取消下载")
                 return False
-        
-        # 3. 下载模型
+
+        # 3. Download the model
         return self.download_ollama_model(model_name)
     
     def get_device(self, prefer_gpu: bool = True) -> Tuple[str, str]:
         """
-        获取可用的计算设备
-        
+        Get an available compute device
+
         Args:
-            prefer_gpu: 是否优先使用 GPU
-            
+            prefer_gpu: whether to prefer GPU
+
         Returns:
-            Tuple[str, str]: (设备类型, 设备描述)
-                设备类型: 'cuda', 'mps', 'cpu'
-                设备描述: 详细的设备信息
+            Tuple[str, str]: (device type, device description)
+                device type: 'cuda', 'mps', 'cpu'
+                device description: detailed device information
         """
-        # 检查 CUDA (NVIDIA GPU)
+        # Check CUDA (NVIDIA GPU)
         if prefer_gpu:
             try:
                 import torch
@@ -176,8 +176,8 @@ class ModelManager:
                 logger.debug("PyTorch 未安装，跳过 CUDA 检测")
             except Exception as e:
                 logger.debug(f"CUDA 检测失败: {e}")
-        
-        # 检查 MPS (Apple Silicon GPU)
+
+        # Check MPS (Apple Silicon GPU)
         if prefer_gpu and sys.platform == 'darwin':
             try:
                 import torch
@@ -188,8 +188,8 @@ class ModelManager:
                 logger.debug("PyTorch 未安装，跳过 MPS 检测")
             except Exception as e:
                 logger.debug(f"MPS 检测失败: {e}")
-        
-        # 默认使用 CPU
+
+        # Default to CPU
         import platform
         cpu_info = f"{platform.processor()} ({platform.machine()})"
         logger.info(f"✓ 使用 CPU 设备: {cpu_info}")
@@ -197,13 +197,13 @@ class ModelManager:
     
     def check_ollama_service(self, host: str = "http://localhost:11434") -> bool:
         """
-        检查 Ollama 服务是否运行
-        
+        Check whether the Ollama service is running
+
         Args:
-            host: Ollama 服务地址
-            
+            host: Ollama service address
+
         Returns:
-            bool: 服务运行返回 True，否则返回 False
+            bool: True if the service is running, otherwise False
         """
         try:
             import httpx
@@ -223,21 +223,21 @@ class ModelManager:
     
     def validate_local_llm_setup(self) -> bool:
         """
-        验证本地 LLM 设置
-        
+        Validate the local LLM setup
+
         Returns:
-            bool: 设置有效返回 True，否则返回 False
+            bool: True if the setup is valid, otherwise False
         """
         if config.LLM_MODE != "local":
             return True
 
         logger.info("正在验证本地 LLM 设置...")
 
-        # 1. 检查 Ollama 服务
+        # 1. Check the Ollama service
         if not self.check_ollama_service(config.LLM_LOCAL_HOST):
             return False
 
-        # 2. 检查并下载模型
+        # 2. Check and download the model
         model_name = config.LLM_LOCAL_MODEL
         if not self.ensure_ollama_model(model_name):
             logger.error(f"❌ 模型 {model_name} 不可用")
@@ -245,31 +245,31 @@ class ModelManager:
 
         logger.info("✓ 本地 LLM 设置验证通过")
         return True
-    
+
     def validate_local_tts_setup(self) -> bool:
         """
-        验证本地 TTS 设置
-        
+        Validate the local TTS setup
+
         Returns:
-            bool: 设置有效返回 True，否则返回 False
+            bool: True if the setup is valid, otherwise False
         """
         if config.TTS_MODE != "local":
             return True
 
         logger.info("正在验证本地 TTS 设置...")
 
-        # 1. 检查模型路径
+        # 1. Check the model path
         model_path = Path(config.TTS_LOCAL_MODEL_PATH)
         if not model_path.exists():
             logger.warning(f"⚠ TTS 模型路径不存在: {model_path.absolute()}")
             logger.info("首次运行时会自动下载模型")
 
-        # 2. 检查设备
+        # 2. Check the device
         device_type, device_desc = self.get_device(
             prefer_gpu=(config.TTS_LOCAL_DEVICE != 'cpu')
         )
 
-        # 如果配置要求 GPU 但只有 CPU 可用，给出警告
+        # If GPU is required by config but only CPU is available, warn
         if config.TTS_LOCAL_DEVICE == 'cuda' and device_type == 'cpu':
             logger.warning("⚠ 配置要求使用 CUDA，但未检测到 GPU，将使用 CPU")
             logger.warning("这可能会导致性能下降")

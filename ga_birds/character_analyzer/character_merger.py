@@ -1,6 +1,6 @@
 """
-角色合并器
-使用 LLM 自动识别并合并重复的角色
+Character merger
+Uses an LLM to automatically detect and merge duplicate characters
 """
 
 import json
@@ -10,7 +10,7 @@ import config
 
 
 class CharacterMerger:
-    """角色合并器 - 自动识别并合并重复角色"""
+    """Character merger - automatically detects and merges duplicate characters"""
 
     def __init__(self, llm_manager):
         self.llm_manager = llm_manager
@@ -20,20 +20,20 @@ class CharacterMerger:
         characters: List[Dict]
     ) -> List[Dict]:
         """
-        自动识别并合并重复角色
+        Automatically detect and merge duplicate characters
 
         Args:
-            characters: 角色列表
+            characters: character list
 
         Returns:
-            合并后的角色列表
+            merged character list
         """
         if len(characters) <= 1:
             return characters
 
         logger.info("开始分析重复角色...")
 
-        # 构建角色列表字符串
+        # Build the character list string
         character_list = []
         for i, char in enumerate(characters):
             character_list.append(
@@ -45,7 +45,7 @@ class CharacterMerger:
 
         character_list_str = "\n".join(character_list)
 
-        # 构建 LLM Prompt
+        # Build the LLM prompt
         prompt = f"""请分析以下角色列表，识别可能是同一个人的重复角色。
 
 角色列表：
@@ -79,10 +79,10 @@ class CharacterMerger:
 """
 
         try:
-            # 调用 LLM
+            # Call the LLM
             response = self.llm_manager.generate(prompt)
 
-            # 解析 JSON
+            # Parse the JSON
             merge_data = self._extract_json(response)
 
             if not merge_data or 'merge_groups' not in merge_data:
@@ -95,7 +95,7 @@ class CharacterMerger:
                 logger.info("✓ 未发现重复角色")
                 return characters
 
-            # 执行合并
+            # Perform the merge
             logger.info(f"发现 {len(merge_groups)} 组重复角色，开始合并...")
             merged_characters = self._apply_merge(
                 characters,
@@ -114,12 +114,12 @@ class CharacterMerger:
             return characters
 
     def _extract_json(self, text: str) -> Dict:
-        """从 LLM 响应中提取 JSON"""
+        """Extract JSON from the LLM response"""
         try:
-            # 尝试直接解析
+            # Try to parse directly
             return json.loads(text)
         except json.JSONDecodeError:
-            # 尝试提取 JSON 代码块
+            # Try to extract a JSON code block
             import re
             json_match = re.search(
                 r'```(?:json)?\s*(\{.*?\})\s*```',
@@ -129,7 +129,7 @@ class CharacterMerger:
             if json_match:
                 return json.loads(json_match.group(1))
 
-            # 尝试查找第一个 JSON 对象
+            # Try to find the first JSON object
             json_match = re.search(r'\{.*\}', text, re.DOTALL)
             if json_match:
                 return json.loads(json_match.group(0))
@@ -142,22 +142,22 @@ class CharacterMerger:
         merge_groups: List[Dict]
     ) -> List[Dict]:
         """
-        应用合并建议
+        Apply the merge suggestions
 
         Args:
-            characters: 原始角色列表
-            merge_groups: 合并组列表
+            characters: original character list
+            merge_groups: list of merge groups
 
         Returns:
-            合并后的角色列表
+            merged character list
         """
-        # 创建角色名到角色对象的映射
+        # Create a mapping from character name to character object
         char_map = {char['name']: char for char in characters}
 
-        # 记录要删除的角色名
+        # Record character names to remove
         to_remove = set()
 
-        # 处理每个合并组
+        # Process each merge group
         for group in merge_groups:
             primary_name = group.get('primary_name')
             duplicate_names = group.get('duplicate_names', [])
@@ -166,7 +166,7 @@ class CharacterMerger:
             if not primary_name or not duplicate_names:
                 continue
 
-            # 检查主名称是否存在
+            # Check whether the primary name exists
             if primary_name not in char_map:
                 logger.warning(
                     f"主名称 '{primary_name}' 不存在，跳过合并"
@@ -180,21 +180,21 @@ class CharacterMerger:
 
             primary_char = char_map[primary_name]
 
-            # 合并每个重复角色
+            # Merge each duplicate character
             for dup_name in duplicate_names:
                 if dup_name not in char_map:
                     continue
 
                 dup_char = char_map[dup_name]
 
-                # 合并别名
+                # Merge aliases
                 primary_aliases = set(primary_char.get('aliases', []))
                 dup_aliases = set(dup_char.get('aliases', []))
                 primary_char['aliases'] = list(
                     primary_aliases | dup_aliases | {dup_name}
                 )
 
-                # 合并性格标签
+                # Merge personality tags
                 primary_personality = set(
                     primary_char.get('personality', [])
                 )
@@ -203,13 +203,13 @@ class CharacterMerger:
                     primary_personality | dup_personality
                 )
 
-                # 累加出现次数
+                # Accumulate appearance counts
                 primary_char['appearance_count'] = (
                     primary_char.get('appearance_count', 0) +
                     dup_char.get('appearance_count', 0)
                 )
 
-                # 更新首次出现章节（取最小值）
+                # Update first appearance chapter (take the minimum)
                 if dup_char.get('first_chapter'):
                     if not primary_char.get('first_chapter'):
                         primary_char['first_chapter'] = (
@@ -221,7 +221,7 @@ class CharacterMerger:
                             dup_char['first_chapter']
                         )
 
-                # 更新最后出现章节（取最大值）
+                # Update last appearance chapter (take the maximum)
                 if dup_char.get('last_chapter'):
                     if not primary_char.get('last_chapter'):
                         primary_char['last_chapter'] = (
@@ -233,10 +233,10 @@ class CharacterMerger:
                             dup_char['last_chapter']
                         )
 
-                # 标记为待删除
+                # Mark as pending removal
                 to_remove.add(dup_name)
 
-        # 返回未被删除的角色
+        # Return characters that were not removed
         return [
             char for char in characters
             if char['name'] not in to_remove

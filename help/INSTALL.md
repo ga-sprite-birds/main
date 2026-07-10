@@ -1,160 +1,137 @@
-# GA Sprite Birds - 安装指南
+# GA Sprite Birds - Installation Guide
 
-> **版本**: v1.0
-> **开发团队**: Tiger
+> **Version**: v1.0
+> **Dev team**: Tiger
 
-## 系统要求
+## System Requirements
 
-- **操作系统**：Windows 10+, macOS 10.15+, Linux
-- **Python**：3.10+
-- **内存**：
-  - 最低：8GB（仅使用 API 模式）
-  - 推荐：32GB（使用本地 LLM DeepSeek R1 7B）
-- **磁盘空间**：10GB+（用于模型存储）
+- **Operating System**: Windows 10+, macOS 10.15+, Linux
+- **Python**: 3.10+
+- **Memory**:
+  - Minimum: 8GB (API mode only)
+  - Recommended: 32GB (with local LLM DeepSeek R1 7B)
+- **Disk Space**: 10GB+ (for model storage)
 
 ---
 
-## 安装步骤
+## Installation Steps
 
-### 1. 克隆项目
+### 1. Clone the Repository
 
 ```bash
-git clone <repository_url>
+git clone https://github.com/tiger-sprite/ga-sprite-birds.git
 cd ga-sprite-birds
 ```
 
-### 2. 创建 Python 环境并安装依赖
+### 2. Create a Python Environment and Install Dependencies
 
-#### 方式 1：使用安装脚本（推荐，适用于中国大陆）
+#### Option 1: Use the Installation Script (Recommended, for users in mainland China)
 
 ```bash
-# 如果在中国大陆，需要设置代理加速下载
-# 脚本会自动设置代理并安装所有依赖
+# If you are in mainland China, you may need to set a proxy to speed up downloads
+# The script will automatically set the proxy and install all dependencies
 bash install_dependencies.sh
 ```
 
-#### 方式 2：使用 Conda 环境（推荐）
+#### Option 2: Use a Conda Environment (Recommended)
 
 ```bash
-# 注意：如果在中国大陆，建议先设置代理
+# Note: If you are in mainland China, it is recommended to set a proxy first
 export http_proxy=http://127.0.0.1:1080
 export https_proxy=http://127.0.0.1:1080
 
-# 创建基础环境（只安装 Python、pip、setuptools、wheel 和 ffmpeg）
+# Create the base environment (only installs Python, pip, setuptools, wheel and ffmpeg)
 conda create -n ga-sprite-birds python=3.10 pip setuptools wheel -c conda-forge -y
 conda activate ga-sprite-birds
 
-# 安装 FFmpeg（音频处理必需）
+# Install FFmpeg (required for audio processing)
 conda install -c conda-forge ffmpeg -y
 
-# 升级 pip 和构建工具
+# Upgrade pip and build tools
 python -m pip install --upgrade pip setuptools wheel
 
-# 安装所有 Python 依赖（使用灵活的版本约束）
-pip install \
-    "fastapi>=0.109.0" \
-    "uvicorn[standard]>=0.27.0" \
-    "python-multipart>=0.0.6" \
-    "pyyaml>=6.0.1" \
-    "pydantic>=2.5.0" \
-    "pydantic-settings>=2.1.0" \
-    "chardet>=5.2.0" \
-    "pypdf>=3.17.0" \
-    "python-magic-bin>=0.4.14" \
-    "ollama>=0.1.6" \
-    "openai>=1.0.0" \
-    "httpx>=0.26.0" \
-    "edge-tts>=6.1.9" \
-    "pydub>=0.25.1" \
-    "soundfile>=0.12.1" \
-    "loguru>=0.7.2" \
-    "aiofiles>=23.2.1" \
-    "python-dotenv>=1.0.0" \
-    "tenacity>=8.2.3" \
-    "pytest>=7.4.4" \
-    "pytest-asyncio>=0.23.3" \
-    "black>=24.1.1" \
-    "flake8>=7.0.0"
+# Install all Python dependencies (requirements.txt is cross-platform and works on Windows/Linux/macOS)
+pip install -r requirements.txt
 ```
 
-#### 方式 3：使用 venv（不使用 Conda）
+#### Option 3: Use venv (without Conda)
 
 ```bash
-# 创建虚拟环境
+# Create a virtual environment
 python -m venv venv
 
-# 激活环境
+# Activate the environment
 # Windows:
 venv\Scripts\activate
 # Linux/macOS:
 source venv/bin/activate
 
-# 升级 pip 和构建工具
+# Upgrade pip and build tools
 python -m pip install --upgrade pip setuptools wheel
 
-# 安装依赖（同方式 2）
-pip install "fastapi>=0.109.0" "uvicorn[standard]>=0.27.0" ...
+# Install dependencies (same as Option 2)
+pip install -r requirements.txt
 
-# 注意：需要手动安装 FFmpeg
-# Windows: 从 https://ffmpeg.org/download.html 下载
+# Note: FFmpeg must be installed manually
+# Windows: download from https://ffmpeg.org/download.html
 # macOS: brew install ffmpeg
 # Linux: sudo apt install ffmpeg
 ```
 
-**重要提示**：
-- 使用 `>=` 版本约束而不是固定版本，避免特定版本不存在的问题
-- 必须先安装 `setuptools` 和 `wheel`，否则某些包（如 pydantic-core）会构建失败
-- 如果在中国大陆，强烈建议设置代理以加速下载
+**Important Notes**:
+- Use `>=` version constraints instead of pinned versions to avoid issues where a specific version does not exist.
+- `setuptools` and `wheel` must be installed first, otherwise some packages (such as pydantic-core) will fail to build.
+- If you are in mainland China, it is strongly recommended to set a proxy to speed up downloads.
 
-### 3. 安装 Ollama（可选，本地 LLM）
+### 3. Install Ollama (Optional, for Local LLM)
 
-如果使用本地 LLM 模式，需要安装 Ollama：
+If you use the local LLM mode, you need to install Ollama:
 
 #### Windows
 
 ```bash
-# 下载安装包
+# Download the installer
 # https://ollama.ai/download/windows
 
-# 安装后，拉取模型
+# After installation, pull the model
 ollama pull deepseek-r1:7b
 ```
 
 #### macOS
 
 ```bash
-# 使用 Homebrew
+# Using Homebrew
 brew install ollama
 
-# 或下载安装包
+# Or download the installer
 # https://ollama.ai/download/mac
 
-# 拉取模型
+# Pull the model
 ollama pull deepseek-r1:7b
 ```
 
 #### Linux
 
 ```bash
-# 安装 Ollama
+# Install Ollama
 curl -fsSL https://ollama.ai/install.sh | sh
 
-# 拉取模型
+# Pull the model
 ollama pull deepseek-r1:7b
 ```
 
-### 4. 安装本地 TTS 模型（可选）
+### 4. Install a Local TTS Model (Optional)
 
-#### CosyVoice（推荐）
+#### CosyVoice (Recommended)
 
 ```bash
-# 安装依赖
+# Install dependencies
 pip install modelscope
 pip install funasr
 pip install cosyvoice
 
-# 下载模型（首次运行时自动下载）
-# 模型会保存到 ./models/CosyVoice
+# Download the model (downloaded automatically on first run)
+# The model will be saved to ./models/CosyVoice
 ```
 
 #### ChatTTS
@@ -166,96 +143,94 @@ pip install ChatTTS
 #### GPT-SoVITS
 
 ```bash
-# 克隆仓库
+# Clone the repository
 git clone https://github.com/RVC-Boss/GPT-SoVITS.git
 cd GPT-SoVITS
 
-# 安装依赖
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-### 5. 配置文件
+### 5. Configuration File
 
-复制并编辑配置文件：
+Copy and edit the configuration file:
 
 ```bash
-# 配置文件已存在，直接编辑
-vim config.yaml
-
-# 或复制环境变量示例
+# Copy the environment variable example and edit it (project configuration is managed via .env environment variables, not config.yaml)
 cp .env.example .env
 vim .env
 ```
 
-### 6. 验证安装
+### 6. Verify the Installation
 
 ```bash
-# 运行测试
+# Run the tests
 pytest
 ```
 
 ---
 
-## 配置说明
+## Configuration Reference
 
-### 最小配置（仅使用 API）
+### Minimal Configuration (API Mode Only)
 
-```yaml
-llm:
-  mode: api
-  api:
-    type: openai
-    endpoint: https://api.openai.com/v1
-    api_key: ${OPENAI_API_KEY}
-    model: gpt-4
+Project configuration is managed through `.env` environment variables (read by `config/__init__.py`); no YAML file is used. Copy `.env.example` and then edit it:
 
-tts:
-  mode: api
-  api:
-    type: edge-tts
-    voice: zh-CN-XiaoxiaoNeural
+```env
+# .env — Cloud API only (OpenAI compatible)
+
+# LLM (conversational): cloud API mode
+LLM_MODE=api
+LLM_API_TYPE=openai
+LLM_API_ENDPOINT=https://api.openai.com/v1
+LLM_API_KEY=your_api_key_here
+LLM_API_MODEL=gpt-4
+
+# TTS: Edge TTS (free, no key required)
+TTS_ENGINE=edge
+TTS_VOICE=zh-CN-XiaoxiaoNeural
 ```
 
-### 完全本地配置
+### Fully Local Configuration (Local LLM)
 
-```yaml
-llm:
-  mode: local
-  local:
-    host: http://localhost:11434
-    model: deepseek-r1:7b
+```env
+# .env — Run the LLM using local Ollama
 
-tts:
-  mode: local
-  local:
-    engine: cosyvoice
-    model_path: ./models/CosyVoice
+LLM_MODE=local
+LLM_LOCAL_HOST=http://localhost:11434
+LLM_LOCAL_MODEL=deepseek-r1:7b
+
+# The current version's TTS engine only supports edge (Edge TTS); no local model required
+TTS_ENGINE=edge
+TTS_VOICE=zh-CN-YunxiNeural
 ```
+
+> Note: The current version's TTS engine only supports `edge` (Edge TTS). See `.env.example` for the full list of options and default values.
 
 ---
 
-## 启动服务
+## Starting the Service
 
-### 开发模式
+### Development Mode
 
 ```bash
-# 启动 Ollama（如果使用本地 LLM）
+# Start Ollama (if using the local LLM)
 ollama serve
 
-# 启动 FastAPI 服务
-python fcgi-bin/index.py
+# Start the FastAPI service
+python fcgi-bin/api.py
 
-# 或使用 uvicorn（支持热重载）
-uvicorn fcgi-bin.index:app --host 0.0.0.0 --port 8000 --reload
+# Or use uvicorn (with hot reload)
+uvicorn fcgi-bin.api:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### 生产模式
+### Production Mode
 
 ```bash
-# 使用 gunicorn + uvicorn workers
+# Use gunicorn + uvicorn workers
 pip install gunicorn
 
-gunicorn fcgi-bin.index:app \
+gunicorn fcgi-bin.api:app \
   --workers 4 \
   --worker-class uvicorn.workers.UvicornWorker \
   --bind 0.0.0.0:8000 \
@@ -264,202 +239,208 @@ gunicorn fcgi-bin.index:app \
 
 ---
 
-## 常见问题
+## Frequently Asked Questions
 
-### 1. pip 安装依赖时报错：找不到特定版本
+### 1. pip reports an error when installing dependencies: specific version not found
 
-**错误示例**：
+**Error example**:
 ```
 ERROR: Could not find a version that satisfies the requirement pypdf==3.17.4
 ERROR: Could not find a version that satisfies the requirement openai==1.10.0
 ```
 
-**解决方案**：
-- 使用 `>=` 版本约束而不是 `==` 固定版本
-- 确保已升级 pip：`python -m pip install --upgrade pip`
-- 如果在中国大陆，设置代理加速下载
+**Solution**:
+- Use `>=` version constraints instead of `==` pinned versions.
+- Make sure pip is upgraded: `python -m pip install --upgrade pip`
+- If you are in mainland China, set a proxy to speed up downloads.
 
-### 2. pip 安装时报错：Cannot import 'setuptools.build_meta' 或 'maturin'
+### 2. pip error: Cannot import 'setuptools.build_meta' or 'maturin'
 
-**错误示例**：
+**Error example**:
 ```
 pip._vendor.pyproject_hooks._impl.BackendUnavailable: Cannot import 'setuptools.build_meta'
 pip._vendor.pyproject_hooks._impl.BackendUnavailable: Cannot import 'maturin'
 ```
 
-**解决方案**：
+**Solution**:
 ```bash
-# 先升级 pip、setuptools 和 wheel
+# Upgrade pip, setuptools and wheel first
 python -m pip install --upgrade pip setuptools wheel
 
-# 然后再安装其他依赖
+# Then install the remaining dependencies
 pip install "fastapi>=0.109.0" ...
 ```
 
-### 3. 中国大陆网络下载缓慢或失败
+### 3. Slow or failed downloads in mainland China
 
-**解决方案**：
+**Solution**:
 ```bash
-# 方法 1：使用代理（推荐）
+# Method 1: Use a proxy (recommended)
 export http_proxy=http://127.0.0.1:1080
 export https_proxy=http://127.0.0.1:1080
 
-# 方法 2：使用国内镜像源
+# Method 2: Use a domestic mirror
 pip install -i https://pypi.tuna.tsinghua.edu.cn/simple "fastapi>=0.109.0" ...
 
-# 方法 3：永久配置镜像源
+# Method 3: Configure the mirror permanently
 pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
-### 4. Conda 环境创建失败
+### 4. Conda environment creation failed
 
 ```bash
-# 清理 Conda 缓存
+# Clean the Conda cache
 conda clean --all
 
-# 删除旧环境
+# Remove the old environment
 conda env remove -n ga-sprite-birds
 
-# 重新创建环境（推荐使用手动方式）
+# Recreate the environment (manual method recommended)
 conda create -n ga-sprite-birds python=3.10 pip setuptools wheel -y
 conda activate ga-sprite-birds
 conda install -c conda-forge ffmpeg -y
 ```
 
-### 5. FFmpeg 未找到
+### 5. FFmpeg not found
 
 ```bash
-# 检查 FFmpeg 是否安装
+# Check if FFmpeg is installed
 ffmpeg -version
 
-# 如果未安装，使用 Conda 安装
+# If not installed, install via Conda
 conda install -c conda-forge ffmpeg -y
 
-# 或手动下载：https://ffmpeg.org/download.html
+# Or download manually: https://ffmpeg.org/download.html
 ```
 
-### 6. Ollama 连接失败
+### 6. Ollama connection failed
 
 ```bash
-# 检查 Ollama 服务是否运行
+# Check whether the Ollama service is running
 curl http://localhost:11434/api/tags
 
-# 如果未运行，启动服务
+# If not running, start the service
 ollama serve
 
-# 检查模型是否已下载
+# Check whether the model is downloaded
 ollama list
 ```
 
-### 7. Edge TTS 网络问题
+### 7. Edge TTS network issues
 
-如果 Edge TTS 连接失败，可以：
+If Edge TTS fails to connect, you can:
 
-1. 使用代理
-2. 切换到本地 TTS 模型
-3. 使用其他 API（阿里云、Azure）
+1. Use a proxy.
+2. Switch to a local TTS model.
+3. Use another API (Alibaba Cloud, Azure).
 
-**注意**：系统已内置自动重试机制（指数退避，最多重试 5 次），大部分网络问题会自动恢复。
+**Note**: The system has a built-in automatic retry mechanism (exponential backoff, up to 5 retries), so most network issues recover automatically.
 
-### 8. 内存不足
+### 8. Out of memory
 
-如果运行本地 LLM 时内存不足：
+If you run out of memory when running the local LLM:
 
-1. 使用更小的模型（如 DeepSeek R1 1.5B）
-2. 切换到 API 模式
-3. 增加系统内存或使用 GPU
+1. Use a smaller model (e.g., DeepSeek R1 1.5B).
+2. Switch to API mode.
+3. Increase system memory or use a GPU.
 
 ---
 
-## 重试机制说明
+## Retry Mechanism Reference
 
-系统已内置智能重试机制，无需手动配置：
+The system has a built-in intelligent retry mechanism that requires no manual configuration:
 
-### TTS 请求重试
-- **最大重试次数**：5 次
-- **重试策略**：指数退避（1s, 2s, 4s, 8s, 16s，最大 30s）
-- **适用场景**：网络超时、连接失败、临时故障
+### TTS Request Retries
+- **Maximum retries**: 5
+- **Retry strategy**: Exponential backoff (1s, 2s, 4s, 8s, 16s, max 30s)
+- **Applicable scenarios**: Network timeout, connection failure, transient faults
 
-### LLM 请求重试
-- **最大重试次数**：3 次
-- **重试策略**：指数退避（1s, 2s, 4s，最大 10s）
-- **适用场景**：本地 Ollama 连接失败、API 临时故障
+### LLM Request Retries
+- **Maximum retries**: 3
+- **Retry strategy**: Exponential backoff (1s, 2s, 4s, max 10s)
+- **Applicable scenarios**: Local Ollama connection failure, transient API faults
 
-### 重试日志示例
+### Retry Log Example
 ```
 WARNING - Attempt 1 failed: Connection timeout, retrying in 1.0s...
 WARNING - Attempt 2 failed: Connection timeout, retrying in 2.0s...
-INFO - TTS 生成成功（第 3 次尝试）
+INFO - TTS generation succeeded (attempt 3)
 ```
 
-### 依赖说明
-重试机制使用 `tenacity` 库实现，已包含在 `requirements.txt` 中：
+### Dependency Notes
+The retry mechanism is implemented using the `tenacity` library and is already included in `requirements.txt`:
 ```bash
 pip install "tenacity>=8.2.3"
 ```
 
 ---
 
-## 卸载
+## Uninstallation
 
 ```bash
-# 删除 Conda 环境
+# Remove the Conda environment
 conda deactivate
-conda env remove -n ga-sprite-mp3
+conda env remove -n ga-sprite-birds
 
-# 删除项目文件
+# Remove the project files
 cd ..
-rm -rf ga-sprite-mp3
+rm -rf ga-sprite-birds
 ```
 
 ---
 
-## 可选：运行 API 测试
+## Optional: Running API Tests
 
-安装完成后，可以运行 API 测试验证系统功能是否正常。
+After installation, you can run API tests to verify that the system works correctly.
 
-### 运行单元测试（推荐）
+### Run Unit Tests (Recommended)
 
-单元测试不需要启动服务器，速度快：
+Unit tests do not require starting the server and are fast:
 
 ```bash
-# 运行所有单元测试
+# Run all unit tests
 pytest tests/unit -v
 
-# 运行特定测试
+# Run a specific test
 pytest tests/unit/test_upload.py -v
 ```
 
-### 运行集成测试
+### Run Integration Tests
 
-集成测试需要先启动 API 服务器：
+Integration tests require the API server to be started first:
 
 ```bash
-# 终端 1: 启动 API 服务器
+# Terminal 1: Start the API server
 uvicorn fcgi-bin.api:app --host 0.0.0.0 --port 8000
 
-# 终端 2: 运行集成测试
+# Terminal 2: Run the integration tests
 pytest tests/integration -v
 ```
 
-### 生成测试报告（可选）
+### Generate a Test Report (Optional)
 
 ```bash
-# 安装测试报告工具
+# Install the test report tools
 pip install pytest-html pytest-cov
 
-# 生成 HTML 测试报告
+# Generate an HTML test report
 pytest --html=report.html --self-contained-html
 
-# 生成测试覆盖率报告
+# Generate a test coverage report
 pytest --cov=ga_birds --cov=fcgi-bin --cov-report=html
 ```
 
-详细说明请参考 [tests/README.md](../tests/README.md)。
+See [tests/README.md](../tests/README.md) for details.
 
 ---
 
-## 下一步
+## Next Steps
 
-安装完成后，请阅读 [README.md](README.md) 了解如何使用系统。
+After installation, please read [../README.md](../README.md) to learn how to use the system.
 
+---
+
+**Author:** adam
+**Email:** dev@ebf.hk
+**Website:** http://ebf.cc
+**Source:** https://github.com/tiger-sprite/ga-sprite-birds

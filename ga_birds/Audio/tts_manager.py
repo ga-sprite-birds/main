@@ -1,9 +1,9 @@
 """
-GA Sprite Birds - TTS 管理器
-统一管理本地和 API 模式的 TTS 调用
+GA Sprite Birds - TTS Manager
+Unified management of TTS calls for local and API modes
 
-版本: v2.0 (模块化架构)
-开发团队: Tiger
+Version: v2.0 (modular architecture)
+Dev team: Tiger
 """
 
 import asyncio
@@ -18,49 +18,49 @@ from .engines import (
 
 
 class TTSManager:
-    """TTS 管理器（统一入口）"""
+    """TTS manager (unified entry point)"""
 
     def __init__(self):
-        """初始化 TTS 管理器"""
-        # 统一转为小写，支持大小写不敏感
+        """Initialize the TTS manager"""
+        # Normalize to lowercase for case-insensitive support
         self.mode = config.TTS_MODE.lower()
         self.engine_name = config.TTS_ENGINE.lower()
 
-        # 创建 TTS 引擎实例
+        # Create the TTS engine instance
         self.engine = self._create_engine()
 
-        # 验证引擎设置
+        # Validate engine setup
         if not self.engine.validate_setup():
-            raise RuntimeError(f"TTS 引擎 {self.engine_name} 设置验证失败")
+            raise RuntimeError(f"TTS engine {self.engine_name} setup validation failed")
 
         logger.info(f"TTS 管理器初始化完成，模式: {self.mode}, 引擎: {self.engine_name}")
 
     def _create_engine(self) -> BaseTTSEngine:
         """
-        创建 TTS 引擎实例
+        Create the TTS engine instance
 
         Returns:
-            TTS 引擎实例
+            TTS engine instance
 
         Raises:
-            ValueError: 不支持的引擎类型
+            ValueError: unsupported engine type
         """
-        # 引擎映射表
+        # Engine mapping table
         engine_map = {
             "edge": EdgeTTSEngine,
         }
 
-        # 获取引擎类
+        # Get the engine class
         engine_class = engine_map.get(self.engine_name.lower())
 
         if engine_class is None:
             supported = ", ".join(engine_map.keys())
             raise ValueError(
-                f"不支持的 TTS 引擎: {self.engine_name}，"
-                f"支持的引擎: {supported}"
+                f"Unsupported TTS engine: {self.engine_name}, "
+                f"supported engines: {supported}"
             )
 
-        # 创建引擎实例
+        # Create the engine instance
         return engine_class()
 
     async def generate_audio(
@@ -73,18 +73,18 @@ class TTSManager:
         pitch: Optional[int] = None,
     ) -> str:
         """
-        生成音频文件（统一入口）
+        Generate audio file (unified entry point)
 
         Args:
-            text: 要转换的文本
-            output_path: 输出文件路径
-            voice: 音色/说话人（如果为 None，使用配置中的默认值）
-            rate: 语速倍数（1.0 = 正常，如果为 None，使用配置中的默认值）
-            volume: 音量倍数（1.0 = 正常，如果为 None，使用配置中的默认值）
-            pitch: 音调偏移（Hz，0 = 正常，如果为 None，使用配置中的默认值）
+            text: text to convert
+            output_path: output file path
+            voice: voice / speaker (uses configured default if None)
+            rate: speech rate multiplier (1.0 = normal; uses configured default if None)
+            volume: volume multiplier (1.0 = normal; uses configured default if None)
+            pitch: pitch offset (Hz, 0 = normal; uses configured default if None)
 
         Returns:
-            生成的音频文件路径
+            generated audio file path
         """
         try:
             return await self.engine.generate(
@@ -96,7 +96,7 @@ class TTSManager:
                 pitch=pitch,
             )
         except Exception as e:
-            logger.error(f"TTS 生成失败: {e}")
+            logger.error(f"TTS generation failed: {e}")
             raise
 
     def generate_audio_sync(
@@ -107,16 +107,16 @@ class TTSManager:
         rate: Optional[float] = None,
     ) -> str:
         """
-        同步方式生成音频（内部调用异步方法）
+        Generate audio synchronously (internally calls the async method)
 
         Args:
-            text: 要转换的文本
-            output_path: 输出文件路径
-            voice: 音色/说话人
-            rate: 语速倍数
+            text: text to convert
+            output_path: output file path
+            voice: voice / speaker
+            rate: speech rate multiplier
 
         Returns:
-            生成的音频文件路径
+            generated audio file path
         """
         return asyncio.run(
             self.generate_audio(

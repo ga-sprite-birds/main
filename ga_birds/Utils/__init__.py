@@ -1,6 +1,6 @@
 """
-工具模块
-提供文件处理、编码检测、模型管理等通用功能
+Utility module
+Provides common functionality such as file handling, encoding detection, and model management
 """
 
 from .file_utils import (

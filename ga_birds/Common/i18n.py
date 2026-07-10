@@ -4,7 +4,7 @@ from typing import Dict, Any, Optional
 
 
 class I18n:
-    """多语言管理器"""
+    """Multilingual manager"""
 
     def __init__(self, locale: str = "en_US"):
         self.locale = locale
@@ -12,7 +12,7 @@ class I18n:
         self.load_translations()
 
     def load_translations(self):
-        """加载翻译文件"""
+        """Load translation files"""
         langues_dir = Path(__file__).parent.parent / "Langues"
         locale_file = langues_dir / f"{self.locale}.json"
 
@@ -29,14 +29,14 @@ class I18n:
 
     def t(self, key: str, **kwargs) -> str:
         """
-        翻译函数
+        Translation function
 
         Args:
-            key: 翻译键（支持点号分隔，如 "video.processing"）
-            **kwargs: 占位符参数
+            key: translation key (dot-separated supported, e.g. "video.processing")
+            **kwargs: placeholder arguments
 
         Returns:
-            翻译后的文本
+            translated text
 
         Examples:
             >>> i18n.t("common.success")
@@ -68,10 +68,10 @@ class I18n:
 
     def change_locale(self, locale: str):
         """
-        切换语言
+        Switch language
 
         Args:
-            locale: 新的语言代码
+            locale: new locale code
         """
         self.locale = locale
         self.load_translations()
@@ -82,13 +82,13 @@ _i18n_instance: Optional[I18n] = None
 
 def get_i18n(locale: str = None) -> I18n:
     """
-    获取 i18n 实例（单例模式）
+    Get the i18n instance (singleton pattern)
 
     Args:
-        locale: 语言代码（可选）
+        locale: locale code (optional)
 
     Returns:
-        I18n 实例
+        I18n instance
     """
     global _i18n_instance
 
@@ -102,14 +102,14 @@ def get_i18n(locale: str = None) -> I18n:
 
 def t(key: str, **kwargs) -> str:
     """
-    快捷翻译函数
+    Convenience translation function
 
     Args:
-        key: 翻译键
-        **kwargs: 占位符参数
+        key: translation key
+        **kwargs: placeholder arguments
 
     Returns:
-        翻译后的文本
+        translated text
 
     Examples:
         >>> from ga_birds.Common.i18n import t
@@ -121,10 +121,10 @@ def t(key: str, **kwargs) -> str:
 
 def set_locale(locale: str):
     """
-    设置全局语言
+    Set the global language
 
     Args:
-        locale: 语言代码（en_US / zh_CN / ja_JP）
+        locale: locale code (en_US / zh_CN / ja_JP)
     """
     get_i18n(locale)
 

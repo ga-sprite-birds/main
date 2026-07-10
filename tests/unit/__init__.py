@@ -1,5 +1,5 @@
 """
-单元测试模块
-使用 FastAPI TestClient 进行快速测试，不需要启动服务器
+Unit test module
+Uses the FastAPI TestClient for fast testing without needing to start a server
 """
 

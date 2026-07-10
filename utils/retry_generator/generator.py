@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-命令生成器 - 生成重试命令（Shell脚本或纯文本）
+Command generator - generates retry commands (Shell script or plain text)
 """
 
 from typing import List, Tuple
@@ -9,7 +9,7 @@ from datetime import datetime
 import sys
 from pathlib import Path
 
-# 添加项目根目录到路径
+# Add the project root directory to the path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
@@ -17,16 +17,16 @@ import config
 
 
 class CommandGenerator:
-    """命令生成器"""
+    """Command generator"""
     
     def __init__(self, failed_chapters: List[int], batch_size: int = 20, input_file: str = None):
         """
-        初始化命令生成器
+        Initialize the command generator
         
         Args:
-            failed_chapters: 失败章节序号列表
-            batch_size: 每批次章节数
-            input_file: 输入文件路径
+            failed_chapters: list of failed chapter numbers
+            batch_size: number of chapters per batch
+            input_file: path to the input file
         """
         self.failed_chapters = failed_chapters
         self.batch_size = batch_size
@@ -34,10 +34,10 @@ class CommandGenerator:
     
     def generate_batches(self) -> List[Tuple[int, int]]:
         """
-        将失败章节分组为批次
+        Group failed chapters into batches
         
         Returns:
-            批次列表，每个批次为 (start, end) 元组
+            list of batches, each batch being a (start, end) tuple
         """
         if not self.failed_chapters:
             return []
@@ -49,13 +49,13 @@ class CommandGenerator:
         while i < len(chapters):
             start = chapters[i]
             
-            # 查找连续的章节范围
+            # Find a contiguous range of chapters
             end = start
             count = 1
             
             while count < self.batch_size and i + count < len(chapters):
                 next_chapter = chapters[i + count]
-                # 如果章节连续或间隔不大，继续合并
+                # If chapters are contiguous or close enough, keep merging
                 if next_chapter - end <= 3:
                     end = next_chapter
                     count += 1
@@ -69,13 +69,13 @@ class CommandGenerator:
     
     def generate_shell_script(self, batches: List[Tuple[int, int]]) -> str:
         """
-        生成 Shell 脚本
+        Generate a Shell script
         
         Args:
-            batches: 批次列表
+            batches: list of batches
         
         Returns:
-            Shell 脚本内容
+            Shell script content
         """
         lines = [
             "#!/bin/bash",
@@ -116,13 +116,13 @@ class CommandGenerator:
     
     def generate_text(self, batches: List[Tuple[int, int]]) -> str:
         """
-        生成纯文本命令列表
+        Generate a plain-text command list
         
         Args:
-            batches: 批次列表
+            batches: list of batches
         
         Returns:
-            纯文本内容
+            plain-text content
         """
         lines = [
             "失败章节重试命令列表",
@@ -156,13 +156,13 @@ class CommandGenerator:
     
     def generate_summary(self, batches: List[Tuple[int, int]]) -> str:
         """
-        生成摘要信息
+        Generate summary information
         
         Args:
-            batches: 批次列表
+            batches: list of batches
         
         Returns:
-            摘要文本
+            summary text
         """
         lines = [
             "📊 分析结果:",

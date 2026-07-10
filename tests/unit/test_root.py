@@ -1,5 +1,5 @@
 """
-测试根路径
+Test the root path
 """
 
 import sys
@@ -7,11 +7,11 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-# 添加项目根目录到 Python 路径
+# Add the project root directory to the Python path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-# 动态导入 fcgi-bin.api
+# Dynamically import fcgi-bin.api
 import importlib.util
 api_path = project_root / "fcgi-bin" / "api.py"
 spec = importlib.util.spec_from_file_location("api", api_path)
@@ -24,7 +24,7 @@ client = TestClient(app)
 
 @pytest.mark.unit
 def test_root():
-    """测试根路径返回正确信息"""
+    """Test that the root path returns correct information"""
     response = client.get("/")
     
     assert response.status_code == 200
@@ -38,16 +38,16 @@ def test_root():
 
 @pytest.mark.unit
 def test_root_response_structure():
-    """测试根路径响应结构"""
+    """Test the root path response structure"""
     response = client.get("/")
     data = response.json()
     
-    # 验证必需字段
+    # Verify required fields
     required_fields = ["name", "version", "status"]
     for field in required_fields:
         assert field in data, f"缺少必需字段: {field}"
     
-    # 验证字段类型
+    # Verify field types
     assert isinstance(data["name"], str)
     assert isinstance(data["version"], str)
     assert isinstance(data["status"], str)

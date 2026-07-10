@@ -1,6 +1,6 @@
 """
-任务管理模块
-负责异步任务的创建、执行和状态管理
+Task management module
+Responsible for async task creation, execution, and status management
 """
 
 from .task_manager import TaskManager, Task, TaskStatus

@@ -1,6 +1,6 @@
 """
-角色列表解析器
-解析用户提供的角色列表文件
+Character list parser
+Parses the user-provided character list file
 """
 
 from typing import List, Dict
@@ -9,35 +9,35 @@ from loguru import logger
 
 
 class CharacterListParser:
-    """角色列表解析器"""
+    """Character list parser"""
     
     @staticmethod
     def parse_file(file_path: str) -> List[Dict]:
         """
-        解析角色列表文件
-        
-        支持格式：
-        1. 简单格式：每行一个角色名
-           陈洪德
-           老爸
-           爷爷
-        
-        2. 带性别格式：角色名 性别
-           陈洪德 male
-           老爸 male
-           王婶 female
-        
-        3. 支持注释：# 开头的行
+        Parse the character list file
+
+        Supported formats:
+        1. Simple format: one character name per line
+            陈洪德
+            老爸
+            爷爷
+
+        2. Gender format: <character_name> <gender>
+            陈洪德 male
+            老爸 male
+            王婶 female
+
+        3. Comments supported: lines starting with #
            # 主要角色
-           陈洪德 male
-           # 配角
-           老爸 male
-        
+            陈洪德 male
+            # 配角
+            老爸 male
+
         Args:
-            file_path: 角色列表文件路径
-            
+            file_path: path to the character list file
+
         Returns:
-            角色列表：[{"name": "陈洪德", "gender": "male"}, ...]
+            character list: [{"name": "陈洪德", "gender": "male"}, ...]
         """
         file_path = Path(file_path)
         
@@ -50,27 +50,27 @@ class CharacterListParser:
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 for line_num, line in enumerate(f, 1):
-                    # 去除首尾空白
+                    # Strip leading/trailing whitespace
                     line = line.strip()
-                    
-                    # 跳过空行和注释
+
+                    # Skip empty lines and comments
                     if not line or line.startswith('#'):
                         continue
-                    
-                    # 解析角色
+
+                    # Parse the character
                     parts = line.split()
-                    
+
                     if len(parts) == 1:
-                        # 简单格式：只有角色名
+                        # Simple format: only the character name
                         characters.append({
                             "name": parts[0],
                             "gender": "unknown"
                         })
                     elif len(parts) == 2:
-                        # 带性别格式：角色名 性别
+                        # Gender format: <character_name> <gender>
                         name, gender = parts
-                        
-                        # 验证性别
+
+                        # Validate gender
                         if gender.lower() not in ['male', 'female', 'unknown', 'narrator']:
                             logger.warning(f"第 {line_num} 行：性别 '{gender}' 无效，使用 'unknown'")
                             gender = 'unknown'
@@ -93,19 +93,19 @@ class CharacterListParser:
     @staticmethod
     def validate_characters(characters: List[Dict]) -> bool:
         """
-        验证角色列表
-        
+        Validate the character list
+
         Args:
-            characters: 角色列表
-            
+            characters: character list
+
         Returns:
-            是否有效
+            whether valid
         """
         if not characters:
             logger.error("角色列表为空")
             return False
-        
-        # 检查重复角色
+
+        # Check for duplicate characters
         names = [char['name'] for char in characters]
         duplicates = [name for name in names if names.count(name) > 1]
         
@@ -118,10 +118,10 @@ class CharacterListParser:
     @staticmethod
     def create_example_file(output_path: str):
         """
-        创建示例角色列表文件
-        
+        Create an example character list file
+
         Args:
-            output_path: 输出文件路径
+            output_path: output file path
         """
         example_content = """# 角色列表示例
 # 格式：角色名 [性别]

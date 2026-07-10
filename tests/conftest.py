@@ -1,43 +1,43 @@
 """
-pytest 全局配置和 fixtures
+Global pytest configuration and fixtures
 """
 
 import pytest
 import asyncio
 from pathlib import Path
 
-# 测试数据目录
+# Test data directory
 TEST_ROOT = Path(__file__).parent
 FIXTURES_DIR = TEST_ROOT / "fixtures"
 
 
 @pytest.fixture(scope="session")
 def test_root():
-    """测试根目录"""
+    """Test root directory"""
     return TEST_ROOT
 
 
 @pytest.fixture(scope="session")
 def fixtures_dir():
-    """测试数据目录"""
+    """Test data directory"""
     return FIXTURES_DIR
 
 
 @pytest.fixture(scope="session")
 def sample_text_file():
-    """示例文本文件"""
+    """Sample text file"""
     return FIXTURES_DIR / "sample.txt"
 
 
 @pytest.fixture(scope="session")
 def sample_multi_chapter_file():
-    """多章节示例文件"""
+    """Multi-chapter sample file"""
     return FIXTURES_DIR / "sample_multi_chapter.txt"
 
 
 @pytest.fixture(scope="session")
 def event_loop():
-    """创建事件循环（用于异步测试）"""
+    """Create an event loop (for async tests)"""
     loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
     loop.close()
@@ -45,6 +45,6 @@ def event_loop():
 
 @pytest.fixture
 def api_base_url():
-    """API 服务器地址"""
+    """API server address"""
     return "http://localhost:8000"
 

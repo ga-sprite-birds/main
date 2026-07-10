@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Edge TTS 配音试听工具 - 命令行接口
-获取可用音色列表并生成试听音频
+Edge TTS voice casting audition tool - command-line interface
+Fetches the available voice list and generates audition audio
 """
 
 import sys
@@ -17,7 +17,7 @@ from utils.try_tts.voice_fetcher import VoiceFetcher
 from utils.try_tts.sample_generator import SampleGenerator
 from utils.try_tts.doc_exporter import DocExporter
 
-# 默认语言（稍后会根据参数或配置更新）
+# Default language (later updated based on arguments or config)
 _default_lang = "en_US"
 try:
     import config
@@ -27,7 +27,7 @@ except ImportError:
 
 
 def parse_args():
-    # 预解析 --language 参数以设置帮助文本语言
+    # Pre-parse the --language argument to set the help-text language
     import sys
     help_lang = _default_lang
     if '--language' in sys.argv:
@@ -38,9 +38,9 @@ def parse_args():
         except (ValueError, IndexError):
             pass
 
-    # 设置帮助文本语言
+    # Set the help-text language
     get_i18n(help_lang)
-    """解析命令行参数"""
+    """Parse command-line arguments"""
     examples = f"""
 {t('help.examples')}
   # {t('help.example_list_all')}
@@ -117,11 +117,11 @@ def parse_args():
 
 
 def main():
-    """主函数"""
+    """Main function"""
     args = parse_args()
 
-    # parse_args() 中已经设置了语言，这里不需要再设置
-    # 语言已经在 parse_args() 中根据 --language 参数设置好了
+    # The language was already set in parse_args(), no need to set it again here
+    # The language was already set in parse_args() based on the --language argument
 
     print("=" * 100)
     print(t('help.description'))

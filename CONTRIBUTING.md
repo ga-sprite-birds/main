@@ -25,7 +25,7 @@
 
 建议先阅读以下文档：
 
-- `help/README.md`
+- `README.md`
 - `help/INSTALL.md`
 - `help/development-guide.md`
 - `tests/README.md`

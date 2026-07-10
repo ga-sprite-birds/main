@@ -1,9 +1,9 @@
 """
-GA Sprite Birds - 章节文本保存器
-统一处理单人配音和多角色配音的文本保存逻辑
+GA Sprite Birds - Chapter text saver
+Unified text saving logic for single-character and multi-character voice modes
 
-版本: v1.0
-开发团队: Tiger
+Version: v1.0
+Dev team: Tiger
 """
 
 from pathlib import Path
@@ -14,7 +14,7 @@ from .config_manager import ConfigManager
 
 
 class ChapterTextSaver:
-    """章节文本保存器"""
+    """Chapter text saver"""
 
     @staticmethod
     def save_single_voice_text(
@@ -25,21 +25,21 @@ class ChapterTextSaver:
         enable_llm: bool = False
     ) -> None:
         """
-        保存单人配音模式的文本
+        Save text for single-character voice mode
 
         Args:
-            audio_path: 音频文件路径
-            final_content: 最终文本（包含片头片尾）
-            original_content: 原始文本
-            llm_content: LLM 处理后的文本
-            enable_llm: 是否启用了 LLM
+            audio_path: audio file path
+            final_content: final text (including intro/outro)
+            original_content: original text
+            llm_content: text processed by the LLM
+            enable_llm: whether LLM is enabled
         """
         if not ConfigManager.is_save_chapter_text_enabled():
             return
 
         encoding = ConfigManager.get_chapter_text_encoding()
 
-        # 保存最终文本
+        # Save the final text
         text_path = audio_path.with_suffix('.txt')
         try:
             with open(text_path, 'w', encoding=encoding) as f:
@@ -48,7 +48,7 @@ class ChapterTextSaver:
         except Exception as e:
             logger.warning(f"  ⚠ 保存章节文本失败: {e}")
 
-        # 如果启用了 LLM，额外保存原文和 LLM 文本
+        # If LLM is enabled, also save the original and LLM texts
         if enable_llm and llm_content:
             ChapterTextSaver._save_llm_texts(
                 audio_path, original_content, llm_content, encoding
@@ -63,34 +63,34 @@ class ChapterTextSaver:
         enable_llm: bool = False
     ) -> None:
         """
-        保存多角色配音模式的文本
+        Save text for multi-character voice mode
 
         Args:
-            audio_path: 音频文件路径
-            segments: 对话片段列表 [{"text": "...", "speaker": "..."}]
-            original_content: 原始文本
-            llm_content: LLM 处理后的文本
-            enable_llm: 是否启用了 LLM
+            audio_path: audio file path
+            segments: dialogue segment list [{"text": "...", "speaker": "..."}]
+            original_content: original text
+            llm_content: text processed by the LLM
+            enable_llm: whether LLM is enabled
         """
         if not ConfigManager.is_save_chapter_text_enabled():
             return
 
         encoding = ConfigManager.get_chapter_text_encoding()
 
-        # 1. 保存带说话人标注的文本
+        # 1. Save text with speaker labels
         text_path = audio_path.with_suffix('.txt')
         try:
             with open(text_path, 'w', encoding=encoding) as f:
                 for segment in segments:
                     speaker = segment.get('speaker', 'narrator')
                     text = segment.get('text', '')
-                    # 格式：【说话人】文本内容
+                    # Format: 【speaker】text content
                     f.write(f"【{speaker}】{text}\n\n")
             logger.info(f"  ✓ 章节文本已保存（带说话人）: {text_path.name}")
         except Exception as e:
             logger.warning(f"  ⚠ 保存章节文本失败: {e}")
 
-        # 2. 保存纯文本版本（不带说话人标注）
+        # 2. Save a plain-text version (without speaker labels)
         plain_text_path = audio_path.with_name(
             audio_path.stem + '-raw.txt'
         )
@@ -103,7 +103,7 @@ class ChapterTextSaver:
         except Exception as e:
             logger.warning(f"  ⚠ 保存纯文本失败: {e}")
 
-        # 3. 如果启用了 LLM，额外保存原文和 LLM 文本
+        # 3. If LLM is enabled, also save the original and LLM texts
         if enable_llm and llm_content:
             ChapterTextSaver._save_llm_texts(
                 audio_path, original_content, llm_content, encoding
@@ -117,15 +117,15 @@ class ChapterTextSaver:
         encoding: str
     ) -> None:
         """
-        保存 LLM 相关的文本文件
+        Save LLM-related text files
 
         Args:
-            audio_path: 音频文件路径
-            original_content: 原始文本
-            llm_content: LLM 处理后的文本
-            encoding: 文件编码
+            audio_path: audio file path
+            original_content: original text
+            llm_content: text processed by the LLM
+            encoding: file encoding
         """
-        # 保存原文
+        # Save the original text
         if original_content:
             original_text_path = audio_path.with_name(
                 audio_path.stem + '-原文.txt'
@@ -137,7 +137,7 @@ class ChapterTextSaver:
             except Exception as e:
                 logger.warning(f"  ⚠ 保存原文失败: {e}")
 
-        # 保存 LLM 文本
+        # Save the LLM text
         llm_text_path = audio_path.with_name(
             audio_path.stem + '-LLM.txt'
         )

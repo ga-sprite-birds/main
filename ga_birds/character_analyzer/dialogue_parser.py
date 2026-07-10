@@ -1,6 +1,6 @@
 """
-对话解析器
-使用 LLM 识别章节中每句话的说话人（多角色配音专用）
+Dialogue parser
+Uses an LLM to identify the speaker of each sentence in a chapter (for multi-character voice casting)
 """
 
 import re
@@ -12,25 +12,25 @@ import config
 
 
 class DialogueParser:
-    """对话解析器（多角色配音业务模块）"""
+    """Dialogue parser (multi-character voice casting module)"""
 
-    # 分块大小（字符数），使用配置值
+    # Chunk size (in characters), using the configured value
     CHUNK_SIZE = config.DIALOGUE_CHUNK_SIZE
-    # 分块重叠（字符数），确保上下文连贯
+    # Chunk overlap (in characters), to keep context coherent
     CHUNK_OVERLAP = config.DIALOGUE_CHUNK_OVERLAP
 
     def __init__(self, llm_manager, characters: List[Dict]):
         """
-        初始化对话解析器
+        Initialize the dialogue parser
 
         Args:
-            llm_manager: LLM 管理器
-            characters: 角色列表（从角色模板加载）
+            llm_manager: LLM manager
+            characters: character list (loaded from the character template)
         """
         self.llm_manager = llm_manager
         self.characters = characters
 
-        # 构建角色名称列表（包括别名）
+        # Build the character name list (including aliases)
         self.character_names = set()
         for char in characters:
             self.character_names.add(char['name'])
@@ -46,15 +46,15 @@ class DialogueParser:
         outro: Optional[str]
     ) -> List[Dict]:
         """
-        为对话片段添加片头片尾（多角色配音专用）
+        Add intro and outro to dialogue segments (for multi-character voice casting)
 
         Args:
-            segments: 对话片段列表
-            intro: 片头文本
-            outro: 片尾文本
+            segments: dialogue segment list
+            intro: intro text
+            outro: outro text
 
         Returns:
-            添加片头片尾后的片段列表
+            segment list with intro and outro added
         """
         if not intro or not outro:
             logger.debug("  → 未添加片头片尾（intro 或 outro 为空）")
@@ -63,16 +63,16 @@ class DialogueParser:
         original_count = len(segments)
         enhanced_segments = []
 
-        # 片头使用旁白
+        # Use narrator for the intro
         enhanced_segments.append({
             "text": f"{intro}。",
             "speaker": "narrator",
         })
 
-        # 正文对话
+        # Main dialogue
         enhanced_segments.extend(segments)
 
-        # 片尾使用旁白
+        # Use narrator for the outro
         enhanced_segments.append({
             "text": f"{outro}。",
             "speaker": "narrator",
@@ -87,14 +87,14 @@ class DialogueParser:
     
     def parse_chapter(self, chapter_content: str, chapter_index: int) -> List[Dict]:
         """
-        解析章节内容，识别每句话的说话人
+        Parse chapter content and identify the speaker of each sentence
 
         Args:
-            chapter_content: 章节内容
-            chapter_index: 章节索引
+            chapter_content: chapter content
+            chapter_index: chapter index
 
         Returns:
-            对话片段列表，格式：
+            dialogue segment list, format:
             [
                 {"text": "二叔走了过来，说：", "speaker": "narrator"},
                 {"text": "你去哪里？", "speaker": "二叔"},
@@ -104,11 +104,11 @@ class DialogueParser:
         content_length = len(chapter_content)
         logger.debug(f"章节 {chapter_index} 内容长度: {content_length} 字符")
 
-        # 如果内容较短，直接解析
+        # If the content is short, parse directly
         if content_length <= self.CHUNK_SIZE:
             return self._parse_chunk(chapter_content, chapter_index, 1, 1)
 
-        # 长章节需要分块处理
+        # Long chapters need to be split into chunks
         chunks = self._split_into_chunks(chapter_content)
         logger.info(f"  → 章节内容较长，分为 {len(chunks)} 块处理")
 
@@ -124,13 +124,13 @@ class DialogueParser:
 
     def _split_into_chunks(self, content: str) -> List[str]:
         """
-        将长内容分割为多个块
+        Split long content into multiple chunks
 
         Args:
-            content: 原始内容
+            content: original content
 
         Returns:
-            内容块列表
+            list of content chunks
         """
         chunks = []
         start = 0
@@ -139,14 +139,14 @@ class DialogueParser:
         while start < content_length:
             end = start + self.CHUNK_SIZE
 
-            # 如果不是最后一块，尝试在段落边界处切分
+            # If not the last chunk, try to split at a paragraph boundary
             if end < content_length:
-                # 在切分点附近寻找段落边界（换行符）
+                # Look for a paragraph boundary near the split point (newline)
                 search_start = max(start + self.CHUNK_SIZE - 200, start)
                 search_end = min(start + self.CHUNK_SIZE + 200, content_length)
                 search_range = content[search_start:search_end]
 
-                # 寻找最近的段落边界
+                # Find the nearest paragraph boundary
                 last_newline = search_range.rfind('\n')
                 if last_newline != -1:
                     end = search_start + last_newline + 1
@@ -154,7 +154,7 @@ class DialogueParser:
             chunk = content[start:end]
             chunks.append(chunk)
 
-            # 下一块的起始位置（带重叠）
+            # Starting position of the next chunk (with overlap)
             start = end - self.CHUNK_OVERLAP if end < content_length else end
 
         return chunks
@@ -167,18 +167,18 @@ class DialogueParser:
         total_chunks: int
     ) -> List[Dict]:
         """
-        解析单个内容块
+        Parse a single content chunk
 
         Args:
-            chunk_content: 内容块
-            chapter_index: 章节索引
-            chunk_num: 当前块编号
-            total_chunks: 总块数
+            chunk_content: content chunk
+            chapter_index: chapter index
+            chunk_num: current chunk number
+            total_chunks: total number of chunks
 
         Returns:
-            对话片段列表
+            dialogue segment list
         """
-        # 构建角色名称字符串
+        # Build the character name string
         character_names_str = "、".join([c['name'] for c in self.characters])
 
         prompt = f"""请分析以下小说章节，将内容拆分为对话片段，并识别每个片段的说话人。
@@ -209,10 +209,10 @@ class DialogueParser:
         if total_chunks > 1:
             chunk_desc += f"-块{chunk_num}/{total_chunks}"
 
-        # 对话解析需要更大的输出空间（JSON 格式会膨胀约 3-4 倍）
-        # 使用输入长度的 4 倍作为输出限制，最少 4096
+        # Dialogue parsing needs more output space (JSON format expands ~3-4x)
+        # Use 4x the input length as the output limit, minimum 4096
         input_len = len(chunk_content)
-        dialogue_max_tokens = max(4096, input_len * 4 // 3)  # 中文约 1.5 字符/token
+        dialogue_max_tokens = max(4096, input_len * 4 // 3)  # Chinese: ~1.5 chars/token
         logger.debug(f"{chunk_desc} 输入长度: {input_len}，输出限制: {dialogue_max_tokens}")
 
         try:
@@ -232,15 +232,15 @@ class DialogueParser:
         chunk_num: int
     ) -> List[Dict]:
         """
-        解析 LLM 返回的 JSON 响应
+        Parse the JSON response returned by the LLM
 
         Args:
-            result: LLM 返回的原始文本
-            chapter_index: 章节索引
-            chunk_num: 块编号
+            result: raw text returned by the LLM
+            chapter_index: chapter index
+            chunk_num: chunk number
 
         Returns:
-            对话片段列表
+            dialogue segment list
         """
         json_match = re.search(r'\{.*\}', result, re.DOTALL)
         if not json_match:
@@ -249,7 +249,7 @@ class DialogueParser:
 
         json_str = json_match.group(0)
 
-        # 清理 JSON
+        # Clean the JSON
         json_str = self._clean_json_string(json_str)
 
         try:
@@ -263,24 +263,24 @@ class DialogueParser:
             raise
 
     def _clean_json_string(self, json_str: str) -> str:
-        """清理 JSON 字符串"""
-        # 清理换行
+        """Clean the JSON string"""
+        # Remove newlines
         json_str = json_str.replace('\n', ' ').replace('\r', '')
 
-        # 修复各种引号问题
-        json_str = json_str.replace('\u201c', '\\"')  # " 左双引号
-        json_str = json_str.replace('\u201d', '\\"')  # " 右双引号
-        json_str = json_str.replace('\u2018', "'")    # ' 左单引号
-        json_str = json_str.replace('\u2019', "'")    # ' 右单引号
+        # Fix various quote issues
+        json_str = json_str.replace('\u201c', '\\"')  # " left double quote
+        json_str = json_str.replace('\u201d', '\\"')  # " right double quote
+        json_str = json_str.replace('\u2018', "'")    # ' left single quote
+        json_str = json_str.replace('\u2019', "'")    # ' right single quote
         json_str = json_str.replace('\u300c', '\\"')  # 「
         json_str = json_str.replace('\u300d', '\\"')  # 」
         json_str = json_str.replace('\u300e', '\\"')  # 『
         json_str = json_str.replace('\u300f', '\\"')  # 』
 
-        # 修复 JSON 中的控制字符
+        # Fix control characters in the JSON
         json_str = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', json_str)
 
-        # 移除尾部逗号
+        # Remove trailing commas
         json_str = re.sub(r',\s*}', '}', json_str)
         json_str = re.sub(r',\s*]', ']', json_str)
 
@@ -292,11 +292,11 @@ class DialogueParser:
         chapter_index: int,
         chunk_num: int
     ) -> Dict:
-        """尝试解析 JSON，必要时自动修复"""
+        """Try to parse the JSON, auto-fixing if necessary"""
         try:
             return json.loads(json_str)
         except json.JSONDecodeError as e:
-            # 尝试自动补全结尾
+            # Try to auto-complete the ending
             fixed = json_str.rstrip()
             if '"segments"' in fixed and not fixed.endswith(']}'):
                 if not fixed.endswith(']'):
@@ -322,7 +322,7 @@ class DialogueParser:
         chapter_index: int,
         chunk_num: int
     ):
-        """保存调试信息到文件"""
+        """Save debug info to a file"""
         debug_file = f"cache/debug_json_chapter_{chapter_index}_chunk_{chunk_num}.txt"
         try:
             with open(debug_file, 'w', encoding='utf-8') as f:
@@ -340,25 +340,25 @@ class DialogueParser:
 
     def normalize_speaker(self, speaker: str) -> str:
         """
-        规范化说话人名称（将别名转为主名称）
-        
+        Normalize the speaker name (map alias to the primary name)
+
         Args:
-            speaker: 说话人名称
-            
+            speaker: speaker name
+
         Returns:
-            规范化后的名称
+            normalized name
         """
         if speaker == "narrator":
             return "narrator"
-        
-        # 查找角色
+
+        # Look up the character
         for char in self.characters:
             if speaker == char['name']:
                 return char['name']
             if speaker in char.get('aliases', []):
                 return char['name']
         
-        # 未找到，返回原名
+        # Not found, return the original name
         logger.warning(f"未知说话人: {speaker}，将作为旁白处理")
         return "narrator"
 

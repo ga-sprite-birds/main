@@ -1,9 +1,9 @@
 """
-GA Sprite Birds - 音频导出器
-负责音频文件的保存和路径管理
+GA Sprite Birds - Audio Exporter
+Responsible for saving audio files and path management
 
-版本: v1.0
-开发团队: Tiger
+Version: v1.0
+Dev team: Tiger
 """
 
 from pathlib import Path
@@ -17,17 +17,17 @@ import config
 
 
 class AudioExporter:
-    """音频导出器"""
+    """Audio exporter"""
 
     def __init__(self):
-        """初始化音频导出器"""
+        """Initialize the audio exporter"""
         self.base_path = Path(config.OUTPUT_BASE_PATH)
         self.strategy = config.OUTPUT_STRATEGY
         self.format = config.OUTPUT_FORMAT
         self.bitrate = config.OUTPUT_BITRATE
         self.filename_template = config.OUTPUT_FILENAME_TEMPLATE
 
-        # 确保输出目录存在
+        # Ensure the output directory exists
         self.base_path.mkdir(parents=True, exist_ok=True)
 
         logger.info(f"音频导出器初始化完成，输出路径: {self.base_path}, 策略: {self.strategy}")
@@ -40,21 +40,21 @@ class AudioExporter:
         custom_base_path: Optional[str] = None
     ) -> Path:
         """
-        获取输出文件路径
-        
+        Get the output file path
+
         Args:
-            index: 章节序号
-            title: 章节标题
-            role: 角色名称
-            custom_base_path: 自定义基础路径（API 参数覆盖）
-            
+            index: chapter number
+            title: chapter title
+            role: character name
+            custom_base_path: custom base path (overridden by API parameter)
+
         Returns:
-            输出文件路径
+            output file path
         """
-        # 使用自定义路径或默认路径
+        # Use custom path or default path
         base = Path(custom_base_path) if custom_base_path else self.base_path
-        
-        # 根据策略确定子目录
+
+        # Determine subdirectory based on strategy
         if self.strategy == "by_role":
             subdir = base / (role or "default")
         elif self.strategy == "by_model":
@@ -65,11 +65,11 @@ class AudioExporter:
             subdir = base / date_str
         else:
             subdir = base
-        
-        # 确保子目录存在
+
+        # Ensure subdirectory exists
         subdir.mkdir(parents=True, exist_ok=True)
         
-        # 生成文件名
+        # Generate filename
         filename = self.filename_template.format(
             index=index,
             title=self._sanitize_filename(title),
@@ -86,20 +86,20 @@ class AudioExporter:
     @staticmethod
     def _sanitize_filename(filename: str) -> str:
         """
-        清理文件名，移除非法字符
-        
+        Sanitize the filename by removing illegal characters
+
         Args:
-            filename: 原始文件名
-            
+            filename: original filename
+
         Returns:
-            清理后的文件名
+            sanitized filename
         """
-        # 移除或替换非法字符
+        # Remove or replace illegal characters
         illegal_chars = ['<', '>', ':', '"', '/', '\\', '|', '?', '*']
         for char in illegal_chars:
             filename = filename.replace(char, '_')
-        
-        # 限制长度
+
+        # Limit length
         max_length = 100
         if len(filename) > max_length:
             filename = filename[:max_length]
@@ -114,21 +114,21 @@ class AudioExporter:
         bitrate: Optional[int] = None
     ) -> str:
         """
-        转换音频格式
-        
+        Convert audio format
+
         Args:
-            input_path: 输入文件路径
-            output_path: 输出文件路径（如果为 None，则自动生成）
-            target_format: 目标格式（如果为 None，使用配置中的格式）
-            bitrate: 比特率（如果为 None，使用配置中的比特率）
-            
+            input_path: input file path
+            output_path: output file path (auto-generated if None)
+            target_format: target format (uses configured format if None)
+            bitrate: bitrate (uses configured bitrate if None)
+
         Returns:
-            输出文件路径
+            output file path
         """
         target_format = target_format or self.format
         bitrate = bitrate or self.bitrate
-        
-        # 如果未指定输出路径，则自动生成
+
+        # Auto-generate output path if not specified
         if output_path is None:
             input_file = Path(input_path)
             output_path = str(input_file.with_suffix(f".{target_format}"))
@@ -136,10 +136,10 @@ class AudioExporter:
         logger.info(f"开始转换音频格式: {input_path} -> {output_path}")
         
         try:
-            # 加载音频
+            # Load audio
             audio = AudioSegment.from_file(input_path)
-            
-            # 导出为目标格式
+
+            # Export to target format
             audio.export(
                 output_path,
                 format=target_format,
@@ -159,23 +159,23 @@ class AudioExporter:
         crossfade: int = 0
     ) -> str:
         """
-        合并多个音频文件
-        
+        Merge multiple audio files
+
         Args:
-            input_paths: 输入文件路径列表
-            output_path: 输出文件路径
-            crossfade: 交叉淡入淡出时长（毫秒）
-            
+            input_paths: list of input file paths
+            output_path: output file path
+            crossfade: crossfade duration in milliseconds
+
         Returns:
-            输出文件路径
+            output file path
         """
-        logger.info(f"开始合并 {len(input_paths)} 个音频文件")
-        
+        logger.info(f"Start merging {len(input_paths)} audio files")
+
         try:
-            # 加载第一个音频
+            # Load the first audio
             combined = AudioSegment.from_file(input_paths[0])
-            
-            # 依次合并其他音频
+
+            # Merge the remaining audio files in sequence
             for path in input_paths[1:]:
                 audio = AudioSegment.from_file(path)
                 if crossfade > 0:
@@ -183,7 +183,7 @@ class AudioExporter:
                 else:
                     combined = combined + audio
             
-            # 导出合并后的音频
+            # Export the merged audio
             combined.export(
                 output_path,
                 format=self.format,

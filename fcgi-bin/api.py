@@ -1,9 +1,9 @@
 """
-GA Sprite Birds - FastAPI 统一路由入口
-提供文本上传、解析、生成、任务查询等 API
+GA Sprite Birds - FastAPI unified routing entry point
+Provides APIs for text upload, parsing, generation, and task query
 
-版本: v1.0
-开发团队: Tiger
+Version: v1.0
+Dev team: Tiger
 """
 
 import os
@@ -19,12 +19,12 @@ from loguru import logger
 
 import config
 
-# 初始化多语言（默认使用配置文件）
+# Initialize multilingual support (defaults to config file)
 _core_module_name = config.CORE_DIR.replace('-', '_')
 _i18n_module = importlib.import_module(f'{_core_module_name}.Common.i18n')
 _i18n_module.set_locale(config.LANGUAGE)
 
-# 动态导入核心模块（根据 config.CORE_DIR）
+# Dynamically import core modules (based on config.CORE_DIR)
 _utils_module = importlib.import_module(f'{_core_module_name}.Utils')
 _parser_module = importlib.import_module(f'{_core_module_name}.Parser')
 _llm_module = importlib.import_module(f'{_core_module_name}.LLM')
@@ -32,7 +32,7 @@ _audio_module = importlib.import_module(f'{_core_module_name}.Audio')
 _sprite_module = importlib.import_module(f'{_core_module_name}.Sprite')
 _task_module = importlib.import_module(f'{_core_module_name}.Task')
 
-# 导入需要的类和函数
+# Import required classes and functions
 read_text_file = _utils_module.read_text_file
 extract_pdf_text = _utils_module.extract_pdf_text
 preprocess_text = _utils_module.preprocess_text
@@ -45,7 +45,7 @@ TaskManager = _task_module.TaskManager
 TaskStatus = _task_module.TaskStatus
 
 
-# 初始化 FastAPI 应用
+# Initialize the FastAPI application
 app = FastAPI(
     title="音频朗读系统 API",
     description="将文本转换为音频的 API 服务",
@@ -53,7 +53,7 @@ app = FastAPI(
     debug=config.API_DEBUG
 )
 
-# 配置 CORS
+# Configure CORS
 if config.API_CORS_ENABLED:
     app.add_middleware(
         CORSMiddleware,
@@ -63,51 +63,51 @@ if config.API_CORS_ENABLED:
         allow_headers=["*"],
     )
 
-# 初始化管理器
+# Initialize managers
 task_manager = TaskManager()
 sprite_manager = SpriteManager()
 
 
 # ============================================
-# 请求/响应模型
+# Request/Response models
 # ============================================
 
 class UploadRequest(BaseModel):
-    """上传请求"""
-    path: Optional[str] = None  # 本地文件路径
-    output_path: Optional[str] = None  # 自定义输出路径
-    language: Optional[str] = None  # 界面语言（en_US, zh_CN）
+    """Upload request"""
+    path: Optional[str] = None  # Local file path
+    output_path: Optional[str] = None  # Custom output path
+    language: Optional[str] = None  # UI language (en_US, zh_CN)
 
 
 class ParseRequest(BaseModel):
-    """解析请求"""
-    task_id: str  # 任务 ID
-    language: Optional[str] = None  # 界面语言（en_US, zh_CN）
+    """Parse request"""
+    task_id: str  # Task ID
+    language: Optional[str] = None  # UI language (en_US, zh_CN)
 
 
 class GenerateRequest(BaseModel):
-    """生成请求"""
-    task_id: str  # 任务 ID
-    voice: Optional[str] = None  # 音色（覆盖配置）
-    output_path: Optional[str] = None  # 输出路径（覆盖配置）
-    enable_llm: bool = True  # 是否启用 LLM 口语化
-    language: Optional[str] = None  # 界面语言（en_US, zh_CN）
+    """Generate request"""
+    task_id: str  # Task ID
+    voice: Optional[str] = None  # Voice timbre (overrides config)
+    output_path: Optional[str] = None  # Output path (overrides config)
+    enable_llm: bool = True  # Whether to enable LLM colloquialization
+    language: Optional[str] = None  # UI language (en_US, zh_CN)
 
 
 class TaskResponse(BaseModel):
-    """任务响应"""
+    """Task response"""
     task_id: str
     status: str
     message: str
 
 
 # ============================================
-# API 路由
+# API routes
 # ============================================
 
 @app.get("/")
 async def root():
-    """根路径"""
+    """Root path"""
     return {
         "name": "音频朗读系统 API",
         "version": "1.0.0",
@@ -123,29 +123,29 @@ async def upload_file(
     language: Optional[str] = None
 ):
     """
-    上传文本文件或指定本地路径
+    Upload a text file or specify a local path
 
     Args:
-        file: 上传的文件对象
-        path: 本地文件路径（优先使用）
-        output_path: 自定义输出路径
-        language: 界面语言（en_US, zh_CN）
+        file: The uploaded file object
+        path: Local file path (takes priority)
+        output_path: Custom output path
+        language: UI language (en_US, zh_CN)
 
     Returns:
-        任务信息
+        Task information
     """
-    # 设置语言
+    # Set language
     if language:
         _i18n_module.set_locale(language)
 
     try:
-        # 优先使用本地路径
+        # Prefer the local path
         if path:
             file_path = path
             if not os.path.exists(file_path):
                 raise HTTPException(status_code=404, detail=f"文件不存在: {file_path}")
         elif file:
-            # 保存上传的文件（使用配置的上传目录）
+            # Save the uploaded file (using the configured upload directory)
             upload_dir = Path(config.API_UPLOAD_DIR)
             upload_dir.mkdir(parents=True, exist_ok=True)
 
@@ -158,7 +158,7 @@ async def upload_file(
         else:
             raise HTTPException(status_code=400, detail="必须提供文件或路径")
         
-        # 创建任务
+        # Create the task
         task_id = task_manager.create_task(
             metadata={
                 "file_path": str(file_path),
@@ -174,7 +174,7 @@ async def upload_file(
         )
     
     except HTTPException:
-        # 重新抛出 HTTPException，保持原有状态码
+        # Re-raise HTTPException, preserving the original status code
         raise
     except Exception as e:
         logger.error(f"文件上传失败: {e}")
@@ -184,15 +184,15 @@ async def upload_file(
 @app.post("/parse", response_model=TaskResponse)
 async def parse_text(request: ParseRequest):
     """
-    解析文本，拆分章节
+    Parse text and split into chapters
 
     Args:
-        request: 解析请求
+        request: Parse request
 
     Returns:
-        任务信息
+        Task information
     """
-    # 设置语言
+    # Set language
     if request.language:
         _i18n_module.set_locale(request.language)
 
@@ -201,22 +201,22 @@ async def parse_text(request: ParseRequest):
         if not task:
             raise HTTPException(status_code=404, detail=f"任务不存在: {request.task_id}")
         
-        # 更新任务状态
+        # Update task status
         task_manager.update_task_status(request.task_id, TaskStatus.PARSING)
         
-        # 读取文件
+        # Read the file
         file_path = task.metadata.get("file_path")
         if not file_path:
             raise HTTPException(status_code=400, detail="任务中未找到文件路径")
         
-        # 根据文件类型读取内容
+        # Read content based on file type
         file_ext = Path(file_path).suffix.lower()
         if file_ext == ".pdf":
             text = extract_pdf_text(file_path)
         else:
             text = read_text_file(file_path)
         
-        # 文本预处理
+        # Text preprocessing
         if config.TEXT_PREPROCESSING_ENABLED:
             text = preprocess_text(
                 text,
@@ -225,7 +225,7 @@ async def parse_text(request: ParseRequest):
                 fix_pdf_linebreaks=True
             )
 
-        # 章节拆分
+        # Chapter splitting
         parser = ChapterParser(
             regex_patterns=config.CHAPTER_REGEX_PATTERNS,
             min_length=config.CHAPTER_MIN_LENGTH,
@@ -233,7 +233,7 @@ async def parse_text(request: ParseRequest):
         )
         chapters = parser.parse(text)
         
-        # 更新任务章节信息
+        # Update task chapter information
         task.total_chapters = len(chapters)
         task.chapters = [
             {
@@ -245,7 +245,7 @@ async def parse_text(request: ParseRequest):
             for ch in chapters
         ]
         
-        # 保存章节数据到任务元数据
+        # Save chapter data to task metadata
         task.metadata["chapters"] = [
             {
                 "index": ch.index,
@@ -255,7 +255,7 @@ async def parse_text(request: ParseRequest):
             for ch in chapters
         ]
 
-        # 更新任务状态为已解析
+        # Update task status to parsed
         task_manager.update_task_status(request.task_id, TaskStatus.PARSED)
 
         logger.info(f"任务 {request.task_id} 解析完成，共 {len(chapters)} 章")
@@ -267,7 +267,7 @@ async def parse_text(request: ParseRequest):
         )
     
     except HTTPException:
-        # 重新抛出 HTTPException，保持原有状态码
+        # Re-raise HTTPException, preserving the original status code
         raise
     except Exception as e:
         logger.error(f"文本解析失败: {e}")
@@ -278,16 +278,16 @@ async def parse_text(request: ParseRequest):
 @app.post("/generate", response_model=TaskResponse)
 async def generate_audio(request: GenerateRequest, background_tasks: BackgroundTasks):
     """
-    开始生成音频（异步）
+    Start audio generation (asynchronous)
 
     Args:
-        request: 生成请求
-        background_tasks: 后台任务
+        request: Generate request
+        background_tasks: Background tasks
 
     Returns:
-        任务信息
+        Task information
     """
-    # 设置语言
+    # Set language
     if request.language:
         _i18n_module.set_locale(request.language)
 
@@ -296,11 +296,11 @@ async def generate_audio(request: GenerateRequest, background_tasks: BackgroundT
         if not task:
             raise HTTPException(status_code=404, detail=f"任务不存在: {request.task_id}")
         
-        # 检查任务是否已解析
+        # Check whether the task has been parsed
         if not task.metadata.get("chapters"):
             raise HTTPException(status_code=400, detail="任务尚未解析，请先调用 /parse")
         
-        # 添加后台任务
+        # Add a background task
         background_tasks.add_task(
             _generate_audio_task,
             task_id=request.task_id,
@@ -309,7 +309,7 @@ async def generate_audio(request: GenerateRequest, background_tasks: BackgroundT
             enable_llm=request.enable_llm
         )
         
-        # 更新任务状态
+        # Update task status
         task_manager.update_task_status(request.task_id, TaskStatus.GENERATING)
         
         return TaskResponse(
@@ -319,7 +319,7 @@ async def generate_audio(request: GenerateRequest, background_tasks: BackgroundT
         )
     
     except HTTPException:
-        # 重新抛出 HTTPException，保持原有状态码
+        # Re-raise HTTPException, preserving the original status code
         raise
     except Exception as e:
         logger.error(f"生成音频失败: {e}")
@@ -329,13 +329,13 @@ async def generate_audio(request: GenerateRequest, background_tasks: BackgroundT
 @app.get("/task/{task_id}/status")
 async def get_task_status(task_id: str):
     """
-    查询任务状态
-    
+    Query task status
+
     Args:
-        task_id: 任务 ID
-        
+        task_id: Task ID
+
     Returns:
-        任务进度信息
+        Task progress information
     """
     progress = task_manager.get_task_progress(task_id)
     if not progress:
@@ -347,14 +347,14 @@ async def get_task_status(task_id: str):
 @app.get("/task/{task_id}/chapter/{chapter_index}")
 async def get_chapter_audio(task_id: str, chapter_index: int):
     """
-    获取单章音频文件
-    
+    Get a single chapter's audio file
+
     Args:
-        task_id: 任务 ID
-        chapter_index: 章节序号
-        
+        task_id: Task ID
+        chapter_index: Chapter index
+
     Returns:
-        音频文件
+        Audio file
     """
     audio_path = task_manager.get_chapter_audio(task_id, chapter_index)
     if not audio_path:
@@ -371,7 +371,7 @@ async def get_chapter_audio(task_id: str, chapter_index: int):
 
 
 # ============================================
-# 后台任务函数
+# Background task functions
 # ============================================
 
 async def _generate_audio_task(
@@ -381,13 +381,13 @@ async def _generate_audio_task(
     enable_llm: bool = True
 ):
     """
-    后台生成音频任务
-    
+    Background audio generation task
+
     Args:
-        task_id: 任务 ID
-        voice: 音色
-        output_path: 输出路径
-        enable_llm: 是否启用 LLM
+        task_id: Task ID
+        voice: Voice timbre
+        output_path: Output path
+        enable_llm: Whether to enable LLM
     """
     try:
         task = task_manager.get_task(task_id)
@@ -395,15 +395,15 @@ async def _generate_audio_task(
             logger.error(f"任务不存在: {task_id}")
             return
         
-        # 初始化管理器（不需要传递 settings，管理器内部会使用 config）
+        # Initialize managers (no need to pass settings; managers use config internally)
         llm_manager = LLMManager() if enable_llm else None
         tts_manager = TTSManager()
         audio_exporter = AudioExporter()
         
-        # 获取章节数据
+        # Get chapter data
         chapters_data = task.metadata.get("chapters", [])
         
-        # 逐章生成音频
+        # Generate audio chapter by chapter
         for chapter_data in chapters_data:
             chapter_index = chapter_data["index"]
             chapter_title = chapter_data["title"]
@@ -411,7 +411,7 @@ async def _generate_audio_task(
             
             logger.info(f"开始生成章节 {chapter_index}: {chapter_title}")
             
-            # 更新章节状态
+            # Update chapter status
             task_manager.update_chapter_status(
                 task_id,
                 chapter_index,
@@ -419,12 +419,12 @@ async def _generate_audio_task(
             )
             
             try:
-                # LLM 口语化（可选）
+                # LLM colloquialization (optional)
                 if enable_llm and llm_manager:
                     logger.info(f"章节 {chapter_index} 开始 LLM 口语化")
                     chapter_content = llm_manager.colloquialize_text(chapter_content)
                 
-                # 生成音频文件路径
+                # Generate the audio file path
                 audio_path = audio_exporter.get_output_path(
                     index=chapter_index,
                     title=chapter_title,
@@ -432,7 +432,7 @@ async def _generate_audio_task(
                     custom_base_path=output_path
                 )
                 
-                # TTS 生成音频
+                # TTS generate audio
                 logger.info(f"章节 {chapter_index} 开始 TTS 生成")
                 await tts_manager.generate_audio(
                     text=chapter_content,
@@ -440,7 +440,7 @@ async def _generate_audio_task(
                     voice=voice
                 )
                 
-                # 更新章节状态为完成
+                # Update chapter status to completed
                 task_manager.update_chapter_status(
                     task_id,
                     chapter_index,
@@ -459,7 +459,7 @@ async def _generate_audio_task(
                     error=str(e)
                 )
         
-        # 更新任务状态为完成
+        # Update task status to completed
         task_manager.update_task_status(task_id, TaskStatus.COMPLETED)
         logger.info(f"任务 {task_id} 全部完成")
     
@@ -469,13 +469,13 @@ async def _generate_audio_task(
 
 
 # ============================================
-# 启动配置
+# Startup configuration
 # ============================================
 
 if __name__ == "__main__":
     import uvicorn
 
-    # 配置日志（使用 config 配置）
+    # Configure logging (using config settings)
     if config.LOG_FILE:
         logger.add(
             config.LOG_FILE,
@@ -485,7 +485,7 @@ if __name__ == "__main__":
             format=config.LOG_FORMAT
         )
 
-    # 启动服务
+    # Start the service
     uvicorn.run(
         app,
         host=config.API_HOST,

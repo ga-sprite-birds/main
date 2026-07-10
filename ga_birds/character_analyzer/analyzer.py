@@ -15,7 +15,7 @@ class CharacterAnalyzer:
         self.max_content_length = config.CHARACTER_MAX_CONTENT_LENGTH
     
     def analyze_chapter(self, chapter_content: str, chapter_index: int) -> List[Dict]:
-        # 构建性格标签提示
+        # Build personality tag hints
         personality_examples = []
         for category, tags in config.PERSONALITY_TAGS.items():
             personality_examples.append(f"{category}: {', '.join(tags[:8])}")
@@ -79,12 +79,12 @@ class CharacterAnalyzer:
                 self.all_characters[name]['appearance_count'] += 1
                 self.all_characters[name]['last_chapter'] = chapter_index
 
-                # 合并别名
+                # Merge aliases
                 existing_aliases = set(self.all_characters[name].get('aliases', []))
                 new_aliases = set(char.get('aliases', []))
                 self.all_characters[name]['aliases'] = list(existing_aliases | new_aliases)
 
-                # 合并性格标签
+                # Merge personality tags
                 existing_personality = set(self.all_characters[name].get('personality', []))
                 new_personality = set(char.get('personality', []))
                 self.all_characters[name]['personality'] = list(existing_personality | new_personality)
@@ -113,23 +113,23 @@ class CharacterAnalyzer:
         character_names: List[str]
     ) -> Dict[str, Dict]:
         """
-        为指定角色分析别名和性格（混合模式）
+        Analyze aliases and personality for specified characters (hybrid mode)
 
         Args:
-            chapter_content: 章节内容
-            chapter_index: 章节索引
-            character_names: 指定的角色名列表
+            chapter_content: chapter content
+            chapter_index: chapter index
+            character_names: list of specified character names
 
         Returns:
-            角色信息字典：{角色名: {aliases: [...], personality: [...]}}
+            character info dict: {character_name: {aliases: [...], personality: [...]}}
         """
-        # 构建性格标签提示
+        # Build personality tag hints
         personality_examples = []
         for category, tags in config.PERSONALITY_TAGS.items():
             personality_examples.append(f"{category}: {', '.join(tags[:8])}")
         personality_hint = "\n".join(personality_examples)
 
-        # 构建角色列表
+        # Build character list
         character_list_str = ", ".join(character_names)
 
         prompt = f"""请分析以下章节内容，为指定的角色找出别名和性格特征。

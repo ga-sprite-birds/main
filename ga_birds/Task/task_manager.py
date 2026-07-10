@@ -1,9 +1,9 @@
 """
-GA Sprite Birds - 任务管理器
-管理异步任务的创建、执行和状态查询
+GA Sprite Birds - Task manager
+Manages async task creation, execution, and status queries
 
-版本: v1.0
-开发团队: Tiger
+Version: v1.0
+Dev team: Tiger
 """
 
 import uuid
@@ -18,55 +18,55 @@ from loguru import logger
 
 import config
 
-# 动态导入核心模块
+# Dynamically import the core module
 _core_module_name = config.CORE_DIR.replace('-', '_')
 _parser_module = importlib.import_module(f'{_core_module_name}.Parser')
 Chapter = _parser_module.Chapter
 
 
 class TaskStatus(str, Enum):
-    """任务状态"""
-    PENDING = "pending"  # 等待中
-    PARSING = "parsing"  # 解析中
-    PARSED = "parsed"  # 已解析
-    GENERATING = "generating"  # 生成中
-    COMPLETED = "completed"  # 已完成
-    FAILED = "failed"  # 失败
-    CANCELLED = "cancelled"  # 已取消
+    """Task status"""
+    PENDING = "pending"  # waiting
+    PARSING = "parsing"  # parsing
+    PARSED = "parsed"  # parsed
+    GENERATING = "generating"  # generating
+    COMPLETED = "completed"  # completed
+    FAILED = "failed"  # failed
+    CANCELLED = "cancelled"  # cancelled
 
 
 @dataclass
 class ChapterProgress:
-    """章节进度"""
-    index: int  # 章节序号
-    title: str  # 章节标题
-    status: TaskStatus = TaskStatus.PENDING  # 状态
-    audio_path: Optional[str] = None  # 音频文件路径
-    error: Optional[str] = None  # 错误信息
-    started_at: Optional[datetime] = None  # 开始时间
-    completed_at: Optional[datetime] = None  # 完成时间
+    """Chapter progress"""
+    index: int  # chapter number
+    title: str  # chapter title
+    status: TaskStatus = TaskStatus.PENDING  # status
+    audio_path: Optional[str] = None  # audio file path
+    error: Optional[str] = None  # error message
+    started_at: Optional[datetime] = None  # start time
+    completed_at: Optional[datetime] = None  # completion time
 
 
 @dataclass
 class Task:
-    """任务数据类"""
-    task_id: str  # 任务 ID
-    status: TaskStatus = TaskStatus.PENDING  # 任务状态
-    total_chapters: int = 0  # 总章节数
-    completed_chapters: int = 0  # 已完成章节数
-    chapters: List[ChapterProgress] = field(default_factory=list)  # 章节进度列表
-    error: Optional[str] = None  # 错误信息
-    created_at: datetime = field(default_factory=datetime.now)  # 创建时间
-    started_at: Optional[datetime] = None  # 开始时间
-    completed_at: Optional[datetime] = None  # 完成时间
-    metadata: Dict[str, Any] = field(default_factory=dict)  # 元数据（文件名、配置等）
+    """Task data class"""
+    task_id: str  # task ID
+    status: TaskStatus = TaskStatus.PENDING  # task status
+    total_chapters: int = 0  # total chapter count
+    completed_chapters: int = 0  # completed chapter count
+    chapters: List[ChapterProgress] = field(default_factory=list)  # chapter progress list
+    error: Optional[str] = None  # error message
+    created_at: datetime = field(default_factory=datetime.now)  # creation time
+    started_at: Optional[datetime] = None  # start time
+    completed_at: Optional[datetime] = None  # completion time
+    metadata: Dict[str, Any] = field(default_factory=dict)  # metadata (file name, config, etc.)
 
 
 class TaskManager:
-    """任务管理器"""
+    """Task manager"""
 
     def __init__(self):
-        """初始化任务管理器"""
+        """Initialize the task manager"""
         self.tasks: Dict[str, Task] = {}
         self.max_concurrent_tasks = config.TASK_MAX_CONCURRENT
         self.running_tasks: Dict[str, asyncio.Task] = {}
@@ -79,18 +79,18 @@ class TaskManager:
         metadata: Optional[Dict[str, Any]] = None
     ) -> str:
         """
-        创建新任务
-        
+        Create a new task
+
         Args:
-            chapters: 章节列表
-            metadata: 元数据
-            
+            chapters: chapter list
+            metadata: metadata
+
         Returns:
-            任务 ID
+            task ID
         """
         task_id = str(uuid.uuid4())
-        
-        # 创建章节进度列表
+
+        # Create the chapter progress list
         chapter_progress = []
         if chapters:
             for chapter in chapters:
@@ -113,23 +113,23 @@ class TaskManager:
     
     def get_task(self, task_id: str) -> Optional[Task]:
         """
-        获取任务
-        
+        Get a task
+
         Args:
-            task_id: 任务 ID
-            
+            task_id: task ID
+
         Returns:
-            任务对象，如果不存在则返回 None
+            task object, or None if it does not exist
         """
         return self.tasks.get(task_id)
-    
+
     def update_task_status(self, task_id: str, status: TaskStatus) -> None:
         """
-        更新任务状态
-        
+        Update task status
+
         Args:
-            task_id: 任务 ID
-            status: 新状态
+            task_id: task ID
+            status: new status
         """
         task = self.get_task(task_id)
         if task:
@@ -151,20 +151,20 @@ class TaskManager:
         error: Optional[str] = None
     ) -> None:
         """
-        更新章节状态
-        
+        Update chapter status
+
         Args:
-            task_id: 任务 ID
-            chapter_index: 章节序号
-            status: 新状态
-            audio_path: 音频文件路径
-            error: 错误信息
+            task_id: task ID
+            chapter_index: chapter number
+            status: new status
+            audio_path: audio file path
+            error: error message
         """
         task = self.get_task(task_id)
         if not task:
             return
-        
-        # 查找章节
+
+        # Find the chapter
         for chapter in task.chapters:
             if chapter.index == chapter_index:
                 chapter.status = status
@@ -180,7 +180,7 @@ class TaskManager:
                 if error:
                     chapter.error = error
                 
-                # 更新已完成章节数
+                # Update the completed chapter count
                 if status == TaskStatus.COMPLETED:
                     task.completed_chapters += 1
                     logger.info(f"任务 {task_id} 章节 {chapter_index} 完成: {chapter.title}")
@@ -189,14 +189,14 @@ class TaskManager:
     
     def get_chapter_audio(self, task_id: str, chapter_index: int) -> Optional[str]:
         """
-        获取章节音频路径
-        
+        Get the chapter audio path
+
         Args:
-            task_id: 任务 ID
-            chapter_index: 章节序号
-            
+            task_id: task ID
+            chapter_index: chapter number
+
         Returns:
-            音频文件路径，如果不存在则返回 None
+            audio file path, or None if it does not exist
         """
         task = self.get_task(task_id)
         if not task:
@@ -210,28 +210,28 @@ class TaskManager:
     
     def list_tasks(self) -> List[Task]:
         """
-        列出所有任务
-        
+        List all tasks
+
         Returns:
-            任务列表
+            task list
         """
         return list(self.tasks.values())
-    
+
     def cancel_task(self, task_id: str) -> bool:
         """
-        取消任务
-        
+        Cancel a task
+
         Args:
-            task_id: 任务 ID
-            
+            task_id: task ID
+
         Returns:
-            是否成功取消
+            whether cancellation succeeded
         """
         task = self.get_task(task_id)
         if not task:
             return False
-        
-        # 取消正在运行的异步任务
+
+        # Cancel the running async task
         if task_id in self.running_tasks:
             self.running_tasks[task_id].cancel()
             del self.running_tasks[task_id]
@@ -243,13 +243,13 @@ class TaskManager:
     
     def get_task_progress(self, task_id: str) -> Dict[str, Any]:
         """
-        获取任务进度
-        
+        Get task progress
+
         Args:
-            task_id: 任务 ID
-            
+            task_id: task ID
+
         Returns:
-            进度信息字典
+            progress info dictionary
         """
         task = self.get_task(task_id)
         if not task:

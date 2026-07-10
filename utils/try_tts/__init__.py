@@ -1,6 +1,6 @@
 """
-Edge TTS 配音试听工具
-提供音色列表获取和试听音频生成功能
+Edge TTS voice casting audition tool
+Provides voice list fetching and audition audio generation
 """
 
 __version__ = "1.0.0"

@@ -1,6 +1,6 @@
 """
-角色分析工具
-使用 LLM 从小说章节中提取角色信息
+Character analysis utilities
+Uses an LLM to extract character information from novel chapters
 """
 
 from .analyzer import CharacterAnalyzer

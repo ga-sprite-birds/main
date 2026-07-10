@@ -1,5 +1,5 @@
 """
-集成测试模块
-使用 httpx 进行真实 HTTP 请求测试，需要先启动 API 服务器
+Integration test module
+Uses httpx to perform real HTTP request tests; requires the API server to be running first
 """
 

@@ -1,6 +1,6 @@
 """
-角色/音色管理模块
-负责管理不同角色的音色配置
+Character / voice management module
+Responsible for managing voice configuration for different characters
 """
 
 from .sprite_manager import SpriteManager, Sprite

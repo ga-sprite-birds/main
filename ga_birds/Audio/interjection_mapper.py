@@ -1,9 +1,9 @@
 """
-感叹词映射器
-将纯标点符号转换为可发音的感叹词，避免 TTS 生成失败
+Interjection mapper
+Converts pure punctuation into pronounceable interjections to avoid TTS generation failures
 
-版本: v1.0
-开发团队: Tiger
+Version: v1.0
+Dev team: Tiger
 """
 
 import re
@@ -12,46 +12,46 @@ from loguru import logger
 
 
 class InterjectionMapper:
-    """感叹词映射器 - 将标点符号转换为可发音的感叹词"""
-    
-    # 标点符号到感叹词的映射字典
+    """Interjection mapper - converts punctuation into pronounceable interjections"""
+
+    # Mapping dictionary from punctuation to interjections
     PUNCTUATION_MAP: Dict[str, str] = {
-        # 省略号系列（拉长音效果）
+        # Ellipsis series (prolonged sound effect)
         "……": "嗯......",
         "...": "额......",
         "。。。": "那个......",
         "、、、": "这个......",
 
-        # 问号系列（疑问拉长音）
+        # Question mark series (prolonged interrogative sound)
         "？": "啊？",
         "??": "啊......？",
         "？？": "啊......？",
         "???": "啊......？",
         "？？？": "啊......？",
 
-        # 感叹号系列（感叹拉长音）
+        # Exclamation mark series (prolonged exclamatory sound)
         "！": "哎！",
         "!!": "哎......！",
         "！！": "哎......！",
         "!!!": "哎......！",
         "！！！": "哎......！",
 
-        # 混合标点
+        # Mixed punctuation
         "？！": "啊......！",
         "！？": "哎......？",
         "?!": "啊......！",
         "!?": "哎......？",
 
-        # 破折号（拉长停顿）
+        # Em dash (prolonged pause)
         "——": "嗯......",
         "--": "嗯......",
         "—": "嗯......",
 
-        # 逗号系列（短停顿）
+        # Comma series (short pause)
         "，，": "嗯...嗯...",
         ",,": "嗯...嗯...",
 
-        # 句号系列（短停顿）
+        # Period series (short pause)
         "。": "嗯。",
         ".": "嗯。",
         "。。": "嗯...嗯...",
@@ -61,91 +61,91 @@ class InterjectionMapper:
     @classmethod
     def convert_punctuation_to_interjection(cls, text: str) -> tuple[str, bool]:
         """
-        将纯标点文本转换为感叹词
-        
+        Convert pure-punctuation text into an interjection
+
         Args:
-            text: 原始文本
-            
+            text: original text
+
         Returns:
-            (转换后的文本, 是否进行了转换)
+            (converted text, whether a conversion was performed)
         """
         if not text:
             return text, False
-        
-        # 移除两端的引号
+
+        # Remove quotes at both ends
         stripped_text = text.strip()
         quotes = ['"', '"', '"', "'", ''', ''', '「', '」', '『', '』', '《', '》']
-        
-        # 记录原始引号
+
+        # Record original quotes
         leading_quotes = ""
         trailing_quotes = ""
-        
-        # 移除前导引号
+
+        # Remove leading quotes
         while stripped_text and any(stripped_text.startswith(q) for q in quotes):
             for q in quotes:
                 if stripped_text.startswith(q):
                     leading_quotes += q
                     stripped_text = stripped_text[len(q):]
                     break
-        
-        # 移除尾部引号
+
+        # Remove trailing quotes
         while stripped_text and any(stripped_text.endswith(q) for q in quotes):
             for q in quotes:
                 if stripped_text.endswith(q):
                     trailing_quotes = q + trailing_quotes
                     stripped_text = stripped_text[:-len(q)]
                     break
-        
-        # 去除空白
+
+        # Remove whitespace
         stripped_text = stripped_text.strip()
-        
-        # 检查是否只包含标点符号
+
+        # Check whether it contains only punctuation
         text_without_punctuation = re.sub(
-            r'[，。！？；：、,.!?;:\s…—\-\.\*]+', 
-            '', 
+            r'[，。！？；：、,.!?;:\s…—\-\.\*]+',
+            '',
             stripped_text
         )
-        
-        # 如果不是纯标点，直接返回原文
+
+        # If not pure punctuation, return the original text directly
         if text_without_punctuation:
             return text, False
-        
-        # 是纯标点，尝试映射
+
+        # It is pure punctuation; try to map it
         interjection = cls.PUNCTUATION_MAP.get(stripped_text)
-        
-        # 如果没有精确匹配，尝试模糊匹配
+
+        # If no exact match, try fuzzy matching
         if not interjection:
-            # 检查是否包含省略号（拉长音效果）
+            # Check whether it contains an ellipsis (prolonged sound effect)
             if '…' in stripped_text or '.' in stripped_text:
                 interjection = "嗯......"
-            # 检查是否包含问号（疑问拉长音）
+            # Check whether it contains a question mark (prolonged interrogative sound)
             elif '？' in stripped_text or '?' in stripped_text:
                 interjection = "啊......？"
-            # 检查是否包含感叹号（感叹拉长音）
+            # Check whether it contains an exclamation mark (prolonged exclamatory sound)
             elif '！' in stripped_text or '!' in stripped_text:
                 interjection = "哎......！"
-            # 默认使用拉长音"嗯"
+            # Default to the prolonged sound "嗯"
             else:
                 interjection = "嗯......"
-        
-        # 保留原始引号
+
+        # Preserve original quotes
         converted_text = f"{leading_quotes}{interjection}{trailing_quotes}"
-        
-        logger.debug(f"标点转换: {repr(text)} → {repr(converted_text)}")
-        
+
+        logger.debug(f"Punctuation conversion: {repr(text)} → {repr(converted_text)}")
+
         return converted_text, True
-    
+
     @classmethod
     def process_text_for_tts(cls, text: str) -> str:
         """
-        处理文本用于 TTS 生成
-        如果是纯标点，转换为感叹词；否则返回原文
-        
+        Process text for TTS generation
+        If it is pure punctuation, convert it to an interjection; otherwise return the original
+
         Args:
-            text: 原始文本
-            
+            text: original text
+
         Returns:
-            处理后的文本
+            processed text
         """
         converted_text, was_converted = cls.convert_punctuation_to_interjection(text)
         return converted_text

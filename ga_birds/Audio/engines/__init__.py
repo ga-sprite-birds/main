@@ -1,6 +1,6 @@
 """
-TTS 引擎模块
-提供统一的 TTS 引擎接口和实现
+TTS engine module
+Provides a unified TTS engine interface and implementations
 """
 
 from .base import BaseTTSEngine

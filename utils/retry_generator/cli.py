@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-失败章节重试生成器 - 命令行接口
-分析 TTS 生成日志，自动识别失败章节，生成重试命令
+Failed-chapter retry generator - command-line interface
+Analyzes TTS generation logs, automatically detects failed chapters, and generates retry commands
 """
 
 import sys
@@ -10,7 +10,7 @@ import os
 import argparse
 from pathlib import Path
 
-# 添加项目根目录到路径
+# Add the project root directory to the path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
@@ -20,7 +20,7 @@ from utils.retry_generator.executor import CommandExecutor
 
 
 def parse_args():
-    """解析命令行参数"""
+    """Parse command-line arguments"""
     parser = argparse.ArgumentParser(
         description='失败章节重试生成器 - 分析日志并生成重试命令',
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -59,10 +59,10 @@ def parse_args():
 
 
 def main():
-    """主函数"""
+    """Main function"""
     args = parse_args()
     
-    # 验证参数
+    # Validate arguments
     if args.output_type in ['sh', 'txt'] and not args.output_path:
         print(f"❌ 错误: {args.output_type} 模式需要指定输出路径")
         sys.exit(1)
@@ -75,7 +75,7 @@ def main():
     print("失败章节重试生成器")
     print("=" * 60)
     
-    # 分析日志
+    # Analyze the log
     print(f"\n📖 正在分析日志: {args.log_file}")
     analyzer = LogAnalyzer(args.log_file)
     failed_chapters = analyzer.analyze(error_filter=args.filter)
@@ -88,7 +88,7 @@ def main():
     print(f"   - 失败章节总数: {len(failed_chapters)}")
     print(f"   - 章节范围: {failed_chapters[0]} - {failed_chapters[-1]}")
     
-    # 生成命令
+    # Generate commands
     generator = CommandGenerator(
         failed_chapters=failed_chapters,
         batch_size=args.batch_size,
@@ -98,7 +98,7 @@ def main():
     batches = generator.generate_batches()
     print(f"   - 批次总数: {len(batches)}")
     
-    # 根据输出类型处理
+    # Process based on output type
     if args.output_type == 'sh':
         output = generator.generate_shell_script(batches)
         with open(args.output_path, 'w', encoding='utf-8') as f:

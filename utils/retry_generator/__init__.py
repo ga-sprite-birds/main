@@ -1,5 +1,5 @@
 """
-Retry Generator - 失败章节重试生成器
+Retry Generator - retry generator for failed chapters
 """
 
 __version__ = '1.0.0'

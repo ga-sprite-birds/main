@@ -1,8 +1,8 @@
 """
-Token 计数和文本分段工具
+Token counting and text segmentation utilities
 
-提供统一的 token 计数和智能文本分段功能，
-支持 API 和 Ollama 模式。
+Provides unified token counting and smart text segmentation,
+supporting both API and Ollama modes.
 """
 
 import re
@@ -19,31 +19,31 @@ except ImportError:
 
 def count_tokens(text: str, model: str = "gpt-3.5-turbo") -> int:
     """
-    统一的 token 计数方法
-    
+    Unified token counting method
+
     Args:
-        text: 要计数的文本
-        model: 模型名称（用于选择编码器）
-    
+        text: text to count
+        model: model name (used to select the encoder)
+
     Returns:
-        token 数量
-    
-    注意：
-        - API 模式：使用对应模型的编码
-        - Ollama 模式：使用通用编码（cl100k_base）作为近似
-        - 如果 tiktoken 未安装：中文按 1.5 倍字符数估算
+        token count
+
+    Notes:
+        - API mode: uses the encoder for the corresponding model
+        - Ollama mode: uses the generic encoder (cl100k_base) as an approximation
+        - If tiktoken is not installed: Chinese is estimated at 1.5x the character count
     """
     if not TIKTOKEN_AVAILABLE:
-        # 降级方案：估算（中文字符 ≈ 1.5 tokens）
+        # Fallback: estimate (Chinese character ≈ 1.5 tokens)
         chinese_chars = len(re.findall(r'[\u4e00-\u9fff]', text))
         other_chars = len(text) - chinese_chars
         return int(chinese_chars * 1.5 + other_chars * 0.25)
     
     try:
-        # 尝试获取模型对应的编码器
+        # Try to get the encoder for the model
         encoding = tiktoken.encoding_for_model(model)
     except KeyError:
-        # 模型不存在，使用通用编码（适用于大多数现代 LLM）
+        # Model does not exist, use the generic encoder (works for most modern LLMs)
         encoding = tiktoken.get_encoding("cl100k_base")
     
     return len(encoding.encode(text))
@@ -51,23 +51,23 @@ def count_tokens(text: str, model: str = "gpt-3.5-turbo") -> int:
 
 def split_text_by_sentences(text: str) -> List[str]:
     """
-    按句子分割文本
-    
-    支持中文句号、问号、感叹号等标点
-    
+    Split text by sentence
+
+    Supports punctuation such as Chinese periods, question marks, and exclamation marks
+
     Args:
-        text: 要分割的文本
-    
+        text: text to split
+
     Returns:
-        句子列表
+        sentence list
     """
-    # 中文句子分隔符
+    # Chinese sentence delimiters
     sentence_endings = r'[。！？!?;；]'
-    
-    # 分割句子，保留分隔符
+
+    # Split sentences, keeping the delimiters
     sentences = re.split(f'({sentence_endings})', text)
-    
-    # 合并句子和分隔符
+
+    # Merge sentences and delimiters
     result = []
     for i in range(0, len(sentences) - 1, 2):
         sentence = sentences[i]
@@ -76,7 +76,7 @@ def split_text_by_sentences(text: str) -> List[str]:
         if sentence.strip():
             result.append(sentence)
     
-    # 处理最后一个句子（如果没有分隔符）
+    # Handle the last sentence (if there is no delimiter)
     if len(sentences) % 2 == 1 and sentences[-1].strip():
         result.append(sentences[-1])
     
@@ -85,145 +85,145 @@ def split_text_by_sentences(text: str) -> List[str]:
 
 def split_text_by_paragraphs(text: str) -> List[str]:
     """
-    按段落分割文本
-    
+    Split text by paragraph
+
     Args:
-        text: 要分割的文本
-    
+        text: text to split
+
     Returns:
-        段落列表
+        paragraph list
     """
-    # 按双换行符分割
+    # Split by double newline
     paragraphs = re.split(r'\n\s*\n', text)
     return [p.strip() for p in paragraphs if p.strip()]
 
 
 def merge_segments_smart(segments: List[str], max_tokens: int, model: str = "gpt-3.5-turbo") -> List[str]:
     """
-    智能合并小段落，避免过度分割
-    
+    Smart-merge small paragraphs to avoid over-segmentation
+
     Args:
-        segments: 段落列表
-        max_tokens: 每段最大 token 数
-        model: 模型名称
-    
+        segments: paragraph list
+        max_tokens: max tokens per segment
+        model: model name
+
     Returns:
-        合并后的段落列表
+        merged paragraph list
     """
     if not segments:
         return []
-    
+
     merged = []
     current_segment = segments[0]
     current_tokens = count_tokens(current_segment, model)
-    
+
     for segment in segments[1:]:
         segment_tokens = count_tokens(segment, model)
-        
-        # 如果合并后不超过限制，则合并
+
+        # Merge if it stays within the limit after merging
         if current_tokens + segment_tokens <= max_tokens:
             current_segment += "\n" + segment
             current_tokens += segment_tokens
         else:
-            # 否则保存当前段，开始新段
+            # Otherwise save the current segment and start a new one
             merged.append(current_segment)
             current_segment = segment
             current_tokens = segment_tokens
-    
-    # 添加最后一段
+
+    # Add the last segment
     if current_segment:
         merged.append(current_segment)
-    
+
     return merged
 
 
 def split_text_smart(text: str, max_tokens: int, model: str = "gpt-3.5-turbo", overlap_ratio: float = 0.1) -> List[str]:
     """
-    智能分段：按段落/句子边界分割，保持语义完整
-    
-    策略：
-    1. 优先按段落分割（\n\n）
-    2. 如果段落过长，按句子分割
-    3. 如果句子过长，强制按 token 分割
-    4. 保留一定重叠，避免上下文丢失
-    
+    Smart segmentation: split by paragraph/sentence boundaries, preserving semantic integrity
+
+    Strategy:
+    1. Prefer splitting by paragraph (\n\n)
+    2. If a paragraph is too long, split by sentence
+    3. If a sentence is too long, force split by token
+    4. Keep some overlap to avoid losing context
+
     Args:
-        text: 要分割的文本
-        max_tokens: 每段最大 token 数
-        model: 模型名称
-        overlap_ratio: 重叠比例（0-1），默认 0.1（10%）
-    
+        text: text to split
+        max_tokens: max tokens per segment
+        model: model name
+        overlap_ratio: overlap ratio (0-1), default 0.1 (10%)
+
     Returns:
-        分段后的文本列表
+        segmented text list
     """
     total_tokens = count_tokens(text, model)
-    
-    # 如果不超过限制，直接返回
+
+    # Return directly if within the limit
     if total_tokens <= max_tokens:
         return [text]
-    
+
     logger.debug(f"文本需要分段：总 tokens={total_tokens}, 限制={max_tokens}")
-    
-    # 步骤 1：按段落分割
+
+    # Step 1: split by paragraph
     paragraphs = split_text_by_paragraphs(text)
     logger.debug(f"按段落分割：共 {len(paragraphs)} 段")
-    
-    # 步骤 2：合并小段落
+
+    # Step 2: merge small paragraphs
     segments = merge_segments_smart(paragraphs, max_tokens, model)
     logger.debug(f"合并后：共 {len(segments)} 段")
-    
-    # 步骤 3：检查是否有超长段落，需要进一步分割
+
+    # Step 3: check for over-long paragraphs needing further splitting
     final_segments = []
     for segment in segments:
         segment_tokens = count_tokens(segment, model)
-        
+
         if segment_tokens <= max_tokens:
             final_segments.append(segment)
         else:
-            # 段落过长，按句子分割
+            # Paragraph too long, split by sentence
             logger.debug(f"段落过长（{segment_tokens} tokens），按句子分割")
             sentences = split_text_by_sentences(segment)
             sub_segments = merge_segments_smart(sentences, max_tokens, model)
-            
-            # 检查是否还有超长句子
+
+            # Check for remaining over-long sentences
             for sub_segment in sub_segments:
                 sub_tokens = count_tokens(sub_segment, model)
                 if sub_tokens <= max_tokens:
                     final_segments.append(sub_segment)
                 else:
-                    # 句子过长，强制按 token 分割
+                    # Sentence too long, force split by token
                     logger.warning(f"句子过长（{sub_tokens} tokens），强制分割")
                     final_segments.extend(_force_split_by_tokens(sub_segment, max_tokens, model))
-    
-    # 步骤 4：添加重叠（可选）
+
+    # Step 4: add overlap (optional)
     if overlap_ratio > 0 and len(final_segments) > 1:
         final_segments = _add_overlap(final_segments, overlap_ratio, max_tokens, model)
-    
+
     logger.info(f"✓ 文本分段完成：{len(final_segments)} 段")
     return final_segments
 
 
 def _force_split_by_tokens(text: str, max_tokens: int, model: str = "gpt-3.5-turbo") -> List[str]:
     """
-    强制按 token 数分割文本（最后的手段）
-    
+    Force split text by token count (last resort)
+
     Args:
-        text: 要分割的文本
-        max_tokens: 每段最大 token 数
-        model: 模型名称
-    
+        text: text to split
+        max_tokens: max tokens per segment
+        model: model name
+
     Returns:
-        分段后的文本列表
+        segmented text list
     """
     if not TIKTOKEN_AVAILABLE:
-        # 降级方案：按字符数分割
-        chars_per_segment = int(max_tokens / 1.5)  # 估算
+        # Fallback: split by character count
+        chars_per_segment = int(max_tokens / 1.5)  # estimate
         segments = []
         for i in range(0, len(text), chars_per_segment):
             segments.append(text[i:i + chars_per_segment])
         return segments
     
-    # 使用 tiktoken 精确分割
+    # Use tiktoken for precise splitting
     try:
         encoding = tiktoken.encoding_for_model(model)
     except KeyError:
@@ -242,32 +242,32 @@ def _force_split_by_tokens(text: str, max_tokens: int, model: str = "gpt-3.5-tur
 
 def _add_overlap(segments: List[str], overlap_ratio: float, max_tokens: int, model: str = "gpt-3.5-turbo") -> List[str]:
     """
-    在段落之间添加重叠，保持上下文连贯性
-    
+    Add overlap between paragraphs to keep context coherent
+
     Args:
-        segments: 段落列表
-        overlap_ratio: 重叠比例
-        max_tokens: 每段最大 token 数
-        model: 模型名称
-    
+        segments: paragraph list
+        overlap_ratio: overlap ratio
+        max_tokens: max tokens per segment
+        model: model name
+
     Returns:
-        添加重叠后的段落列表
+        paragraph list with overlap added
     """
     if len(segments) <= 1:
         return segments
-    
+
     overlap_tokens = int(max_tokens * overlap_ratio)
     result = [segments[0]]
-    
+
     for i in range(1, len(segments)):
         prev_segment = segments[i - 1]
         current_segment = segments[i]
-        
-        # 从前一段取最后几句作为重叠
+
+        # Take the last few sentences from the previous segment as overlap
         prev_sentences = split_text_by_sentences(prev_segment)
         overlap_text = ""
         overlap_token_count = 0
-        
+
         for sentence in reversed(prev_sentences):
             sentence_tokens = count_tokens(sentence, model)
             if overlap_token_count + sentence_tokens <= overlap_tokens:
@@ -275,26 +275,26 @@ def _add_overlap(segments: List[str], overlap_ratio: float, max_tokens: int, mod
                 overlap_token_count += sentence_tokens
             else:
                 break
-        
-        # 添加重叠
+
+        # Add the overlap
         if overlap_text:
             current_segment = overlap_text + current_segment
-        
+
         result.append(current_segment)
-    
+
     return result
 
 
 def estimate_processing_time(text: str, tokens_per_second: float = 50) -> float:
     """
-    估算 LLM 处理时间
-    
+    Estimate LLM processing time
+
     Args:
-        text: 文本
-        tokens_per_second: 每秒处理的 token 数（默认 50）
-    
+        text: text
+        tokens_per_second: tokens processed per second (default 50)
+
     Returns:
-        预估时间（秒）
+        estimated time (seconds)
     """
     tokens = count_tokens(text)
     return tokens / tokens_per_second

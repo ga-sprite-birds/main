@@ -1,6 +1,6 @@
 """
-音色列表获取器
-从 Edge TTS API 获取可用音色列表并支持筛选
+Voice list fetcher
+Fetches the available voice list from the Edge TTS API and supports filtering
 """
 
 import asyncio
@@ -10,18 +10,18 @@ from utils.try_tts.i18n import t
 
 
 class VoiceFetcher:
-    """音色列表获取器"""
+    """Voice list fetcher"""
     
     def __init__(self):
-        """初始化音色获取器"""
+        """Initialize the voice fetcher"""
         self.voices = []
     
     async def fetch_voices(self) -> List[Dict]:
         """
-        从 Edge TTS API 获取所有可用音色
+        Fetch all available voices from the Edge TTS API
         
         Returns:
-            音色列表
+            voice list
         """
         self.voices = await edge_tts.list_voices()
         return self.voices
@@ -32,14 +32,14 @@ class VoiceFetcher:
         gender: Optional[str] = None
     ) -> List[Dict]:
         """
-        筛选音色列表
+        Filter the voice list
         
         Args:
-            language: 语言代码（如 zh-CN, en-US），None 表示全部
-            gender: 性别（male/female），None 表示全部
+            language: language code (e.g. zh-CN, en-US); None means all
+            gender: gender (male/female); None means all
             
         Returns:
-            筛选后的音色列表
+            filtered voice list
         """
         filtered = self.voices
         
@@ -68,13 +68,13 @@ class VoiceFetcher:
     @staticmethod
     def format_voice_info(voice: Dict) -> str:
         """
-        格式化单个音色信息为可读字符串
+        Format a single voice's info into a readable string
         
         Args:
-            voice: 音色数据
+            voice: voice data
             
         Returns:
-            格式化后的字符串
+            formatted string
         """
         name = voice.get('ShortName', 'Unknown')
         gender = voice.get('Gender', 'Unknown')
@@ -88,13 +88,13 @@ class VoiceFetcher:
     @staticmethod
     def format_voice_list(voices: List[Dict]) -> str:
         """
-        格式化音色列表为表格形式
+        Format the voice list as a table
 
         Args:
-            voices: 音色列表
+            voices: voice list
 
         Returns:
-            格式化后的表格字符串
+            formatted table string
         """
         if not voices:
             return t('no_voices_found')
@@ -115,10 +115,10 @@ class VoiceFetcher:
     
     def get_voices_sync(self) -> List[Dict]:
         """
-        同步方式获取音色列表
+        Fetch the voice list synchronously
         
         Returns:
-            音色列表
+            voice list
         """
         return asyncio.run(self.fetch_voices())
 

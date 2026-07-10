@@ -1,9 +1,9 @@
 """
-GA Sprite Birds - 章节解析器
-使用正则表达式识别和拆分章节
+GA Sprite Birds - Chapter parser
+Uses regular expressions to detect and split chapters
 
-版本: v1.0
-开发团队: Tiger
+Version: v1.0
+Dev team: Tiger
 """
 
 import re
@@ -15,16 +15,16 @@ from loguru import logger
 
 @dataclass
 class Chapter:
-    """章节数据类"""
-    index: int  # 章节序号（从 1 开始）
-    title: str  # 章节标题
-    content: str  # 章节内容
-    start_pos: int  # 在原文中的起始位置
-    end_pos: int  # 在原文中的结束位置
+    """Chapter data class"""
+    index: int  # chapter number (starting from 1)
+    title: str  # chapter title
+    content: str  # chapter content
+    start_pos: int  # start position in the original text
+    end_pos: int  # end position in the original text
 
 
 class ChapterParser:
-    """章节解析器"""
+    """Chapter parser"""
     
     def __init__(
         self,
@@ -33,12 +33,12 @@ class ChapterParser:
         keep_title: bool = True
     ):
         """
-        初始化章节解析器
-        
+        Initialize the chapter parser
+
         Args:
-            regex_patterns: 章节标题正则表达式列表
-            min_length: 最小章节长度（避免误识别）
-            keep_title: 是否在内容中保留章节标题
+            regex_patterns: list of chapter title regular expressions
+            min_length: minimum chapter length (to avoid false detection)
+            keep_title: whether to keep the chapter title in the content
         """
         self.regex_patterns = regex_patterns or [
             r'^第[零一二三四五六七八九十百千万0-9]+章',
@@ -47,8 +47,8 @@ class ChapterParser:
         ]
         self.min_length = min_length
         self.keep_title = keep_title
-        
-        # 编译正则表达式
+
+        # Compile the regular expressions
         self.compiled_patterns = [
             re.compile(pattern, re.MULTILINE) for pattern in self.regex_patterns
         ]
@@ -57,31 +57,31 @@ class ChapterParser:
     
     def parse(self, text: str) -> List[Chapter]:
         """
-        解析文本，拆分章节
-        
+        Parse the text and split into chapters
+
         Args:
-            text: 原始文本
-            
+            text: original text
+
         Returns:
-            章节列表
+            chapter list
         """
-        # 查找所有章节标题位置
+        # Find all chapter title positions
         chapter_positions = []
-        
+
         for pattern in self.compiled_patterns:
             for match in pattern.finditer(text):
-                # 获取匹配的行
+                # Get the matched line
                 line_start = text.rfind('\n', 0, match.start()) + 1
                 line_end = text.find('\n', match.end())
                 if line_end == -1:
                     line_end = len(text)
-                
+
                 title = text[line_start:line_end].strip()
                 chapter_positions.append((line_start, title))
-        
-        # 按位置排序并去重
+
+        # Sort by position and deduplicate
         chapter_positions = sorted(set(chapter_positions), key=lambda x: x[0])
-        
+
         if not chapter_positions:
             logger.warning("未找到章节标题，将整个文本作为单章处理")
             return [Chapter(
@@ -91,33 +91,33 @@ class ChapterParser:
                 start_pos=0,
                 end_pos=len(text)
             )]
-        
+
         logger.info(f"找到 {len(chapter_positions)} 个章节标题")
-        
-        # 拆分章节
+
+        # Split chapters
         chapters = []
         for i, (pos, title) in enumerate(chapter_positions):
-            # 确定章节内容范围
+            # Determine the chapter content range
             start_pos = pos
             if i + 1 < len(chapter_positions):
                 end_pos = chapter_positions[i + 1][0]
             else:
                 end_pos = len(text)
-            
-            # 提取章节内容
+
+            # Extract chapter content
             content = text[start_pos:end_pos].strip()
-            
-            # 如果不保留标题，则去除第一行
+
+            # If the title is not kept, remove the first line
             if not self.keep_title:
                 first_newline = content.find('\n')
                 if first_newline != -1:
                     content = content[first_newline + 1:].strip()
-            
-            # 检查章节长度
+
+            # Check chapter length
             if len(content) < self.min_length:
                 logger.warning(f"章节 '{title}' 长度过短 ({len(content)} 字符)，跳过")
                 continue
-            
+
             chapter = Chapter(
                 index=len(chapters) + 1,
                 title=title,
@@ -126,22 +126,22 @@ class ChapterParser:
                 end_pos=end_pos
             )
             chapters.append(chapter)
-            
+
             logger.debug(f"解析章节 {chapter.index}: {title} ({len(content)} 字符)")
-        
+
         logger.info(f"章节解析完成，共 {len(chapters)} 章")
         return chapters
-    
+
     def get_chapter_by_index(self, chapters: List[Chapter], index: int) -> Optional[Chapter]:
         """
-        根据序号获取章节
-        
+        Get a chapter by its number
+
         Args:
-            chapters: 章节列表
-            index: 章节序号（从 1 开始）
-            
+            chapters: chapter list
+            index: chapter number (starting from 1)
+
         Returns:
-            章节对象，如果不存在则返回 None
+            chapter object, or None if it does not exist
         """
         for chapter in chapters:
             if chapter.index == index:
