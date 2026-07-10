@@ -273,6 +273,7 @@
   "parser": {
     "initialized": "章节解析器初始化完成，正则模式数: {count}",
     "no_chapters": "未找到章节标题，将整个文本作为单章处理",
+    "full_text_title": "全文",
     "chapters_found": "找到 {count} 个章节标题",
     "chapter_too_short": "章节 '{title}' 长度过短 ({length} 字符)，跳过",
     "chapter_parsed": "解析章节 {index}: {title} ({length} 字符)",

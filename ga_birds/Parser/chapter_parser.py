@@ -88,7 +88,7 @@ class ChapterParser:
             logger.warning(t("parser.no_chapters"))
             return [Chapter(
                 index=1,
-                title="全文",
+                title=t("parser.full_text_title"),
                 content=text,
                 start_pos=0,
                 end_pos=len(text)

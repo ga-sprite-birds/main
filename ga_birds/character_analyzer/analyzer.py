@@ -1,11 +1,50 @@
 import re
 import json
-from typing import List, Dict, Set
+from typing import List, Dict
 from pathlib import Path
 
 from loguru import logger
 import config
 from ga_birds.Common.i18n import t
+
+EN_PERSONALITY_TAGS = {
+    "personality": [
+        "passionate", "calm", "impulsive", "rational", "kind", "evil",
+        "brave", "timid", "confident", "inferior", "optimistic", "pessimistic",
+        "cheerful", "introverted", "outgoing", "lonely", "gentle", "irritable"
+    ],
+    "speech": [
+        "direct", "tactful", "loud", "soft", "fast", "slow",
+        "humorous", "serious", "wordy", "concise", "rude", "polite",
+        "sharp", "mild"
+    ],
+    "emotion": [
+        "excited", "calm", "hot-tempered", "gentle", "anxious", "composed",
+        "enthusiastic", "indifferent", "sensitive", "slow", "sentimental", "open-minded"
+    ],
+    "role": [
+        "elder", "junior", "leader", "subordinate", "teacher", "student",
+        "strict father", "kind mother", "wise", "foolish", "mentor", "apprentice"
+    ],
+    "other": [
+        "traditional", "modern", "stubborn", "flexible", "cunning", "simple",
+        "smooth", "straightforward", "snobbish", "upright", "kind", "strict",
+        "careful", "reckless", "meticulous", "careless"
+    ],
+}
+
+ZH_TO_EN_CATEGORY = {
+    "性格": "personality",
+    "说话": "speech",
+    "情绪": "emotion",
+    "角色": "role",
+    "其他": "other",
+}
+
+ZH_TO_EN_PERSONALITY = {}
+for zh_category, en_category in ZH_TO_EN_CATEGORY.items():
+    for zh_tag, en_tag in zip(config.PERSONALITY_TAGS[zh_category], EN_PERSONALITY_TAGS[en_category]):
+        ZH_TO_EN_PERSONALITY[zh_tag] = en_tag
 
 
 class CharacterAnalyzer:
@@ -14,26 +53,116 @@ class CharacterAnalyzer:
         self.llm_manager = llm_manager
         self.all_characters = {}
         self.max_content_length = config.CHARACTER_MAX_CONTENT_LENGTH
-    
-    def analyze_chapter(self, chapter_content: str, chapter_index: int) -> List[Dict]:
-        # Build personality tag hints
-        personality_examples = []
-        for category, tags in config.PERSONALITY_TAGS.items():
-            personality_examples.append(f"{category}: {', '.join(tags[:8])}")
-        personality_hint = "\n".join(personality_examples)
 
-        prompt = f"""请分析以下小说章节，提取所有出现的角色名。
+    def _uses_english_metadata(self) -> bool:
+        return str(config.LANGUAGE).lower().startswith("en")
+
+    def _build_personality_hint(self) -> str:
+        if self._uses_english_metadata():
+            return "\n".join(
+                f"{category}: {', '.join(tags[:8])}"
+                for category, tags in EN_PERSONALITY_TAGS.items()
+            )
+
+        return "\n".join(
+            f"{category}: {', '.join(tags[:8])}"
+            for category, tags in config.PERSONALITY_TAGS.items()
+        )
+
+    def _dedupe_strings(self, values: List[str]) -> List[str]:
+        result = []
+        seen = set()
+        for value in values:
+            cleaned = str(value).strip()
+            if cleaned and cleaned not in seen:
+                seen.add(cleaned)
+                result.append(cleaned)
+        return result
+
+    def _filter_aliases_by_source(self, aliases: List[str], source_text: str, primary_name: str) -> List[str]:
+        return self._dedupe_strings(
+            alias for alias in aliases
+            if alias != primary_name and alias in source_text
+        )
+
+    def _normalize_personality_tags(self, tags: List[str]) -> List[str]:
+        if not self._uses_english_metadata():
+            return self._dedupe_strings(tags)
+
+        return self._dedupe_strings([
+            ZH_TO_EN_PERSONALITY.get(str(tag).strip(), str(tag).strip().lower())
+            for tag in tags
+            if str(tag).strip()
+        ])
+
+    def _normalize_auto_character(self, char: Dict, source_text: str) -> Dict:
+        name = str(char.get('name', '')).strip()
+        aliases = self._dedupe_strings(char.get('aliases', []))
+        gender = str(char.get('gender', 'unknown')).strip().lower() or 'unknown'
+        personality = self._normalize_personality_tags(char.get('personality', []))
+
+        source_aliases = [alias for alias in aliases if alias in source_text]
+        if name and name not in source_text and source_aliases:
+            name = max(source_aliases, key=len)
+
+        aliases = self._filter_aliases_by_source(aliases, source_text, name)
+
+        return {
+            'name': name,
+            'aliases': aliases,
+            'gender': gender,
+            'personality': personality,
+        }
+
+    def _normalize_hybrid_character(self, info: Dict, source_text: str) -> Dict:
+        aliases = self._dedupe_strings(info.get('aliases', []))
+        aliases = self._dedupe_strings(alias for alias in aliases if alias in source_text)
+        personality = self._normalize_personality_tags(info.get('personality', []))
+        return {
+            'aliases': aliases,
+            'personality': personality,
+        }
+
+    def _build_auto_prompt(self, chapter_content: str) -> str:
+        personality_hint = self._build_personality_hint()
+        excerpt = chapter_content[:self.max_content_length]
+
+        if self._uses_english_metadata():
+            return f"""Analyze the following novel chapter and extract all characters that appear.
+
+Requirements:
+1. Extract only people or character names. Do not extract places or objects.
+2. Identify aliases that actually appear in the source text for the same character.
+3. Do not translate, localize, or invent names or aliases. Keep every name and alias exactly as it appears in the source text.
+4. Infer gender as male / female / unknown.
+5. Provide 3-5 personality tags in English for each character, chosen from the following reference categories:
+{personality_hint}
+6. Return valid JSON only, with no extra explanation.
+
+Chapter content:
+{excerpt}
+
+Return format (must be valid JSON):
+{{
+  "characters": [
+    {{"name": "A", "aliases": [], "gender": "female", "personality": ["impulsive", "straightforward", "timid"]}},
+    {{"name": "boss", "aliases": [], "gender": "male", "personality": ["strict", "serious", "direct"]}}
+  ]
+}}"""
+
+        return f"""请分析以下小说章节，提取所有出现的角色名。
 
 要求：
 1. 只提取人物角色名，不要提取地名、物品名
-2. 识别角色的别名（如"张三"、"小张"、"张公子"是同一人）
-3. 尝试识别角色性别（male/female/unknown）
-4. 为每个角色提取 3-5 个性格标签（personality）：从以下维度选择
+2. 识别角色在原文中实际出现过的别名
+3. 不要翻译、改写或臆造角色名和别名，必须保持原文里的写法
+4. 尝试识别角色性别（male/female/unknown）
+5. 为每个角色提取 3-5 个性格标签（personality）：从以下维度选择
 {personality_hint}
-5. 返回 JSON 格式，不要有任何其他说明文字
+6. 返回 JSON 格式，不要有任何其他说明文字
 
 章节内容：
-{chapter_content[:self.max_content_length]}
+{excerpt}
 
 返回格式（必须是有效的 JSON）：
 {{
@@ -42,6 +171,71 @@ class CharacterAnalyzer:
     {{"name": "徐有容", "aliases": ["有容", "徐姑娘"], "gender": "female", "personality": ["高傲", "强大", "美丽"]}}
   ]
 }}"""
+
+    def _build_hybrid_prompt(self, chapter_content: str, character_names: List[str]) -> str:
+        personality_hint = self._build_personality_hint()
+        excerpt = chapter_content[:self.max_content_length]
+        character_list_str = ", ".join(character_names)
+
+        if self._uses_english_metadata():
+            return f"""Analyze the following chapter and find aliases and personality traits for the specified characters.
+
+Known characters:
+{character_list_str}
+
+Requirements:
+1. For each character, list aliases that actually appear in this chapter.
+2. Do not translate, localize, or invent character names or aliases. Keep them exactly as they appear in the source text.
+3. Provide 3-5 personality tags in English for each character, chosen from the following reference categories:
+{personality_hint}
+4. If a character does not appear in this chapter, return empty lists.
+5. Return valid JSON only, with no extra explanation.
+
+Chapter content:
+{excerpt}
+
+Return format (must be valid JSON):
+{{
+  "boss": {{
+    "aliases": [],
+    "personality": ["strict", "serious", "direct"]
+  }},
+  "A": {{
+    "aliases": [],
+    "personality": ["impulsive", "straightforward", "timid"]
+  }}
+}}"""
+
+        return f"""请分析以下章节内容，为指定的角色找出别名和性格特征。
+
+已知角色列表：
+{character_list_str}
+
+要求：
+1. 为每个角色找出在本章中实际出现过的别名
+2. 不要翻译、改写或臆造角色名和别名，必须保持原文里的写法
+3. 为每个角色提取 3-5 个性格标签（personality）：从以下维度选择
+{personality_hint}
+4. 如果某个角色在本章未出现，返回空列表
+5. 返回 JSON 格式，不要有任何其他说明文字
+
+章节内容：
+{excerpt}
+
+返回格式（必须是有效的 JSON）：
+{{
+  "陈洪德": {{
+    "aliases": ["洪德", "小洪德"],
+    "personality": ["善良", "勇敢", "热血"]
+  }},
+  "老爸": {{
+    "aliases": ["父亲", "老子"],
+    "personality": ["严厉", "关心", "传统"]
+  }}
+}}"""
+
+    def analyze_chapter(self, chapter_content: str, chapter_index: int) -> List[Dict]:
+        prompt = self._build_auto_prompt(chapter_content)
         
         try:
             result = self.llm_manager.generate(prompt)
@@ -55,7 +249,12 @@ class CharacterAnalyzer:
                 json_str = re.sub(r',\s*]', ']', json_str)
                 
                 data = json.loads(json_str)
-                characters = data.get('characters', [])
+                characters = [
+                    self._normalize_auto_character(char, chapter_content)
+                    for char in data.get('characters', [])
+                    if str(char.get('name', '')).strip() or char.get('aliases')
+                ]
+                characters = [char for char in characters if char['name']]
                 
                 logger.info(t("character.chapter_characters_found", index=chapter_index, count=len(characters)))
                 return characters
@@ -124,41 +323,7 @@ class CharacterAnalyzer:
         Returns:
             character info dict: {character_name: {aliases: [...], personality: [...]}}
         """
-        # Build personality tag hints
-        personality_examples = []
-        for category, tags in config.PERSONALITY_TAGS.items():
-            personality_examples.append(f"{category}: {', '.join(tags[:8])}")
-        personality_hint = "\n".join(personality_examples)
-
-        # Build character list
-        character_list_str = ", ".join(character_names)
-
-        prompt = f"""请分析以下章节内容，为指定的角色找出别名和性格特征。
-
-已知角色列表：
-{character_list_str}
-
-要求：
-1. 为每个角色找出在本章中出现的别名（如"张三"可能被称为"小张"、"张公子"）
-2. 为每个角色提取 3-5 个性格标签（personality）：从以下维度选择
-{personality_hint}
-3. 如果某个角色在本章未出现，返回空列表
-4. 返回 JSON 格式，不要有任何其他说明文字
-
-章节内容：
-{chapter_content[:self.max_content_length]}
-
-返回格式（必须是有效的 JSON）：
-{{
-  "陈洪德": {{
-    "aliases": ["洪德", "小洪德"],
-    "personality": ["善良", "勇敢", "热血"]
-  }},
-  "老爸": {{
-    "aliases": ["父亲", "老子"],
-    "personality": ["严厉", "关心", "传统"]
-  }}
-}}"""
+        prompt = self._build_hybrid_prompt(chapter_content, character_names)
 
         try:
             result = self.llm_manager.generate(prompt)
@@ -171,7 +336,11 @@ class CharacterAnalyzer:
                 json_str = re.sub(r',\s*}', '}', json_str)
                 json_str = re.sub(r',\s*]', ']', json_str)
 
-                data = json.loads(json_str)
+                data = {
+                    char_name: self._normalize_hybrid_character(info, chapter_content)
+                    for char_name, info in json.loads(json_str).items()
+                    if isinstance(info, dict)
+                }
                 logger.info(t("character.chapter_hybrid_found", index=chapter_index, count=len(data)))
                 return data
             else:

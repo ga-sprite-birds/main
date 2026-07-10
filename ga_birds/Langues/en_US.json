@@ -273,6 +273,7 @@
   "parser": {
     "initialized": "Chapter parser initialized with {count} pattern(s)",
     "no_chapters": "No chapter titles found; treating the entire text as a single chapter",
+    "full_text_title": "Full Text",
     "chapters_found": "Found {count} chapter title(s)",
     "chapter_too_short": "Chapter '{title}' is too short ({length} characters); skipping",
     "chapter_parsed": "Parsed chapter {index}: {title} ({length} characters)",

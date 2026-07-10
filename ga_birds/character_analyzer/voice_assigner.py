@@ -6,6 +6,7 @@ Automatically assigns voices based on character gender
 from typing import Dict, List
 from loguru import logger
 from ga_birds.Common.i18n import t
+import config
 
 
 class VoiceAssigner:
@@ -27,6 +28,24 @@ class VoiceAssigner:
     ]
 
     NARRATOR_VOICE = "zh-CN-XiaoxiaoNeural"  # narrator uses female voice by default
+
+    @staticmethod
+    def _get_narrator_metadata() -> Dict:
+        language = str(config.LANGUAGE).lower()
+        if language.startswith("en"):
+            return {
+                "name": "narrator",
+                "personality": ["objective", "calm"]
+            }
+        if language.startswith("ja"):
+            return {
+                "name": "ナレーター",
+                "personality": ["客観的", "落ち着いた"]
+            }
+        return {
+            "name": "旁白",
+            "personality": ["客观", "平静"]
+        }
 
     def __init__(self):
         """Initialize the voice assigner"""
@@ -91,6 +110,8 @@ class VoiceAssigner:
         Returns:
             character voice cast template (JSON format)
         """
+        narrator = VoiceAssigner._get_narrator_metadata()
+
         return {
             "novel_id": novel_id,
             "novel_title": novel_title,
@@ -110,9 +131,9 @@ class VoiceAssigner:
                 for char in characters
             ],
             "narrator": {
-                "name": "旁白",
+                "name": narrator["name"],
                 "voice": VoiceAssigner.NARRATOR_VOICE,
-                "personality": ["客观", "平静"]
+                "personality": narrator["personality"]
             }
         }
     
