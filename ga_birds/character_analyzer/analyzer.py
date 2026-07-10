@@ -69,7 +69,8 @@ class CharacterAnalyzer:
             for category, tags in config.PERSONALITY_TAGS.items()
         )
 
-    def _dedupe_strings(self, values: List[str]) -> List[str]:
+    @staticmethod
+    def _dedupe_strings(values: List[str]) -> List[str]:
         result = []
         seen = set()
         for value in values:
@@ -78,6 +79,64 @@ class CharacterAnalyzer:
                 seen.add(cleaned)
                 result.append(cleaned)
         return result
+
+    @staticmethod
+    def _normalize_simple_value(value: str, fallback: str = "unknown") -> str:
+        cleaned = str(value or "").strip()
+        return cleaned if cleaned else fallback
+
+    @classmethod
+    def _normalize_age_group(cls, value: str) -> str:
+        normalized = str(value or "").strip().lower()
+        aliases = {
+            "child": "child",
+            "kid": "child",
+            "children": "child",
+            "儿童": "child",
+            "小孩": "child",
+            "teen": "teen",
+            "teenager": "teen",
+            "青少年": "teen",
+            "adult": "adult",
+            "成年人": "adult",
+            "elder": "elder",
+            "elderly": "elder",
+            "old": "elder",
+            "老年": "elder",
+            "unknown": "unknown",
+            "未知": "unknown",
+        }
+        return aliases.get(normalized, "unknown")
+
+    @classmethod
+    def _normalize_profile(cls, char: Dict) -> Dict:
+        profile = char.get("profile", {}) if isinstance(char.get("profile"), dict) else {}
+        region_hint = profile.get("region_hint", char.get("region_hint", "unknown"))
+        accent_preference = profile.get("accent_preference", char.get("accent_preference", "unknown"))
+        occupation = profile.get("occupation", char.get("occupation", "unknown"))
+        age_group = profile.get("age_group", char.get("age_group", "unknown"))
+        speech_style = cls._dedupe_strings(profile.get("speech_style", char.get("speech_style", [])))
+
+        return {
+            "age_group": cls._normalize_age_group(age_group),
+            "occupation": cls._normalize_simple_value(occupation),
+            "region_hint": cls._normalize_simple_value(region_hint),
+            "accent_preference": cls._normalize_simple_value(accent_preference),
+            "speech_style": speech_style,
+        }
+
+    @staticmethod
+    def _merge_profile(existing: Dict, incoming: Dict) -> Dict:
+        merged = dict(existing or {})
+        incoming = incoming or {}
+        for key in ("age_group", "occupation", "region_hint", "accent_preference"):
+            current = str(merged.get(key, "unknown")).strip() or "unknown"
+            candidate = str(incoming.get(key, "unknown")).strip() or "unknown"
+            if current == "unknown" and candidate != "unknown":
+                merged[key] = candidate
+
+        merged["speech_style"] = list(set(merged.get("speech_style", [])) | set(incoming.get("speech_style", [])))
+        return merged
 
     def _filter_aliases_by_source(self, aliases: List[str], source_text: str, primary_name: str) -> List[str]:
         return self._dedupe_strings(
@@ -100,6 +159,7 @@ class CharacterAnalyzer:
         aliases = self._dedupe_strings(char.get('aliases', []))
         gender = str(char.get('gender', 'unknown')).strip().lower() or 'unknown'
         personality = self._normalize_personality_tags(char.get('personality', []))
+        profile = self._normalize_profile(char)
 
         source_aliases = [alias for alias in aliases if alias in source_text]
         if name and name not in source_text and source_aliases:
@@ -112,15 +172,18 @@ class CharacterAnalyzer:
             'aliases': aliases,
             'gender': gender,
             'personality': personality,
+            'profile': profile,
         }
 
     def _normalize_hybrid_character(self, info: Dict, source_text: str) -> Dict:
         aliases = self._dedupe_strings(info.get('aliases', []))
         aliases = self._dedupe_strings(alias for alias in aliases if alias in source_text)
         personality = self._normalize_personality_tags(info.get('personality', []))
+        profile = self._normalize_profile(info)
         return {
             'aliases': aliases,
             'personality': personality,
+            'profile': profile,
         }
 
     def _build_auto_prompt(self, chapter_content: str) -> str:
@@ -135,9 +198,15 @@ Requirements:
 2. Identify aliases that actually appear in the source text for the same character.
 3. Do not translate, localize, or invent names or aliases. Keep every name and alias exactly as it appears in the source text.
 4. Infer gender as male / female / unknown.
-5. Provide 3-5 personality tags in English for each character, chosen from the following reference categories:
+5. Infer a concise profile for each character:
+   - age_group: child / teen / adult / elder / unknown
+   - occupation: short English noun phrase or unknown
+   - region_hint: explicit region/nationality/accent clue from the text, otherwise unknown
+   - accent_preference: standard / regional / unknown
+   - speech_style: 1-3 English tags that describe how the character speaks
+6. Provide 3-5 personality tags in English for each character, chosen from the following reference categories:
 {personality_hint}
-6. Return valid JSON only, with no extra explanation.
+7. Return valid JSON only, with no extra explanation.
 
 Chapter content:
 {excerpt}
@@ -145,8 +214,32 @@ Chapter content:
 Return format (must be valid JSON):
 {{
   "characters": [
-    {{"name": "A", "aliases": [], "gender": "female", "personality": ["impulsive", "straightforward", "timid"]}},
-    {{"name": "boss", "aliases": [], "gender": "male", "personality": ["strict", "serious", "direct"]}}
+    {{
+      "name": "A",
+      "aliases": [],
+      "gender": "female",
+      "personality": ["impulsive", "straightforward", "timid"],
+      "profile": {{
+        "age_group": "adult",
+        "occupation": "office worker",
+        "region_hint": "unknown",
+        "accent_preference": "unknown",
+        "speech_style": ["direct", "fast"]
+      }}
+    }},
+    {{
+      "name": "boss",
+      "aliases": [],
+      "gender": "male",
+      "personality": ["strict", "serious", "direct"],
+      "profile": {{
+        "age_group": "adult",
+        "occupation": "manager",
+        "region_hint": "unknown",
+        "accent_preference": "standard",
+        "speech_style": ["firm", "concise"]
+      }}
+    }}
   ]
 }}"""
 
@@ -157,9 +250,15 @@ Return format (must be valid JSON):
 2. 识别角色在原文中实际出现过的别名
 3. 不要翻译、改写或臆造角色名和别名，必须保持原文里的写法
 4. 尝试识别角色性别（male/female/unknown）
-5. 为每个角色提取 3-5 个性格标签（personality）：从以下维度选择
+5. 为每个角色补充画像：
+   - age_group：child / teen / adult / elder / unknown
+   - occupation：简短职业描述，没有则填 unknown
+   - region_hint：原文中明确出现的地域/国籍/口音线索，没有则填 unknown
+   - accent_preference：standard / regional / unknown
+   - speech_style：1-3 个说话风格标签
+6. 为每个角色提取 3-5 个性格标签（personality）：从以下维度选择
 {personality_hint}
-6. 返回 JSON 格式，不要有任何其他说明文字
+7. 返回 JSON 格式，不要有任何其他说明文字
 
 章节内容：
 {excerpt}
@@ -167,8 +266,32 @@ Return format (must be valid JSON):
 返回格式（必须是有效的 JSON）：
 {{
   "characters": [
-    {{"name": "陈长生", "aliases": ["长生", "陈某"], "gender": "male", "personality": ["冷静", "理智", "善良"]}},
-    {{"name": "徐有容", "aliases": ["有容", "徐姑娘"], "gender": "female", "personality": ["高傲", "强大", "美丽"]}}
+    {{
+      "name": "陈长生",
+      "aliases": ["长生", "陈某"],
+      "gender": "male",
+      "personality": ["冷静", "理智", "善良"],
+      "profile": {{
+        "age_group": "adult",
+        "occupation": "修行者",
+        "region_hint": "unknown",
+        "accent_preference": "unknown",
+        "speech_style": ["简洁", "温和"]
+      }}
+    }},
+    {{
+      "name": "徐有容",
+      "aliases": ["有容", "徐姑娘"],
+      "gender": "female",
+      "personality": ["高傲", "强大", "美丽"],
+      "profile": {{
+        "age_group": "adult",
+        "occupation": "修行者",
+        "region_hint": "unknown",
+        "accent_preference": "unknown",
+        "speech_style": ["冷静", "礼貌"]
+      }}
+    }}
   ]
 }}"""
 
@@ -186,10 +309,16 @@ Known characters:
 Requirements:
 1. For each character, list aliases that actually appear in this chapter.
 2. Do not translate, localize, or invent character names or aliases. Keep them exactly as they appear in the source text.
-3. Provide 3-5 personality tags in English for each character, chosen from the following reference categories:
+3. Infer or update the character profile:
+   - age_group: child / teen / adult / elder / unknown
+   - occupation: short English noun phrase or unknown
+   - region_hint: explicit region/nationality/accent clue from the chapter, otherwise unknown
+   - accent_preference: standard / regional / unknown
+   - speech_style: 1-3 English tags that describe how the character speaks
+4. Provide 3-5 personality tags in English for each character, chosen from the following reference categories:
 {personality_hint}
-4. If a character does not appear in this chapter, return empty lists.
-5. Return valid JSON only, with no extra explanation.
+5. If a character does not appear in this chapter, return empty lists and unknown profile fields.
+6. Return valid JSON only, with no extra explanation.
 
 Chapter content:
 {excerpt}
@@ -198,11 +327,25 @@ Return format (must be valid JSON):
 {{
   "boss": {{
     "aliases": [],
-    "personality": ["strict", "serious", "direct"]
+    "personality": ["strict", "serious", "direct"],
+    "profile": {{
+      "age_group": "adult",
+      "occupation": "manager",
+      "region_hint": "unknown",
+      "accent_preference": "standard",
+      "speech_style": ["firm", "concise"]
+    }}
   }},
   "A": {{
     "aliases": [],
-    "personality": ["impulsive", "straightforward", "timid"]
+    "personality": ["impulsive", "straightforward", "timid"],
+    "profile": {{
+      "age_group": "adult",
+      "occupation": "office worker",
+      "region_hint": "unknown",
+      "accent_preference": "unknown",
+      "speech_style": ["direct", "fast"]
+    }}
   }}
 }}"""
 
@@ -214,10 +357,16 @@ Return format (must be valid JSON):
 要求：
 1. 为每个角色找出在本章中实际出现过的别名
 2. 不要翻译、改写或臆造角色名和别名，必须保持原文里的写法
-3. 为每个角色提取 3-5 个性格标签（personality）：从以下维度选择
+3. 为每个角色补充画像：
+   - age_group：child / teen / adult / elder / unknown
+   - occupation：简短职业描述，没有则填 unknown
+   - region_hint：原文中明确出现的地域/国籍/口音线索，没有则填 unknown
+   - accent_preference：standard / regional / unknown
+   - speech_style：1-3 个说话风格标签
+4. 为每个角色提取 3-5 个性格标签（personality）：从以下维度选择
 {personality_hint}
-4. 如果某个角色在本章未出现，返回空列表
-5. 返回 JSON 格式，不要有任何其他说明文字
+5. 如果某个角色在本章未出现，返回空列表与 unknown 画像
+6. 返回 JSON 格式，不要有任何其他说明文字
 
 章节内容：
 {excerpt}
@@ -226,11 +375,25 @@ Return format (must be valid JSON):
 {{
   "陈洪德": {{
     "aliases": ["洪德", "小洪德"],
-    "personality": ["善良", "勇敢", "热血"]
+    "personality": ["善良", "勇敢", "热血"],
+    "profile": {{
+      "age_group": "adult",
+      "occupation": "unknown",
+      "region_hint": "unknown",
+      "accent_preference": "unknown",
+      "speech_style": ["直接", "热情"]
+    }}
   }},
   "老爸": {{
     "aliases": ["父亲", "老子"],
-    "personality": ["严厉", "关心", "传统"]
+    "personality": ["严厉", "关心", "传统"],
+    "profile": {{
+      "age_group": "adult",
+      "occupation": "unknown",
+      "region_hint": "unknown",
+      "accent_preference": "standard",
+      "speech_style": ["严肃", "简洁"]
+    }}
   }}
 }}"""
 
@@ -288,12 +451,17 @@ Return format (must be valid JSON):
                 existing_personality = set(self.all_characters[name].get('personality', []))
                 new_personality = set(char.get('personality', []))
                 self.all_characters[name]['personality'] = list(existing_personality | new_personality)
+                self.all_characters[name]['profile'] = self._merge_profile(
+                    self.all_characters[name].get('profile', {}),
+                    char.get('profile', {}),
+                )
             else:
                 self.all_characters[name] = {
                     'name': name,
                     'aliases': char.get('aliases', []),
                     'gender': char.get('gender', 'unknown'),
                     'personality': char.get('personality', []),
+                    'profile': char.get('profile', self._normalize_profile({})),
                     'appearance_count': 1,
                     'first_chapter': chapter_index,
                     'last_chapter': chapter_index

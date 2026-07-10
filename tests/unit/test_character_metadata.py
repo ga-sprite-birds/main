@@ -31,7 +31,14 @@ def test_analyzer_keeps_source_language_metadata(monkeypatch):
           "name": "老板",
           "aliases": ["boss", "老板", "女同事A"],
           "gender": "male",
-          "personality": ["严厉", "直接", "领导"]
+          "personality": ["严厉", "直接", "领导"],
+          "profile": {
+            "age_group": "adult",
+            "occupation": "manager",
+            "region_hint": "British",
+            "accent_preference": "regional",
+            "speech_style": ["严肃", "简洁"]
+          }
         }
       ]
     }
@@ -48,6 +55,10 @@ def test_analyzer_keeps_source_language_metadata(monkeypatch):
     assert characters[0]["name"] == "boss"
     assert characters[0]["aliases"] == []
     assert characters[0]["personality"] == ["strict", "direct", "leader"]
+    assert characters[0]["profile"]["age_group"] == "adult"
+    assert characters[0]["profile"]["occupation"] == "manager"
+    assert characters[0]["profile"]["region_hint"] == "British"
+    assert characters[0]["profile"]["accent_preference"] == "regional"
 
 
 def test_voice_assigner_localizes_narrator_metadata(monkeypatch):
@@ -73,3 +84,5 @@ def test_voice_assigner_localizes_narrator_metadata(monkeypatch):
 
     assert template["narrator"]["name"] == "narrator"
     assert template["narrator"]["personality"] == ["objective", "calm"]
+    assert template["characters"][0]["voice_preferences"]["default"] == "zh-CN-YunxiNeural"
+    assert template["characters"][0]["profile"]["age_group"] == "unknown"

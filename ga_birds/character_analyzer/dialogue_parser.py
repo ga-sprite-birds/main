@@ -10,6 +10,7 @@ from loguru import logger
 
 import config
 from ga_birds.Common.i18n import t
+from .segment_utils import SegmentUtils
 
 
 class DialogueParser:
@@ -30,6 +31,9 @@ class DialogueParser:
         """
         self.llm_manager = llm_manager
         self.characters = characters
+        self.fallback_language = (
+            SegmentUtils.extract_language_from_locale(config.TTS_VOICE) or "en"
+        )
 
         # Build the character name list (including aliases)
         self.character_names = set()
@@ -63,20 +67,34 @@ class DialogueParser:
 
         original_count = len(segments)
         enhanced_segments = []
+        intro_text = f"{intro}。"
+        outro_text = f"{outro}。"
 
-        # Use narrator for the intro
+        # Intro/outro are personal config text; mark them so TTS uses TTS_VOICE
+        # instead of the content-language narrator voice.
         enhanced_segments.append({
-            "text": f"{intro}。",
+            "text": intro_text,
             "speaker": "narrator",
+            "segment_type": "intro",
+            "language": SegmentUtils.detect_language(intro_text, fallback_language="en"),
+            "emotion": "neutral",
+            "tone": "narration",
+            "tts_params": SegmentUtils.normalize_tts_params({}, emotion="neutral", tone="narration"),
+            "voice_override": "",
         })
 
         # Main dialogue
         enhanced_segments.extend(segments)
 
-        # Use narrator for the outro
         enhanced_segments.append({
-            "text": f"{outro}。",
+            "text": outro_text,
             "speaker": "narrator",
+            "segment_type": "outro",
+            "language": SegmentUtils.detect_language(outro_text, fallback_language="en"),
+            "emotion": "neutral",
+            "tone": "narration",
+            "tts_params": SegmentUtils.normalize_tts_params({}, emotion="neutral", tone="narration"),
+            "voice_override": "",
         })
 
         logger.debug(t("character.analyzer_before_count", count=original_count))
@@ -189,8 +207,15 @@ class DialogueParser:
 要求：
 1. 将内容拆分为多个片段（对话、旁白、描述等）
 2. 识别每个片段的说话人（角色名或 "narrator" 表示旁白）
-3. 保持原文内容完整，不要修改文字
-4. 返回 JSON 格式，不要有任何其他说明文字
+3. 为每个片段标注主语言 language，使用简短语言码，如 en / zh / ja / de / fr / es / pt / it
+4. 为每个片段标注情绪 emotion，只能从 neutral / calm / happy / excited / sad / angry / nervous / serious 中选择
+5. 为每个片段标注语气 tone，只能从 narration / dialogue / gentle / firm / whisper / shout / sarcastic 中选择
+6. 为每个片段提供温和的 TTS 建议参数 tts_params：
+   - rate: 0.80 - 1.25
+   - pitch: -8 - 8
+   - volume: 0.85 - 1.15
+7. 保持原文内容完整，不要修改文字
+8. 返回 JSON 格式，不要有任何其他说明文字
 
 章节内容：
 {chunk_content}
@@ -198,11 +223,51 @@ class DialogueParser:
 返回格式（必须是有效的 JSON）：
 {{
   "segments": [
-    {{"text": "二叔走了过来，说：", "speaker": "narrator"}},
-    {{"text": "你去哪里？", "speaker": "二叔"}},
-    {{"text": "老爸回答：", "speaker": "narrator"}},
-    {{"text": "我去买菜。", "speaker": "老爸"}},
-    {{"text": "他们一起离开了。", "speaker": "narrator"}}
+    {{
+      "text": "二叔走了过来，说：",
+      "speaker": "narrator",
+      "segment_type": "narration",
+      "language": "zh",
+      "emotion": "neutral",
+      "tone": "narration",
+      "tts_params": {{"rate": 1.0, "pitch": 0, "volume": 1.0}}
+    }},
+    {{
+      "text": "你去哪里？",
+      "speaker": "二叔",
+      "segment_type": "dialogue",
+      "language": "zh",
+      "emotion": "serious",
+      "tone": "firm",
+      "tts_params": {{"rate": 1.02, "pitch": -1, "volume": 1.02}}
+    }},
+    {{
+      "text": "老爸回答：",
+      "speaker": "narrator",
+      "segment_type": "narration",
+      "language": "zh",
+      "emotion": "neutral",
+      "tone": "narration",
+      "tts_params": {{"rate": 1.0, "pitch": 0, "volume": 1.0}}
+    }},
+    {{
+      "text": "我去买菜。",
+      "speaker": "老爸",
+      "segment_type": "dialogue",
+      "language": "zh",
+      "emotion": "calm",
+      "tone": "dialogue",
+      "tts_params": {{"rate": 0.96, "pitch": 0, "volume": 1.0}}
+    }},
+    {{
+      "text": "他们一起离开了。",
+      "speaker": "narrator",
+      "segment_type": "narration",
+      "language": "zh",
+      "emotion": "neutral",
+      "tone": "narration",
+      "tts_params": {{"rate": 1.0, "pitch": 0, "volume": 1.0}}
+    }}
   ]
 }}"""
 
@@ -210,10 +275,9 @@ class DialogueParser:
         if total_chunks > 1:
             chunk_desc += f"-块{chunk_num}/{total_chunks}"
 
-        # Dialogue parsing needs more output space (JSON format expands ~3-4x)
-        # Use 4x the input length as the output limit, minimum 4096
+        # Dialogue parsing with segment metadata needs more output space.
         input_len = len(chunk_content)
-        dialogue_max_tokens = max(4096, input_len * 4 // 3)  # Chinese: ~1.5 chars/token
+        dialogue_max_tokens = max(4096, input_len * 2)
         logger.debug(t("character.chunk_input_length", desc=chunk_desc, input=input_len, max_tokens=dialogue_max_tokens))
 
         try:
@@ -255,7 +319,11 @@ class DialogueParser:
 
         try:
             data = self._parse_json_with_fix(json_str, chapter_index, chunk_num)
-            segments = data.get('segments', [])
+            segments = [
+                self._normalize_segment(segment)
+                for segment in data.get('segments', [])
+                if isinstance(segment, dict) and str(segment.get("text", "")).strip()
+            ]
             return segments
 
         except json.JSONDecodeError as e:
@@ -335,6 +403,53 @@ class DialogueParser:
             logger.error(t("common.save_debug_info", path=debug_file))
         except Exception as write_error:
             logger.error(t("common.save_debug_info_failed", error=write_error))
+
+    def _normalize_segment(self, segment: Dict) -> Dict:
+        raw_speaker = str(segment.get("speaker", "narrator")).strip() or "narrator"
+        text = str(segment.get("text", ""))
+        segment_type = SegmentUtils.normalize_segment_type(segment.get("segment_type"), raw_speaker)
+
+        if config.SEGMENT_ENABLE_LANGUAGE_ANALYSIS:
+            language = SegmentUtils.normalize_language_code(
+                segment.get("language"),
+                fallback=SegmentUtils.detect_language(text, fallback_language=self.fallback_language),
+            )
+        else:
+            language = self.fallback_language
+
+        if config.SEGMENT_ENABLE_EMOTION_ANALYSIS:
+            emotion = SegmentUtils.normalize_emotion(segment.get("emotion"))
+            tone = SegmentUtils.normalize_tone(segment.get("tone"), segment_type=segment_type)
+        else:
+            emotion = "neutral"
+            tone = "narration" if segment_type == "narration" else "dialogue"
+
+        raw_tts_params = segment.get("tts_params")
+        if not isinstance(raw_tts_params, dict):
+            raw_tts_params = {
+                "rate": segment.get("rate"),
+                "pitch": segment.get("pitch"),
+                "volume": segment.get("volume"),
+            }
+
+        tts_params = SegmentUtils.normalize_tts_params(
+            raw_tts_params,
+            emotion=emotion,
+            tone=tone,
+        )
+
+        voice_override = str(segment.get("voice_override", "")).strip()
+
+        return {
+            "text": text,
+            "speaker": raw_speaker,
+            "segment_type": segment_type,
+            "language": language,
+            "emotion": emotion,
+            "tone": tone,
+            "tts_params": tts_params,
+            "voice_override": voice_override,
+        }
 
     def normalize_speaker(self, speaker: str) -> str:
         """

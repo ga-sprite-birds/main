@@ -37,10 +37,14 @@ class CharacterMerger:
         # Build the character list string
         character_list = []
         for i, char in enumerate(characters):
+            profile = char.get("profile", {})
             character_list.append(
                 f"{i+1}. {char['name']} "
                 f"(别名: {', '.join(char.get('aliases', [])[:3])}, "
                 f"性别: {char.get('gender', 'unknown')}, "
+                f"年龄段: {profile.get('age_group', 'unknown')}, "
+                f"职业: {profile.get('occupation', 'unknown')}, "
+                f"地域: {profile.get('region_hint', 'unknown')}, "
                 f"出现: {char.get('appearance_count', 0)}次)"
             )
 
@@ -196,6 +200,17 @@ class CharacterMerger:
                 primary_char['personality'] = list(
                     primary_personality | dup_personality
                 )
+
+                # Merge profile
+                primary_profile = dict(primary_char.get('profile', {}))
+                dup_profile = dup_char.get('profile', {})
+                for key in ('age_group', 'occupation', 'region_hint', 'accent_preference'):
+                    if primary_profile.get(key, 'unknown') == 'unknown' and dup_profile.get(key, 'unknown') != 'unknown':
+                        primary_profile[key] = dup_profile[key]
+                primary_profile['speech_style'] = list(
+                    set(primary_profile.get('speech_style', [])) | set(dup_profile.get('speech_style', []))
+                )
+                primary_char['profile'] = primary_profile
 
                 # Accumulate appearance counts
                 primary_char['appearance_count'] = (

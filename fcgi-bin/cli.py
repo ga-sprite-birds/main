@@ -168,6 +168,11 @@ async def generate_from_file(
     
     logger.info(t("cli.processing_chapters", start=start_chapter, end=end_chapter))
     logger.info("")
+    selected_contents = [
+        chapter.content
+        for chapter in chapters
+        if start_chapter <= chapter.index <= end_chapter
+    ]
 
     # ========== Character analysis mode ==========
     if analyze_characters:
@@ -291,6 +296,13 @@ async def generate_from_file(
                     'aliases': list(info['aliases']),
                     'gender': char['gender'],
                     'personality': list(info['personality']),
+                    'profile': info.get('profile', {
+                        "age_group": "unknown",
+                        "occupation": "unknown",
+                        "region_hint": "unknown",
+                        "accent_preference": "unknown",
+                        "speech_style": [],
+                    }),
                     'appearance_count': info['appearance_count'],
                     'first_chapter': info['first_chapter'] or 0,
                     'last_chapter': info['last_chapter'] or 0
@@ -332,14 +344,15 @@ async def generate_from_file(
         # Assign voices (timbre)
         logger.info("")
         logger.info(t("cli.assigning_voices"))
-        voice_assigner = VoiceAssigner()
+        voice_assigner = VoiceAssigner(source_text="\n\n".join(selected_contents))
         all_characters = voice_assigner.assign_voices(all_characters)
 
         # Create the character voice cast template
         character_template_data = VoiceAssigner.create_character_template(
             all_characters,
             input_path.stem,
-            input_path.stem
+            input_path.stem,
+            narrator_voice=voice_assigner.narrator_voice,
         )
 
         # Save the template
@@ -399,6 +412,7 @@ async def generate_from_file(
 
     # Multi-character voice: load the character template
     character_template_data = None
+    segment_voice_assigner = None
     if multi_voice:
         logger.info("")
         logger.info("=" * 60)
@@ -449,6 +463,7 @@ async def generate_from_file(
             logger.error("")
             return
 
+        segment_voice_assigner = VoiceAssigner(source_text="\n\n".join(selected_contents))
         logger.info("")
 
     logger.info(t("cli.initializing_tts"))
@@ -587,7 +602,12 @@ async def generate_from_file(
                 for i, segment in enumerate(segments):
                     segment_text = segment['text']
                     speaker = dialogue_parser.normalize_speaker(segment['speaker'])
-                    segment_voice = VoiceAssigner.get_voice_for_speaker(speaker, character_template_data)
+                    segment['speaker'] = speaker
+                    segment_voice = segment_voice_assigner.get_voice_for_segment(
+                        segment,
+                        character_template_data,
+                    )
+                    tts_params = segment.get("tts_params", {})
 
                     # Generate a temporary audio file
                     temp_audio_path = temp_dir / f"segment_{i:03d}.mp3"
@@ -607,7 +627,10 @@ async def generate_from_file(
                     await tts_manager.generate_audio(
                         text=tts_text,
                         output_path=str(temp_audio_path),
-                        voice=segment_voice
+                        voice=segment_voice,
+                        rate=tts_params.get("rate"),
+                        volume=tts_params.get("volume"),
+                        pitch=tts_params.get("pitch"),
                     )
 
                     temp_audio_files.append(str(temp_audio_path))

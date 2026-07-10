@@ -141,6 +141,15 @@ TTS_VOLUME = float(os.getenv('TTS_VOLUME', '1.0'))
 # Note: All engines uniformly use the Hz offset format
 TTS_PITCH = int(os.getenv('TTS_PITCH', '0'))
 
+# TTS_VOICE_CATALOG_CACHE: Edge TTS voice catalog cache path
+# Purpose: Cache the fetched Edge voice list locally to avoid repeated network calls
+# Format: JSON file path
+# Default: ./cache/voices/edge_voices.json
+TTS_VOICE_CATALOG_CACHE = os.getenv(
+    'TTS_VOICE_CATALOG_CACHE',
+    './cache/voices/edge_voices.json'
+)
+
 # ========== Chapter configuration ==========
 
 # CHAPTER_REGEX_PATTERNS: Chapter recognition regular expressions
@@ -167,10 +176,12 @@ CHAPTER_INTRO_OUTRO = os.getenv('CHAPTER_INTRO_OUTRO', 'true').lower() == 'true'
 
 # CHAPTER_INTRO_TEMPLATE: Intro template
 # Purpose: Prompt at the start of a chapter, supports {index}, {title} variables
+# Note: This is a personal preference; set it to whatever language you want spoken
 CHAPTER_INTRO_TEMPLATE = os.getenv('CHAPTER_INTRO_TEMPLATE', '第{index}章开始')
 
 # CHAPTER_OUTRO_TEMPLATE: Outro template
 # Purpose: Prompt at the end of a chapter
+# Note: This is a personal preference; set it to whatever language you want spoken
 CHAPTER_OUTRO_TEMPLATE = os.getenv('CHAPTER_OUTRO_TEMPLATE', '本章播讲完毕')
 
 # CHAPTER_INTRO_OUTRO_PAUSE: Intro/outro pause duration
@@ -372,6 +383,39 @@ DIALOGUE_CHUNK_SIZE = int(os.getenv('DIALOGUE_CHUNK_SIZE', '3000'))
 # Purpose: Ensures contextual coherence at chunk boundaries
 # Recommendation: 100-300
 DIALOGUE_CHUNK_OVERLAP = int(os.getenv('DIALOGUE_CHUNK_OVERLAP', '200'))
+
+# SEGMENT_ENABLE_LANGUAGE_ANALYSIS: Whether to attach language metadata to each parsed segment
+# Purpose: Enables per-segment language routing for multilingual dialogue
+SEGMENT_ENABLE_LANGUAGE_ANALYSIS = os.getenv(
+    'SEGMENT_ENABLE_LANGUAGE_ANALYSIS',
+    'true'
+).lower() in ('true', '1', 'yes')
+
+# SEGMENT_ENABLE_EMOTION_ANALYSIS: Whether to attach emotion/tone metadata to each parsed segment
+# Purpose: Enables dynamic TTS parameter adjustments for dialogue segments
+SEGMENT_ENABLE_EMOTION_ANALYSIS = os.getenv(
+    'SEGMENT_ENABLE_EMOTION_ANALYSIS',
+    'true'
+).lower() in ('true', '1', 'yes')
+
+# SEGMENT_MAX_RATE_DELTA: Maximum allowed per-segment deviation from the base TTS rate
+# Purpose: Prevents LLM-suggested speaking rates from becoming too extreme
+SEGMENT_MAX_RATE_DELTA = float(os.getenv('SEGMENT_MAX_RATE_DELTA', '0.25'))
+
+# SEGMENT_MAX_PITCH_DELTA: Maximum allowed per-segment deviation from the base TTS pitch
+# Purpose: Prevents LLM-suggested pitch shifts from becoming too extreme
+SEGMENT_MAX_PITCH_DELTA = int(os.getenv('SEGMENT_MAX_PITCH_DELTA', '8'))
+
+# SEGMENT_MAX_VOLUME_DELTA: Maximum allowed per-segment deviation from the base TTS volume
+# Purpose: Prevents LLM-suggested volume shifts from becoming too extreme
+SEGMENT_MAX_VOLUME_DELTA = float(os.getenv('SEGMENT_MAX_VOLUME_DELTA', '0.15'))
+
+# VOICE_PREFER_REGION_MATCH: Whether to prioritize region/accent hints when selecting voices
+# Purpose: Allows character profile region hints to influence locale selection
+VOICE_PREFER_REGION_MATCH = os.getenv(
+    'VOICE_PREFER_REGION_MATCH',
+    'true'
+).lower() in ('true', '1', 'yes')
 
 # PERSONALITY_TAGS: Personality tag library
 # Purpose: Predefined character personality tags, used as a reference when the LLM analyzes character personalities

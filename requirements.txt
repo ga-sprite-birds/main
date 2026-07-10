@@ -63,6 +63,7 @@ loguru>=0.7.2
 aiofiles>=23.2.1
 python-dotenv>=1.0.0
 tenacity>=8.2.3  # Retry mechanism (exponential backoff, error classification)
+langdetect>=1.0.9  # Content language detection for multi-character voice casting
 
 # ============================================
 # Development tools
