@@ -4,6 +4,9 @@
 
 Edge TTS 配音试听工具用于获取 Microsoft Edge TTS 支持的所有音色列表，并生成试听音频文件。
 
+如果你想先直接在浏览器中试听官方音色，也可以访问 Edge TTS 官网：
+[https://edge-tts.com](https://edge-tts.com)
+
 ## 🎯 功能特性
 
 - ✅ 获取所有可用音色列表
@@ -43,6 +46,9 @@ python utils/try_tts/cli.py generate --voice zh-CN-XiaoxiaoNeural
 
 # 批量生成所有中文音色的试听音频
 python utils/try_tts/cli.py generate --lang zh-CN
+
+# 批量生成所有英文音色的试听音频（自动使用内置英文试听文本）
+python utils/try_tts/cli.py generate --lang en-US
 
 # 批量生成中文男声试听音频
 python utils/try_tts/cli.py generate --lang zh-CN --gender male
@@ -118,6 +124,8 @@ python utils/try_tts/cli.py list --language zh_CN
 - `--lang` 参数：筛选**音色的语言**（如 zh-CN, en-US）
 - `--language` 参数：设置**界面输出语言**（en_US, zh_CN）
 - `.env` 的 `LANGUAGE`：全局设置**界面输出语言**
+- 未传 `--text` 时：`zh-*` 自动使用内置中文试听文本，`en-*` 自动使用内置英文试听文本
+- 其他语言（如 `ja-JP`、`fr-FR`）未传 `--text` 时，工具会直接提示你显式指定测试文本
 
 ---
 

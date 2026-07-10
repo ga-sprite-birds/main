@@ -32,8 +32,11 @@ tts_sample_retry = retry(
 
 class SampleGenerator:
     """Audition audio generator"""
-    
-    DEFAULT_TEXT = "你好，我是微软语音合成服务。这是一段试听音频，用于测试音色效果。"
+
+    DEFAULT_TEXTS = {
+        "zh": "欢迎使用 GA Birds 文本转语音服务。这是一段中文试听文本。",
+        "en": "Welcome to the GA Birds text-to-speech service. This is an English sample.",
+    }
     
     def __init__(self, output_dir: str = "./output/tts_samples"):
         """
@@ -44,12 +47,53 @@ class SampleGenerator:
         """
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+
+    @staticmethod
+    def _normalize_language_key(language: Optional[str]) -> str:
+        if not language:
+            return ""
+        lowered = str(language).strip().lower().replace("_", "-")
+        if lowered.startswith("zh"):
+            return "zh"
+        if lowered.startswith("en"):
+            return "en"
+        return ""
+
+    @staticmethod
+    def _extract_locale_from_voice(voice: str) -> str:
+        parts = str(voice).split("-")
+        if len(parts) >= 2:
+            return f"{parts[0]}-{parts[1]}"
+        return ""
+
+    def resolve_sample_text(
+        self,
+        text: Optional[str] = None,
+        language: Optional[str] = None,
+        voice: Optional[str] = None,
+    ) -> str:
+        """Resolve the sample text for a voice/language."""
+        if text:
+            return text
+
+        normalized = self._normalize_language_key(language)
+        if not normalized and voice:
+            normalized = self._normalize_language_key(
+                self._extract_locale_from_voice(voice)
+            )
+
+        if normalized in self.DEFAULT_TEXTS:
+            return self.DEFAULT_TEXTS[normalized]
+
+        language_label = language or self._extract_locale_from_voice(voice or "") or "unknown"
+        raise ValueError(t("text_required_for_language", language=language_label))
     
     @tts_sample_retry
     async def generate_sample(
         self,
         voice: str,
         text: Optional[str] = None,
+        language: Optional[str] = None,
         rate: str = "+0%",
         volume: str = "+0%",
         pitch: str = "+0Hz"
@@ -67,7 +111,7 @@ class SampleGenerator:
         Returns:
             path to the generated audio file
         """
-        text = text or self.DEFAULT_TEXT
+        text = self.resolve_sample_text(text=text, language=language, voice=voice)
 
         output_file = self.output_dir / f"{voice}.mp3"
         output_file = get_unique_filename(output_file)
@@ -105,7 +149,6 @@ class SampleGenerator:
         Returns:
             generation result (containing code, msg, data)
         """
-        text = text or self.DEFAULT_TEXT
         total = len(voices)
         voice_results = []
 
@@ -127,7 +170,11 @@ class SampleGenerator:
 
             try:
                 # generate_sample already has the @tts_sample_retry decorator, which retries automatically
-                output_file = await self.generate_sample(voice_name, text)
+                output_file = await self.generate_sample(
+                    voice_name,
+                    text,
+                    language=voice.get('Locale'),
+                )
                 voice_result["audio_file"] = output_file
                 voice_result["status"] = "success"
 
@@ -178,7 +225,8 @@ class SampleGenerator:
     def generate_sample_sync(
         self,
         voice: str,
-        text: Optional[str] = None
+        text: Optional[str] = None,
+        language: Optional[str] = None,
     ) -> str:
         """
         Generate a single audition audio synchronously
@@ -190,7 +238,7 @@ class SampleGenerator:
         Returns:
             path to the generated audio file
         """
-        return asyncio.run(self.generate_sample(voice, text))
+        return asyncio.run(self.generate_sample(voice, text, language=language))
     
     def generate_batch_sync(
         self,

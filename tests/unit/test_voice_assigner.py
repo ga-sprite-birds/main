@@ -202,3 +202,107 @@ def test_voice_assigner_prefers_segment_language_and_manual_preferences(monkeypa
 
     assert assigner.get_voice_for_segment(zh_segment, template) == "zh-CN-YunxiNeural"
     assert assigner.get_voice_for_segment(en_segment, template) == "en-US-BrianNeural"
+
+
+def test_voice_assigner_respects_explicit_template_voice_over_language(monkeypatch, tmp_path):
+    cache_file = tmp_path / "edge_voices.json"
+    cache_file.write_text(
+        json.dumps(
+            {
+                "voices": [
+                    {"ShortName": "zh-CN-YunxiNeural", "Locale": "zh-CN", "Gender": "Male"},
+                    {"ShortName": "zh-CN-XiaoxiaoNeural", "Locale": "zh-CN", "Gender": "Female"},
+                    {"ShortName": "en-US-AndrewMultilingualNeural", "Locale": "en-US", "Gender": "Male"},
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(config, "TTS_VOICE_CATALOG_CACHE", str(cache_file))
+    monkeypatch.setattr(config, "TTS_VOICE", "zh-CN-YunxiNeural")
+    monkeypatch.setattr(
+        "ga_birds.character_analyzer.segment_utils.detect_language",
+        lambda text: "zh",
+    )
+
+    assigner = VoiceAssigner(source_text="这是中文内容。")
+    template = {
+        "characters": [],
+        "narrator": {
+            "voice": "en-US-AndrewMultilingualNeural",
+            "profile": {},
+            "voice_preferences": {
+                "default": "en-US-AndrewMultilingualNeural",
+                "by_language": {},
+            },
+        },
+    }
+    segment = {
+        "text": "七十年代，禹都。",
+        "speaker": "narrator",
+        "segment_type": "narration",
+        "language": "zh",
+        "voice_override": "",
+    }
+
+    assert assigner.get_voice_for_segment(segment, template) == "en-US-AndrewMultilingualNeural"
+
+
+def test_voice_assigner_uses_tts_voice_when_template_has_no_voice(monkeypatch, tmp_path):
+    cache_file = tmp_path / "edge_voices.json"
+    cache_file.write_text(
+        json.dumps(
+            {
+                "voices": [
+                    {"ShortName": "zh-CN-TestMale", "Locale": "zh-CN", "Gender": "Male"},
+                    {"ShortName": "zh-CN-TestFemale", "Locale": "zh-CN", "Gender": "Female"},
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(config, "TTS_VOICE_CATALOG_CACHE", str(cache_file))
+    monkeypatch.setattr(config, "TTS_VOICE", "zh-CN-YunxiNeural")
+    monkeypatch.setattr(
+        "ga_birds.character_analyzer.segment_utils.detect_language",
+        lambda text: "zh",
+    )
+
+    assigner = VoiceAssigner(source_text="这是中文内容。")
+    template = {
+        "characters": [
+            {
+                "name": "boss",
+                "gender": "male",
+                "voice": "",
+                "profile": {},
+                "voice_preferences": {"default": "", "by_language": {}},
+            }
+        ],
+        "narrator": {
+            "voice": "",
+            "profile": {},
+            "voice_preferences": {"default": "", "by_language": {}},
+        },
+    }
+    segment = {
+        "text": "你好，老板。",
+        "speaker": "boss",
+        "segment_type": "dialogue",
+        "language": "zh",
+        "voice_override": "",
+    }
+    unknown_segment = {
+        "text": "未命中角色。",
+        "speaker": "unknown-speaker",
+        "segment_type": "dialogue",
+        "language": "zh",
+        "voice_override": "",
+    }
+
+    assert assigner.get_voice_for_segment(segment, template) == "zh-CN-YunxiNeural"
+    assert assigner.get_voice_for_segment(unknown_segment, template) == "zh-CN-YunxiNeural"

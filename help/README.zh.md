@@ -178,6 +178,9 @@ output/novel/
 
 快速试听 Edge TTS 的 550+ 音色，找到最适合的声音。
 
+如果你想先直接在浏览器里试听，也可以使用 Edge TTS 官网：
+[https://edge-tts.com](https://edge-tts.com)
+
 ### CLI 使用
 
 ```bash

@@ -26,6 +26,13 @@ except ImportError:
     pass
 
 
+def _builtin_language_label(language_key: str) -> str:
+    locale = getattr(get_i18n(), "locale", "en_US")
+    if locale == "zh_CN":
+        return "中文" if language_key == "zh" else "英文"
+    return "Chinese" if language_key == "zh" else "English"
+
+
 def parse_args():
     # Pre-parse the --language argument to set the help-text language
     import sys
@@ -160,15 +167,39 @@ def main():
             print(f"✓ {t('list_exported', file=doc_path)}")
     
     elif args.action == 'generate':
+        generator = SampleGenerator(args.output)
+
         if args.voice:
             print(f"\n🎵 {t('single_generate', voice=args.voice)}")
-            generator = SampleGenerator(args.output)
-            output_file = generator.generate_sample_sync(args.voice, args.text)
+            if not args.text:
+                builtin_key = generator._normalize_language_key(
+                    generator._extract_locale_from_voice(args.voice)
+                )
+                if not builtin_key:
+                    print(f"\n❌ {t('text_required_for_language', language=generator._extract_locale_from_voice(args.voice) or args.voice)}")
+                    sys.exit(1)
+                print(f"   {t('using_builtin_text', language=_builtin_language_label(builtin_key))}")
+
+            output_file = generator.generate_sample_sync(
+                args.voice,
+                args.text,
+                language=generator._extract_locale_from_voice(args.voice),
+            )
             print(f"✓ {t('audio_generated', file=output_file)}")
         else:
             if not filtered_voices:
                 print(f"\n❌ {t('no_voices')}")
                 sys.exit(1)
+
+            if not args.text:
+                builtin_key = generator._normalize_language_key(args.lang)
+                if not args.lang:
+                    print(f"\n❌ {t('text_required_for_mixed_languages')}")
+                    sys.exit(1)
+                if not builtin_key:
+                    print(f"\n❌ {t('text_required_for_language', language=args.lang)}")
+                    sys.exit(1)
+                print(f"\n📝 {t('using_builtin_text', language=_builtin_language_label(builtin_key))}")
 
             print(f"\n🎵 {t('batch_generate')}")
             filter_msg = t('filter_condition',
@@ -179,7 +210,6 @@ def main():
             print(f"   {t('output_dir', dir=args.output)}")
             print()
 
-            generator = SampleGenerator(args.output)
             result = generator.generate_batch_sync(
                 filtered_voices,
                 args.text,

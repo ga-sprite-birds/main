@@ -342,9 +342,13 @@ class VoiceAssigner:
         character: Dict,
         preferred_language: Optional[str] = None,
         fallback_voice: Optional[str] = None,
+        allow_auto_pool: bool = True,
     ) -> str:
         voice_preferences = character.get("voice_preferences", {})
         by_language = voice_preferences.get("by_language", {}) if isinstance(voice_preferences, dict) else {}
+        default_voice = ""
+        if isinstance(voice_preferences, dict):
+            default_voice = str(voice_preferences.get("default", "")).strip()
         language = SegmentUtils.normalize_language_code(
             preferred_language,
             fallback=self.content_language,
@@ -354,16 +358,20 @@ class VoiceAssigner:
             return str(by_language[language]).strip()
 
         explicit_voice = str(character.get("voice", "")).strip()
-        if explicit_voice and self._extract_language_from_locale(self._extract_locale_from_voice(explicit_voice)) == language:
+        if explicit_voice:
             return explicit_voice
 
-        locale = self._resolve_segment_locale(language, character)
-        if locale:
-            selected = self._next_voice_from_pool(locale, character.get("gender", "unknown"))
-            if selected:
-                return selected
+        if default_voice:
+            return default_voice
 
-        voice_fallback = fallback_voice or explicit_voice or self.fallback_voice
+        if allow_auto_pool:
+            locale = self._resolve_segment_locale(language, character)
+            if locale:
+                selected = self._next_voice_from_pool(locale, character.get("gender", "unknown"))
+                if selected:
+                    return selected
+
+        voice_fallback = fallback_voice or config.TTS_VOICE
         logger.warning(
             t(
                 "character.voice_fallback_gender",
@@ -428,9 +436,6 @@ class VoiceAssigner:
 
         if speaker == "narrator":
             narrator_voice = character_template.get("narrator", {}).get("voice", self.fallback_voice)
-            narrator_language = self._extract_language_from_locale(self._extract_locale_from_voice(narrator_voice))
-            if narrator_voice and narrator_language == segment_language:
-                return narrator_voice
             narrator_entry = {
                 "name": "narrator",
                 "gender": "unknown",
@@ -441,18 +446,20 @@ class VoiceAssigner:
             return self.resolve_character_voice(
                 narrator_entry,
                 preferred_language=segment_language,
-                fallback_voice=narrator_voice,
+                fallback_voice=config.TTS_VOICE,
+                allow_auto_pool=False,
             )
 
         character = self._find_character_entry(speaker, character_template)
         if not character:
             logger.warning(t("character.voice_not_found", speaker=speaker))
-            return character_template.get('narrator', {}).get('voice', config.TTS_VOICE)
+            return config.TTS_VOICE
 
         return self.resolve_character_voice(
             character,
             preferred_language=segment_language,
-            fallback_voice=character.get("voice") or self.fallback_voice,
+            fallback_voice=config.TTS_VOICE,
+            allow_auto_pool=False,
         )
 
     def _get_female_voice(self, character_name: str) -> str:

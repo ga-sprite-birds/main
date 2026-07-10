@@ -178,6 +178,9 @@ output/novel/
 
 Quickly preview the 550+ voices of Edge TTS to find the most suitable one.
 
+If you prefer to try voices directly in the browser first, you can also use the official Edge TTS website:
+[https://edge-tts.com](https://edge-tts.com)
+
 ### CLI usage
 
 ```bash
