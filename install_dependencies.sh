@@ -1,13 +1,10 @@
 #!/bin/bash
 
-# 设置代理（如果需要）
-export http_proxy=http://127.0.0.1:1080
-export https_proxy=http://127.0.0.1:1080
-
-echo "正在升级 pip、setuptools 和 wheel..."
+# Upgrade pip and build tools
+echo "Upgrading pip, setuptools, and wheel..."
 python -m pip install --upgrade pip setuptools wheel
 
-echo "正在安装项目依赖..."
+echo "Installing project dependencies..."
 pip install \
     "fastapi>=0.109.0" \
     "uvicorn[standard]>=0.27.0" \
@@ -35,7 +32,7 @@ pip install \
     "torchvision" \
     "torchaudio"
 
-echo "依赖安装完成！"
-echo "已安装的主要包："
+echo "Dependencies installed."
+echo "Installed core packages:"
 pip show fastapi openai pydantic uvicorn | grep -E "(Name|Version)"
 

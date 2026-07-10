@@ -53,7 +53,7 @@ models/
 *.m4a
 *.wav
 
-# Config (如果包含敏感信息)
+# Config (if it contains sensitive data)
 # config.yaml
 
 # OS

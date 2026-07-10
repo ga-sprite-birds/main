@@ -10,7 +10,7 @@
 |---------|-------------|:---:|:---:|
 | **Single-character voice** | Uniform voice across a whole chapter, fast generation | ✅ | ✅ |
 | **Multi-character voice** | Intelligently identify dialogue and assign a different voice to each character | ✅ | ✅ |
-| **Character analysis** | Automatically extract novel characters and generate a voice-acting template | ✅ | ✅ |
+| **Character analysis** | Automatically extract novel characters and generate a voice-acting template | ✅ | ❌ |
 | **LLM colloquialization** | Convert written text into natural spoken language | ✅ | ✅ |
 | **Chapter splitting** | Automatically detect chapter titles and generate them independently | ✅ | ✅ |
 | **Multilingual interface** | Switch between Chinese/English interfaces | ✅ | ✅ |

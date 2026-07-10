@@ -25,21 +25,16 @@ cd ga-sprite-birds
 
 ### 2. Create a Python Environment and Install Dependencies
 
-#### Option 1: Use the Installation Script (Recommended, for users in mainland China)
+#### Option 1: Use the Installation Script
 
 ```bash
-# If you are in mainland China, you may need to set a proxy to speed up downloads
-# The script will automatically set the proxy and install all dependencies
+# Install project dependencies with the helper script
 bash install_dependencies.sh
 ```
 
 #### Option 2: Use a Conda Environment (Recommended)
 
 ```bash
-# Note: If you are in mainland China, it is recommended to set a proxy first
-export http_proxy=http://127.0.0.1:1080
-export https_proxy=http://127.0.0.1:1080
-
 # Create the base environment (only installs Python, pip, setuptools, wheel and ffmpeg)
 conda create -n ga-sprite-birds python=3.10 pip setuptools wheel -c conda-forge -y
 conda activate ga-sprite-birds
@@ -81,7 +76,6 @@ pip install -r requirements.txt
 **Important Notes**:
 - Use `>=` version constraints instead of pinned versions to avoid issues where a specific version does not exist.
 - `setuptools` and `wheel` must be installed first, otherwise some packages (such as pydantic-core) will fail to build.
-- If you are in mainland China, it is strongly recommended to set a proxy to speed up downloads.
 
 ### 3. Install Ollama (Optional, for Local LLM)
 
@@ -252,7 +246,6 @@ ERROR: Could not find a version that satisfies the requirement openai==1.10.0
 **Solution**:
 - Use `>=` version constraints instead of `==` pinned versions.
 - Make sure pip is upgraded: `python -m pip install --upgrade pip`
-- If you are in mainland China, set a proxy to speed up downloads.
 
 ### 2. pip error: Cannot import 'setuptools.build_meta' or 'maturin'
 
@@ -271,19 +264,12 @@ python -m pip install --upgrade pip setuptools wheel
 pip install "fastapi>=0.109.0" ...
 ```
 
-### 3. Slow or failed downloads in mainland China
+### 3. Slow or failed package downloads
 
 **Solution**:
 ```bash
-# Method 1: Use a proxy (recommended)
-export http_proxy=http://127.0.0.1:1080
-export https_proxy=http://127.0.0.1:1080
-
-# Method 2: Use a domestic mirror
+# Use an alternative package mirror
 pip install -i https://pypi.tuna.tsinghua.edu.cn/simple "fastapi>=0.109.0" ...
-
-# Method 3: Configure the mirror permanently
-pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
 ### 4. Conda environment creation failed
@@ -330,7 +316,7 @@ ollama list
 
 If Edge TTS fails to connect, you can:
 
-1. Use a proxy.
+1. Retry later.
 2. Switch to a local TTS model.
 3. Use another API (Alibaba Cloud, Azure).
 

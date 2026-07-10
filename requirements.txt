@@ -1,73 +1,71 @@
-# 音频朗读系统依赖文件
+# Audio narration system dependencies
 # Python 3.10+
 #
-# 安装说明：
-# 1. 先升级 pip 和构建工具：python -m pip install --upgrade pip setuptools wheel
-# 2. 然后安装依赖：pip install -r requirements.txt
-# 3. 如果在中国大陆，建议设置代理：
-#    export http_proxy=http://127.0.0.1:1080
-#    export https_proxy=http://127.0.0.1:1080
+# Installation notes:
+# 1. Upgrade pip and build tools first: python -m pip install --upgrade pip setuptools wheel
+# 2. Then install dependencies: pip install -r requirements.txt
 #
-# 注意：使用 >= 版本约束而不是 == 固定版本，避免特定版本不存在的问题
+# Note: use >= version constraints instead of pinned == versions
+# to avoid issues where a specific version is unavailable
 
 # ============================================
-# Web 框架
+# Web framework
 # ============================================
 fastapi>=0.109.0
 uvicorn[standard]>=0.27.0
 python-multipart>=0.0.6
 
 # ============================================
-# 配置管理
+# Configuration management
 # ============================================
 pyyaml>=6.0.1
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
 
 # ============================================
-# 文本处理
+# Text processing
 # ============================================
 chardet>=5.2.0
 pypdf>=3.17.0
-python-magic ; sys_platform != "win32"  # Linux/Mac 使用 python-magic（需系统 libmagic）
-python-magic-bin>=0.4.14 ; sys_platform == "win32"  # Windows 专用
+python-magic ; sys_platform != "win32"  # Use python-magic on Linux/macOS (requires system libmagic)
+python-magic-bin>=0.4.14 ; sys_platform == "win32"  # Windows only
 
 # ============================================
-# LLM 调用
+# LLM integration
 # ============================================
 ollama>=0.1.6  # Ollama Python SDK
-openai>=1.0.0  # 兼容 OpenAI API 格式的调用
+openai>=1.0.0  # Compatible with OpenAI-style API calls
 httpx>=0.26.0
-tiktoken>=0.5.0  # Token 计数工具
+tiktoken>=0.5.0  # Token counting utility
 
 # ============================================
-# TTS 相关
+# TTS
 # ============================================
 edge-tts>=6.1.9
 
 # ============================================
-# 音频处理
+# Audio processing
 # ============================================
 pydub>=0.25.1
 soundfile>=0.12.1
-# 注意：需要安装 FFmpeg，见 INSTALL.md
+# Note: FFmpeg must be installed; see INSTALL.md
 
 # ============================================
-# 异步任务（可选）
+# Async tasks (optional)
 # ============================================
-# celery>=5.3.4  # 如果需要复杂任务队列
-# redis>=5.0.1  # Celery 需要
+# celery>=5.3.4  # If you need a more complex task queue
+# redis>=5.0.1  # Required by Celery
 
 # ============================================
-# 工具库
+# Utilities
 # ============================================
 loguru>=0.7.2
 aiofiles>=23.2.1
 python-dotenv>=1.0.0
-tenacity>=8.2.3  # 重试机制（指数退避、错误分类）
+tenacity>=8.2.3  # Retry mechanism (exponential backoff, error classification)
 
 # ============================================
-# 开发工具
+# Development tools
 # ============================================
 pytest>=7.4.4
 pytest-asyncio>=0.23.3

@@ -1,19 +1,15 @@
 #!/bin/bash
 
-# GA Sprite Birds - CLI 启动脚本
-# 版本: v1.0
+# GA Sprite Birds - CLI startup script
+# Version: v1.0
 
-# 设置代理（如果需要，可以注释掉）
-export http_proxy=http://127.0.0.1:1080
-export https_proxy=http://127.0.0.1:1080
-
-# 获取脚本所在目录的绝对路径
+# Get the absolute path of the script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# 切换到项目目录
+# Change to the project directory
 cd "${SCRIPT_DIR}"
 
 
-# 设置 PYTHONPATH 并运行 CLI
+# Set PYTHONPATH and run the CLI
 PYTHONPATH=. python fcgi-bin/cli.py "$@"
 

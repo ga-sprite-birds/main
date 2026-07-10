@@ -25,21 +25,16 @@ cd ga-sprite-birds
 
 ### 2. 创建 Python 环境并安装依赖
 
-#### 方式 1：使用安装脚本（推荐，适用于中国大陆）
+#### 方式 1：使用安装脚本
 
 ```bash
-# 如果在中国大陆，需要设置代理加速下载
-# 脚本会自动设置代理并安装所有依赖
+# 使用辅助脚本安装项目依赖
 bash install_dependencies.sh
 ```
 
 #### 方式 2：使用 Conda 环境（推荐）
 
 ```bash
-# 注意：如果在中国大陆，建议先设置代理
-export http_proxy=http://127.0.0.1:1080
-export https_proxy=http://127.0.0.1:1080
-
 # 创建基础环境（只安装 Python、pip、setuptools、wheel 和 ffmpeg）
 conda create -n ga-sprite-birds python=3.10 pip setuptools wheel -c conda-forge -y
 conda activate ga-sprite-birds
@@ -81,7 +76,6 @@ pip install -r requirements.txt
 **重要提示**：
 - 使用 `>=` 版本约束而不是固定版本，避免特定版本不存在的问题
 - 必须先安装 `setuptools` 和 `wheel`，否则某些包（如 pydantic-core）会构建失败
-- 如果在中国大陆，强烈建议设置代理以加速下载
 
 ### 3. 安装 Ollama（可选，本地 LLM）
 
@@ -252,7 +246,6 @@ ERROR: Could not find a version that satisfies the requirement openai==1.10.0
 **解决方案**：
 - 使用 `>=` 版本约束而不是 `==` 固定版本
 - 确保已升级 pip：`python -m pip install --upgrade pip`
-- 如果在中国大陆，设置代理加速下载
 
 ### 2. pip 安装时报错：Cannot import 'setuptools.build_meta' 或 'maturin'
 
@@ -271,19 +264,12 @@ python -m pip install --upgrade pip setuptools wheel
 pip install "fastapi>=0.109.0" ...
 ```
 
-### 3. 中国大陆网络下载缓慢或失败
+### 3. 包下载缓慢或失败
 
 **解决方案**：
 ```bash
-# 方法 1：使用代理（推荐）
-export http_proxy=http://127.0.0.1:1080
-export https_proxy=http://127.0.0.1:1080
-
-# 方法 2：使用国内镜像源
+# 使用可替代的镜像源
 pip install -i https://pypi.tuna.tsinghua.edu.cn/simple "fastapi>=0.109.0" ...
-
-# 方法 3：永久配置镜像源
-pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
 ### 4. Conda 环境创建失败
@@ -330,7 +316,7 @@ ollama list
 
 如果 Edge TTS 连接失败，可以：
 
-1. 使用代理
+1. 稍后重试
 2. 切换到本地 TTS 模型
 3. 使用其他 API（阿里云、Azure）
 
