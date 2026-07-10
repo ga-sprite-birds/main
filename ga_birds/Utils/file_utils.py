@@ -13,6 +13,7 @@ import re
 import chardet
 from pypdf import PdfReader
 from loguru import logger
+from ga_birds.Common.i18n import t
 
 
 def get_unique_filename(path: Path) -> Path:
@@ -58,16 +59,16 @@ def detect_encoding(file_path: str) -> str:
         encoding = result.get("encoding", "utf-8")
         confidence = result.get("confidence", 0)
 
-        logger.info(f"检测到文件编码: {encoding} (置信度: {confidence:.2f})")
+        logger.info(t("file.encoding_detected", encoding=encoding, confidence=confidence))
 
         # If confidence is too low, default to utf-8
         if confidence < 0.7:
-            logger.warning(f"编码检测置信度较低，使用默认编码 utf-8")
+            logger.warning(t("file.encoding_low_confidence"))
             return "utf-8"
         
         return encoding
     except Exception as e:
-        logger.error(f"编码检测失败: {e}，使用默认编码 utf-8")
+        logger.error(t("file.encoding_detect_failed", error=e))
         return "utf-8"
 
 
@@ -85,7 +86,7 @@ def read_text_file(file_path: str, encoding: Optional[str] = None) -> str:
     path = Path(file_path)
 
     if not path.exists():
-        raise FileNotFoundError(f"文件不存在: {file_path}")
+        raise FileNotFoundError(t("file.file_not_found", path=file_path))
 
     try:
         if encoding is None:
@@ -94,10 +95,10 @@ def read_text_file(file_path: str, encoding: Optional[str] = None) -> str:
         with open(file_path, "r", encoding=encoding) as f:
             content = f.read()
 
-        logger.info(f"成功读取文件: {file_path} ({len(content)} 字符)")
+        logger.info(t("file.read_success", path=file_path, size=len(content)))
         return content
     except Exception as e:
-        logger.error(f"读取文件失败: {file_path}, 错误: {e}")
+        logger.error(t("file.read_failed", path=file_path, error=e))
         raise
 
 
@@ -118,7 +119,7 @@ def read_file(file_path: str) -> str:
     path = Path(file_path)
 
     if not path.exists():
-        raise FileNotFoundError(f"文件不存在: {file_path}")
+        raise FileNotFoundError(t("file.file_not_found", path=file_path))
 
     suffix = path.suffix.lower()
 
@@ -127,10 +128,10 @@ def read_file(file_path: str) -> str:
     elif suffix == '.pdf':
         content = extract_pdf_text(file_path)
     else:
-        raise ValueError(f"不支持的文件格式: {suffix}")
+        raise ValueError(t("file.unsupported_format", suffix=suffix))
 
     if not content or not content.strip():
-        raise ValueError("文件内容为空")
+        raise ValueError(t("file.empty_content"))
 
     return content
 
@@ -153,14 +154,14 @@ def extract_pdf_text(file_path: str) -> str:
             text = page.extract_text()
             if text:
                 text_parts.append(text)
-            logger.debug(f"提取第 {page_num} 页，字符数: {len(text)}")
+            logger.debug(t("file.pdf_page_extracted", page=page_num, length=len(text)))
         
         full_text = "\n".join(text_parts)
-        logger.info(f"成功提取 PDF 文本: {file_path} ({len(full_text)} 字符)")
+        logger.info(t("file.pdf_extract_success", path=file_path, size=len(full_text)))
         
         return full_text
     except Exception as e:
-        logger.error(f"提取 PDF 文本失败: {file_path}, 错误: {e}")
+        logger.error(t("file.pdf_extract_failed", path=file_path, error=e))
         raise
 
 
@@ -213,7 +214,7 @@ def preprocess_text(
         # This strategy can be adjusted based on actual conditions
         pass
     
-    logger.info(f"文本预处理完成，处理前: {len(text)} 字符，处理后: {len(processed)} 字符")
+    logger.info(t("file.preprocess_done", before=len(text), after=len(processed)))
 
     return processed
 
@@ -267,7 +268,7 @@ def clean_text_for_tts(text: str) -> str:
         # Remove all punctuation and check whether any content remains
         text_without_punctuation = re.sub(r'[，。！？；：、,.!?;:\s…—\-\.\*]+', '', cleaned)
         if not text_without_punctuation:
-            logger.debug(f"文本只包含标点，跳过: {repr(text)}")
+            logger.debug(t("file.text_only_punctuation", text=repr(text)))
             return ""
 
     return cleaned

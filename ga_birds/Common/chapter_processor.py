@@ -9,6 +9,8 @@ Dev team: Tiger
 from typing import Tuple, Optional
 from loguru import logger
 
+from ga_birds.Common.i18n import t
+
 from .config_manager import ConfigManager
 
 
@@ -31,7 +33,7 @@ class ChapterProcessor:
             (intro, outro) tuple, or (None, None) if not enabled
         """
         if not ConfigManager.is_chapter_intro_outro_enabled():
-            logger.debug("  → 片头片尾未启用")
+            logger.debug(t("chapter.intro_outro_disabled"))
             return None, None
 
         intro = ConfigManager.get_chapter_intro_template().format(
@@ -40,8 +42,8 @@ class ChapterProcessor:
         )
         outro = ConfigManager.get_chapter_outro_template()
 
-        logger.debug(f"  → 片头: {intro}")
-        logger.debug(f"  → 片尾: {outro}")
+        logger.debug(t("chapter.intro_text", text=intro))
+        logger.debug(t("chapter.outro_text", text=outro))
 
         return intro, outro
 

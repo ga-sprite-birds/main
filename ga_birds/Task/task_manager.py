@@ -16,6 +16,8 @@ from datetime import datetime
 
 from loguru import logger
 
+from ga_birds.Common.i18n import t
+
 import config
 
 # Dynamically import the core module
@@ -71,7 +73,7 @@ class TaskManager:
         self.max_concurrent_tasks = config.TASK_MAX_CONCURRENT
         self.running_tasks: Dict[str, asyncio.Task] = {}
 
-        logger.info(f"任务管理器初始化完成，最大并发任务数: {self.max_concurrent_tasks}")
+        logger.info(t("task.manager_initialized", count=self.max_concurrent_tasks))
     
     def create_task(
         self,
@@ -107,7 +109,7 @@ class TaskManager:
         )
         
         self.tasks[task_id] = task
-        logger.info(f"创建任务: {task_id}, 章节数: {task.total_chapters}")
+        logger.info(t("task.task_created", task_id=task_id, count=task.total_chapters))
         
         return task_id
     
@@ -140,7 +142,7 @@ class TaskManager:
             elif status in [TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED]:
                 task.completed_at = datetime.now()
             
-            logger.info(f"任务 {task_id} 状态更新: {status}")
+            logger.info(t("task.task_status_updated", task_id=task_id, status=status.value))
     
     def update_chapter_status(
         self,
@@ -183,7 +185,7 @@ class TaskManager:
                 # Update the completed chapter count
                 if status == TaskStatus.COMPLETED:
                     task.completed_chapters += 1
-                    logger.info(f"任务 {task_id} 章节 {chapter_index} 完成: {chapter.title}")
+                    logger.info(t("task.chapter_completed", task_id=task_id, index=chapter_index, title=chapter.title))
                 
                 break
     
@@ -237,7 +239,7 @@ class TaskManager:
             del self.running_tasks[task_id]
         
         self.update_task_status(task_id, TaskStatus.CANCELLED)
-        logger.info(f"任务 {task_id} 已取消")
+        logger.info(t("task.task_cancelled", task_id=task_id))
         
         return True
     

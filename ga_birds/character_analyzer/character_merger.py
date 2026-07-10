@@ -7,6 +7,7 @@ import json
 from typing import List, Dict, Set
 from loguru import logger
 import config
+from ga_birds.Common.i18n import t
 
 
 class CharacterMerger:
@@ -31,7 +32,7 @@ class CharacterMerger:
         if len(characters) <= 1:
             return characters
 
-        logger.info("开始分析重复角色...")
+        logger.info(t("character.merger_start"))
 
         # Build the character list string
         character_list = []
@@ -86,31 +87,28 @@ class CharacterMerger:
             merge_data = self._extract_json(response)
 
             if not merge_data or 'merge_groups' not in merge_data:
-                logger.warning("LLM 未返回有效的合并建议")
+                logger.warning(t("character.merger_no_suggestions"))
                 return characters
 
             merge_groups = merge_data['merge_groups']
 
             if not merge_groups:
-                logger.info("✓ 未发现重复角色")
+                logger.info(t("character.merger_no_duplicates"))
                 return characters
 
             # Perform the merge
-            logger.info(f"发现 {len(merge_groups)} 组重复角色，开始合并...")
+            logger.info(t("character.merger_groups_found", count=len(merge_groups)))
             merged_characters = self._apply_merge(
                 characters,
                 merge_groups
             )
 
-            logger.info(
-                f"✓ 合并完成：{len(characters)} 个角色 → "
-                f"{len(merged_characters)} 个角色"
-            )
+            logger.info(t("character.merger_complete", before=len(characters), after=len(merged_characters)))
 
             return merged_characters
 
         except Exception as e:
-            logger.error(f"角色合并失败: {e}")
+            logger.error(t("character.merger_failed", error=e))
             return characters
 
     def _extract_json(self, text: str) -> Dict:
@@ -168,15 +166,11 @@ class CharacterMerger:
 
             # Check whether the primary name exists
             if primary_name not in char_map:
-                logger.warning(
-                    f"主名称 '{primary_name}' 不存在，跳过合并"
-                )
+                logger.warning(t("character.merger_primary_not_found", name=primary_name))
                 continue
 
-            logger.info(
-                f"  合并: {', '.join(duplicate_names)} → {primary_name}"
-            )
-            logger.info(f"    原因: {reason}")
+            logger.info(t("character.merger_merge_detail", duplicates=", ".join(duplicate_names), primary=primary_name))
+            logger.info(t("character.merger_reason", reason=reason))
 
             primary_char = char_map[primary_name]
 

@@ -11,6 +11,8 @@ from typing import Optional, Dict
 
 from loguru import logger
 
+from ga_birds.Common.i18n import t
+
 
 @dataclass
 class Sprite:
@@ -36,7 +38,7 @@ class SpriteManager:
             description="默认女声"
         ))
         
-        logger.info("角色管理器初始化完成")
+        logger.info(t("sprite.manager_initialized"))
     
     def add_sprite(self, sprite: Sprite) -> None:
         """
@@ -46,7 +48,7 @@ class SpriteManager:
             sprite: character object
         """
         self.sprites[sprite.name] = sprite
-        logger.info(f"添加角色: {sprite.name}, 音色: {sprite.voice}")
+        logger.info(t("sprite.sprite_added", name=sprite.name, voice=sprite.voice))
 
     def get_sprite(self, name: str) -> Optional[Sprite]:
         """
@@ -90,7 +92,7 @@ class SpriteManager:
         """
         if name in self.sprites:
             del self.sprites[name]
-            logger.info(f"移除角色: {name}")
+            logger.info(t("sprite.sprite_removed", name=name))
             return True
         return False
 

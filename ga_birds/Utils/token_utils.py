@@ -8,13 +8,14 @@ supporting both API and Ollama modes.
 import re
 from typing import List, Tuple
 from loguru import logger
+from ga_birds.Common.i18n import t
 
 try:
     import tiktoken
     TIKTOKEN_AVAILABLE = True
 except ImportError:
     TIKTOKEN_AVAILABLE = False
-    logger.warning("tiktoken 未安装，将使用字符数估算 token（不够精确）")
+    logger.warning(t("token.tiktoken_not_installed"))
 
 
 def count_tokens(text: str, model: str = "gpt-3.5-turbo") -> int:
@@ -162,15 +163,15 @@ def split_text_smart(text: str, max_tokens: int, model: str = "gpt-3.5-turbo", o
     if total_tokens <= max_tokens:
         return [text]
 
-    logger.debug(f"文本需要分段：总 tokens={total_tokens}, 限制={max_tokens}")
+    logger.debug(t("token.text_needs_splitting", total=total_tokens, max=max_tokens))
 
     # Step 1: split by paragraph
     paragraphs = split_text_by_paragraphs(text)
-    logger.debug(f"按段落分割：共 {len(paragraphs)} 段")
+    logger.debug(t("token.split_by_paragraph", count=len(paragraphs)))
 
     # Step 2: merge small paragraphs
     segments = merge_segments_smart(paragraphs, max_tokens, model)
-    logger.debug(f"合并后：共 {len(segments)} 段")
+    logger.debug(t("token.merged_segments", count=len(segments)))
 
     # Step 3: check for over-long paragraphs needing further splitting
     final_segments = []
@@ -181,7 +182,7 @@ def split_text_smart(text: str, max_tokens: int, model: str = "gpt-3.5-turbo", o
             final_segments.append(segment)
         else:
             # Paragraph too long, split by sentence
-            logger.debug(f"段落过长（{segment_tokens} tokens），按句子分割")
+            logger.debug(t("token.paragraph_too_long", tokens=segment_tokens))
             sentences = split_text_by_sentences(segment)
             sub_segments = merge_segments_smart(sentences, max_tokens, model)
 
@@ -192,14 +193,14 @@ def split_text_smart(text: str, max_tokens: int, model: str = "gpt-3.5-turbo", o
                     final_segments.append(sub_segment)
                 else:
                     # Sentence too long, force split by token
-                    logger.warning(f"句子过长（{sub_tokens} tokens），强制分割")
+                    logger.warning(t("token.sentence_too_long", tokens=sub_tokens))
                     final_segments.extend(_force_split_by_tokens(sub_segment, max_tokens, model))
 
     # Step 4: add overlap (optional)
     if overlap_ratio > 0 and len(final_segments) > 1:
         final_segments = _add_overlap(final_segments, overlap_ratio, max_tokens, model)
 
-    logger.info(f"✓ 文本分段完成：{len(final_segments)} 段")
+    logger.info(t("token.split_complete", count=len(final_segments)))
     return final_segments
 
 

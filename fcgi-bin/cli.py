@@ -22,6 +22,7 @@ from typing import Optional
 from loguru import logger
 
 import config
+from ga_birds.Common.i18n import t
 
 # Initialize multilingual support (defaults to config file, can be overridden via CLI argument)
 _core_module_name = config.CORE_DIR.replace('-', '_')
@@ -106,33 +107,33 @@ async def generate_from_file(
     # Check the input file
     input_path = Path(input_file)
     if not input_path.exists():
-        logger.error(f"输入文件不存在: {input_file}")
+        logger.error(t("cli.file_not_found", path=input_file))
         return
 
     # ========== Parameter merging: CLI/API arguments > config file ==========
     enable_llm = ParamManager.merge_enable_llm(enable_llm)
     multi_voice = ParamManager.merge_multi_voice(multi_voice)
 
-    logger.info(f"输入文件: {input_file}")
-    logger.info(f"LLM 模式: {config.LLM_MODE}")
-    logger.info(f"TTS 模式: {config.TTS_MODE}")
-    logger.info(f"启用 LLM: {enable_llm}")
-    logger.info(f"多角色配音: {multi_voice}")
+    logger.info(t("cli.input_file", path=input_file))
+    logger.info(t("cli.llm_mode", mode=config.LLM_MODE))
+    logger.info(t("cli.tts_mode", mode=config.TTS_MODE))
+    logger.info(t("cli.llm_enabled", enabled=enable_llm))
+    logger.info(t("cli.multi_voice", enabled=multi_voice))
     logger.info("")
 
     # Read file content
-    logger.info("正在读取文件...")
+    logger.info(t("cli.reading_file"))
     file_ext = input_path.suffix.lower()
     if file_ext == ".pdf":
         text = extract_pdf_text(str(input_path))
     else:
         text = read_text_file(str(input_path))
 
-    logger.info(f"文件大小: {len(text)} 字符")
+    logger.info(t("cli.file_size", size=len(text)))
 
     # Text preprocessing
     if config.TEXT_PREPROCESSING_ENABLED:
-        logger.info("正在进行文本预处理...")
+        logger.info(t("cli.preprocessing"))
         from ga_birds.Utils.file_utils import preprocess_text
         text = preprocess_text(
             text,
@@ -142,14 +143,14 @@ async def generate_from_file(
         )
 
     # Chapter splitting
-    logger.info("正在解析章节...")
+    logger.info(t("cli.parsing_chapters"))
     parser = ChapterParser(
         regex_patterns=config.CHAPTER_REGEX_PATTERNS,
         min_length=config.CHAPTER_MIN_LENGTH,
         keep_title=config.CHAPTER_KEEP_TITLE
     )
     chapters = parser.parse(text)
-    logger.info(f"共解析出 {len(chapters)} 个章节")
+    logger.info(t("cli.chapters_parsed", count=len(chapters)))
     logger.info("")
     
     # Determine the range of chapters to process
@@ -158,14 +159,14 @@ async def generate_from_file(
     
     # Validate chapter range
     if start_chapter < 1 or start_chapter > len(chapters):
-        logger.error(f"起始章节 {start_chapter} 超出范围 (1-{len(chapters)})")
+        logger.error(t("cli.start_chapter_invalid", start=start_chapter, total=len(chapters)))
         return
     
     if end_chapter < start_chapter or end_chapter > len(chapters):
-        logger.error(f"结束章节 {end_chapter} 超出范围 ({start_chapter}-{len(chapters)})")
+        logger.error(t("cli.end_chapter_invalid", end=end_chapter, start=start_chapter, total=len(chapters)))
         return
     
-    logger.info(f"将处理章节: {start_chapter} - {end_chapter}")
+    logger.info(t("cli.processing_chapters", start=start_chapter, end=end_chapter))
     logger.info("")
 
     # ========== Character analysis mode ==========
@@ -185,58 +186,58 @@ async def generate_from_file(
 
         # Hybrid mode requires a character list file
         if analysis_mode == "hybrid" and not character_list:
-            logger.error("✗ 混合模式需要指定角色列表文件")
-            logger.error("请使用 --character-list 参数指定角色列表文件")
+            logger.error(t("cli.hybrid_needs_list"))
+            logger.error(t("cli.hybrid_use_list"))
             logger.error("")
-            logger.error("示例:")
+            logger.error(t("cli.example"))
             logger.error("  bash cli.sh -i input.txt --analyze-characters --analysis-mode hybrid --character-list characters.txt")
             logger.error("")
-            logger.error("或者使用智能分析模式:")
+            logger.error(t("cli.or_use_auto"))
             logger.error("  bash cli.sh -i input.txt --analyze-characters")
             return
 
         # Display the analysis mode
         if analysis_mode == "hybrid":
-            logger.info("角色分析模式：混合模式")
+            logger.info(t("cli.analysis_mode_hybrid"))
         else:
-            logger.info("角色分析模式：智能分析")
+            logger.info(t("cli.analysis_mode_auto"))
 
         logger.info("=" * 60)
         logger.info("")
 
         # Initialize the LLM
-        logger.info("正在初始化 LLM 管理器...")
+        logger.info(t("cli.initializing_llm"))
         try:
             llm_manager = LLMManager()
-            logger.info("✓ LLM 管理器初始化成功")
+            logger.info(t("cli.llm_init_success"))
         except Exception as e:
-            logger.error(f"✗ LLM 初始化失败: {e}")
-            logger.error("角色分析需要 LLM，无法继续")
+            logger.error(t("cli.llm_init_failed", error=e))
+            logger.error(t("cli.analysis_needs_llm"))
             return
 
         logger.info("")
 
         # ========== Hybrid mode: user-specified character list ==========
         if analysis_mode == "hybrid":
-            logger.info("读取用户指定的角色列表...")
+            logger.info(t("cli.reading_character_list"))
 
             # Parse the character list file
             user_characters = CharacterListParser.parse_file(character_list)
 
             if not user_characters:
-                logger.error("✗ 角色列表为空或解析失败")
+                logger.error(t("cli.character_list_empty"))
                 return
 
             if not CharacterListParser.validate_characters(user_characters):
-                logger.error("✗ 角色列表验证失败")
+                logger.error(t("cli.character_list_invalid"))
                 return
 
-            logger.info(f"✓ 用户指定了 {len(user_characters)} 个角色:")
+            logger.info(t("cli.user_characters_found", count=len(user_characters)))
             for char in user_characters:
                 logger.info(f"  - {char['name']} ({char['gender']})")
 
             logger.info("")
-            logger.info("开始为指定角色分析别名和性格...")
+            logger.info(t("cli.analyzing_aliases"))
 
             # Find aliases and personality for each specified character
             analyzer = CharacterAnalyzer(llm_manager)
@@ -255,7 +256,7 @@ async def generate_from_file(
                 if chapter.index < start_chapter or chapter.index > end_chapter:
                     continue
 
-                logger.info(f"分析章节 {chapter.index}: {chapter.title}")
+                logger.info(t("cli.analyzing_chapter", index=chapter.index, title=chapter.title))
                 chapter_data = analyzer.analyze_chapter_for_characters(
                     chapter.content,
                     chapter.index,
@@ -277,7 +278,7 @@ async def generate_from_file(
                         # Update last appearing chapter
                         character_info[char_name]['last_chapter'] = chapter.index
 
-                        logger.info(f"  → {char_name}: 别名 {list(info.get('aliases', []))}")
+                        logger.info(t("cli.alias_info", name=char_name, aliases=list(info.get('aliases', []))))
 
             # Convert to final format
             all_characters = []
@@ -296,11 +297,11 @@ async def generate_from_file(
                 })
 
             logger.info("")
-            logger.info("✓ 混合模式分析完成")
+            logger.info(t("cli.hybrid_done"))
 
         # ========== Smart analysis mode: LLM auto-discovers characters ==========
         else:
-            logger.info("开始分析角色...")
+            logger.info(t("cli.auto_analysis_start"))
 
             # Analyze characters
             analyzer = CharacterAnalyzer(llm_manager)
@@ -309,28 +310,28 @@ async def generate_from_file(
                 if chapter.index < start_chapter or chapter.index > end_chapter:
                     continue
 
-                logger.info(f"分析章节 {chapter.index}: {chapter.title}")
+                logger.info(t("cli.analyzing_chapter", index=chapter.index, title=chapter.title))
                 characters = analyzer.analyze_chapter(chapter.content, chapter.index)
                 if characters:
-                    logger.info(f"  → 识别到 {len(characters)} 个角色: {', '.join([c['name'] for c in characters])}")
+                    logger.info(t("cli.chapter_characters", count=len(characters), names=', '.join([c['name'] for c in characters])))
                     analyzer.merge_characters(characters, chapter.index)
                 else:
-                    logger.info(f"  → 未识别到角色")
+                    logger.info(t("cli.chapter_no_characters"))
 
             # Get all characters
             all_characters = analyzer.get_all_characters()
             logger.info("")
-            logger.info(f"✓ 共识别 {len(all_characters)} 个角色")
+            logger.info(t("cli.total_characters_found", count=len(all_characters)))
 
             # Automatically merge duplicate characters
             logger.info("")
-            logger.info("正在检查并合并重复角色...")
+            logger.info(t("cli.checking_duplicates"))
             merger = CharacterMerger(llm_manager)
             all_characters = merger.merge_duplicate_characters(all_characters)
 
         # Assign voices (timbre)
         logger.info("")
-        logger.info("为角色分配音色...")
+        logger.info(t("cli.assigning_voices"))
         voice_assigner = VoiceAssigner()
         all_characters = voice_assigner.assign_voices(all_characters)
 
@@ -348,30 +349,30 @@ async def generate_from_file(
         with open(template_path, 'w', encoding='utf-8') as f:
             json.dump(character_template_data, f, ensure_ascii=False, indent=2)
 
-        logger.info(f"✓ 角色配音模板已保存: {template_path}")
+        logger.info(t("cli.template_saved", path=template_path))
         logger.info("")
         logger.info("=" * 60)
-        logger.info("角色统计")
+        logger.info(t("cli.character_stats"))
         logger.info("=" * 60)
-        logger.info(f"总角色数: {len(all_characters)}")
+        logger.info(t("cli.total_count", count=len(all_characters)))
         logger.info("")
 
         for i, char in enumerate(all_characters[:10], 1):
-            logger.info(f"{i}. {char['name']}: {char['voice']} (出现 {char['appearance_count']} 次)")
+            logger.info(t("cli.char_summary", i=i, name=char['name'], voice=char['voice'], count=char['appearance_count']))
 
         if len(all_characters) > 10:
-            logger.info(f"... 还有 {len(all_characters) - 10} 个角色")
+            logger.info(t("cli.more_characters", count=len(all_characters) - 10))
 
         logger.info("")
-        logger.info(f"旁白音色: {character_template_data['narrator']['voice']}")
+        logger.info(t("cli.narrator_voice", voice=character_template_data['narrator']['voice']))
         logger.info("")
         logger.info("=" * 60)
-        logger.info("下一步")
+        logger.info(t("cli.next_step"))
         logger.info("=" * 60)
-        logger.info("您可以编辑模板文件来调整角色音色：")
+        logger.info(t("cli.edit_template"))
         logger.info(f"  {template_path}")
         logger.info("")
-        logger.info("然后使用以下命令生成多角色配音：")
+        logger.info(t("cli.then_generate"))
         logger.info(f"  bash cli.sh -i {input_file} --multi-voice")
         logger.info("")
 
@@ -384,15 +385,15 @@ async def generate_from_file(
     llm_manager = None
     if enable_llm or multi_voice:
         try:
-            logger.info("正在初始化 LLM 管理器...")
+            logger.info(t("cli.initializing_llm"))
             llm_manager = LLMManager()
-            logger.info(f"✓ LLM 管理器初始化成功")
+            logger.info(t("cli.llm_init_success"))
         except Exception as e:
-            logger.error(f"✗ LLM 初始化失败: {e}")
+            logger.error(t("cli.llm_init_failed", error=e))
             if config.ENABLE_MULTI_VOICE:
-                logger.error("多角色配音需要 LLM，无法继续")
+                logger.error(t("cli.analysis_needs_llm"))
                 return
-            logger.warning("将跳过 LLM 处理")
+            logger.warning(t("cli.skipping_llm"))
             import traceback
             logger.debug(traceback.format_exc())
 
@@ -401,7 +402,7 @@ async def generate_from_file(
     if multi_voice:
         logger.info("")
         logger.info("=" * 60)
-        logger.info("多角色配音模式")
+        logger.info(t("cli.multi_voice_mode"))
         logger.info("=" * 60)
         logger.info("")
 
@@ -409,17 +410,17 @@ async def generate_from_file(
         if character_template is None:
             # Auto-locate the template file
             template_path = Path(config.CHARACTER_CACHE_DIR) / f"{input_path.stem}_characters.json"
-            logger.info(f"自动查找角色配音模板: {template_path}")
+            logger.info(t("cli.auto_find_template", path=template_path))
         else:
             # Use the specified template file
             template_path = Path(character_template)
-            logger.info(f"使用指定的角色配音模板: {template_path}")
+            logger.info(t("cli.using_template", path=template_path))
 
         # Check whether the template file exists
         if not template_path.exists():
-            logger.error(f"✗ 角色配音模板文件不存在: {template_path}")
+            logger.error(t("cli.template_not_found", path=template_path))
             logger.error("")
-            logger.error("请先使用以下命令生成角色配音模板：")
+            logger.error(t("cli.generate_template_first"))
             logger.error(f"  bash cli.sh -i {input_file} --analyze-characters")
             logger.error("")
             return
@@ -428,37 +429,37 @@ async def generate_from_file(
         try:
             with open(template_path, 'r', encoding='utf-8') as f:
                 character_template_data = json.load(f)
-            logger.info(f"✓ 已加载 {character_template_data['total_characters']} 个角色")
+            logger.info(t("cli.template_loaded", count=character_template_data['total_characters']))
         except json.JSONDecodeError as e:
-            logger.error(f"✗ 角色模板 JSON 格式错误: {e}")
-            logger.error(f"✗ 文件路径: {template_path}")
+            logger.error(t("cli.template_json_error", error=e))
+            logger.error(t("cli.template_json_path", path=template_path))
             logger.error("")
-            logger.error("请检查 JSON 文件格式，常见问题：")
-            logger.error("  1. 多余的逗号（如 ],} 前的逗号）")
-            logger.error("  2. 缺少引号或括号")
-            logger.error("  3. 编码问题")
+            logger.error(t("cli.template_check_hints"))
+            logger.error(t("cli.hint1"))
+            logger.error(t("cli.hint2"))
+            logger.error(t("cli.hint3"))
             logger.error("")
-            logger.error("可以使用以下命令重新生成模板：")
+            logger.error(t("cli.template_regenerate"))
             logger.error(f"  bash cli.sh -i {input_file} --analyze-characters")
             logger.error("")
             return
         except Exception as e:
-            logger.error(f"✗ 加载角色模板失败: {e}")
-            logger.error(f"✗ 文件路径: {template_path}")
+            logger.error(t("cli.template_load_failed", error=e))
+            logger.error(t("cli.template_load_path", path=template_path))
             logger.error("")
             return
 
         logger.info("")
 
-    logger.info("正在初始化 TTS 管理器...")
+    logger.info(t("cli.initializing_tts"))
     tts_manager = TTSManager()
 
-    logger.info("正在初始化音频导出器...")
+    logger.info(t("cli.initializing_exporter"))
     audio_exporter = AudioExporter()
     
     logger.info("")
     logger.info("=" * 60)
-    logger.info("开始生成音频")
+    logger.info(t("cli.starting_generation"))
     logger.info("=" * 60)
     logger.info("")
     
@@ -472,7 +473,7 @@ async def generate_from_file(
             continue
         
         logger.info(f"[{chapter.index}/{len(chapters)}] {chapter.title}")
-        logger.info(f"内容长度: {len(chapter.content)} 字符")
+        logger.info(t("cli.content_length", length=len(chapter.content)))
         
         try:
             # Save original content for comparison
@@ -486,32 +487,32 @@ async def generate_from_file(
             # LLM colloquialization (optional)
             if enable_llm:
                 if llm_manager:
-                    logger.info("  → LLM 口语化中...")
-                    logger.debug(f"  → 原文长度: {original_length} 字符")
-                    logger.debug(f"  → 原文前100字: {content[:100]}...")
+                    logger.info(t("cli.llm_colloquializing"))
+                    logger.debug(t("cli.llm_original_length", length=original_length))
+                    logger.debug(t("cli.llm_original_preview", text=content[:100]))
                     try:
                         colloquialized_content = llm_manager.colloquialize_text(content)
                         colloquialized_length = len(colloquialized_content)
-                        logger.debug(f"  → LLM 返回长度: {colloquialized_length} 字符")
-                        logger.debug(f"  → LLM 返回前100字: {colloquialized_content[:100]}...")
+                        logger.debug(t("cli.llm_result_length", length=colloquialized_length))
+                        logger.debug(t("cli.llm_result_preview", text=colloquialized_content[:100]))
 
                         # Check whether the LLM actually changed the text
                         if colloquialized_content != content:
                             content = colloquialized_content
-                            logger.info(f"  ✓ LLM 处理完成（{original_length} → {colloquialized_length} 字符）")
+                            logger.info(t("cli.llm_done", original=original_length, result=colloquialized_length))
                         else:
-                            logger.warning(f"  ⚠ LLM 返回文本与原文相同")
-                            logger.warning(f"  → 仍会保存 LLM 输出用于调试")
+                            logger.warning(t("cli.llm_unchanged"))
+                            logger.warning(t("cli.llm_debug_saved"))
                             # Do not set to None; keep the LLM output for debugging
 
                     except Exception as e:
-                        logger.error(f"  ✗ LLM 处理失败: {e}")
-                        logger.warning(f"  → 使用原始文本")
+                        logger.error(t("cli.llm_failed", error=e))
+                        logger.warning(t("cli.llm_using_original"))
                         import traceback
                         logger.debug(traceback.format_exc())
                         colloquialized_content = None
                 else:
-                    logger.warning("  ⚠ LLM 管理器未初始化，跳过 LLM 处理")
+                    logger.warning(t("cli.llm_not_initialized"))
                     logger.debug(f"  → enable_llm={enable_llm}, llm_manager={llm_manager}")
 
             # Add intro/outro (using ChapterProcessor)
@@ -522,12 +523,12 @@ async def generate_from_file(
             final_content = ChapterProcessor.combine_content_with_intro_outro(
                 content, intro, outro
             )
-            logger.debug(f"  → 片头片尾启用: {intro is not None}")
+            logger.debug(t("cli.intro_outro_enabled", enabled=intro is not None))
 
             # Multi-character voice vs single voice
             if multi_voice and character_template_data:
                 # Multi-character voice mode
-                logger.info("  → 使用多角色配音模式")
+                logger.info(t("cli.using_multi_voice"))
 
                 # 1. Parse dialogue (only the body, excluding intro/outro)
                 dialogue_parser = DialogueParser(
@@ -537,28 +538,28 @@ async def generate_from_file(
                 # to avoid losing prompts like "本章播讲完毕" when the LLM truncates its output
 
                 segments = dialogue_parser.parse_chapter(content, chapter.index)
-                logger.info(f"  → 解析到 {len(segments)} 个对话片段（不含片头片尾）")
+                logger.info(t("cli.dialog_segments", count=len(segments)))
 
                 # Validate content completeness
                 original_length = len(content)
                 total_segment_length = sum(len(seg['text']) for seg in segments)
                 completeness_ratio = total_segment_length / original_length if original_length > 0 else 0
 
-                logger.debug(f"  → 原文长度: {original_length} 字符")
-                logger.debug(f"  → 片段总长度: {total_segment_length} 字符")
-                logger.debug(f"  → 完整性: {completeness_ratio:.1%}")
+                logger.debug(t("cli.dialog_original_length", length=original_length))
+                logger.debug(t("cli.dialog_total_length", length=total_segment_length))
+                logger.debug(t("cli.dialog_completeness", ratio=completeness_ratio))
 
                 if completeness_ratio < 0.9:
-                    logger.warning(f"  ⚠ 对话解析可能丢失内容：原文 {original_length} 字符，解析后 {total_segment_length} 字符（{completeness_ratio:.1%}）")
+                    logger.warning(t("cli.dialog_content_loss", orig=original_length, parsed=total_segment_length, ratio=completeness_ratio))
                 elif completeness_ratio > 1.5:
-                    logger.warning(f"  ⚠ 对话解析内容膨胀异常：原文 {original_length} 字符，解析后 {total_segment_length} 字符（{completeness_ratio:.1%}）")
+                    logger.warning(t("cli.dialog_content_swell", orig=original_length, parsed=total_segment_length, ratio=completeness_ratio))
 
                 # Add intro/outro (using DialogueParser's static method)
                 segments = DialogueParser.add_intro_outro_to_segments(
                     segments, intro, outro
                 )
                 if intro and outro:
-                    logger.info(f"  → 已添加片头片尾，对话片段总数: {len(segments)}")
+                    logger.info(t("cli.dialog_with_intro_outro", count=len(segments)))
 
                 # Generate the output path (used to save text)
                 audio_path = audio_exporter.get_output_path(
@@ -597,11 +598,11 @@ async def generate_from_file(
                     # Display segment info (if text is very short, show full text)
                     if len(segment_text) <= 10:
                         if tts_text != segment_text:
-                            logger.debug(f"  → 片段 {i+1}/{len(segments)}: {speaker} ({segment_voice}), 原文: {repr(segment_text)}, TTS文本: {repr(tts_text)}")
+                            logger.debug(t("cli.segment_debug_with_text", i=i+1, total=len(segments), speaker=speaker, voice=segment_voice, raw=repr(segment_text), tts=repr(tts_text)))
                         else:
-                            logger.debug(f"  → 片段 {i+1}/{len(segments)}: {speaker} ({segment_voice}), 文本长度: {len(segment_text)}, 文本: {repr(segment_text)}")
+                            logger.debug(t("cli.segment_debug_with_text", i=i+1, total=len(segments), speaker=speaker, voice=segment_voice, raw=repr(segment_text), tts=repr(segment_text)))
                     else:
-                        logger.debug(f"  → 片段 {i+1}/{len(segments)}: {speaker} ({segment_voice}), 文本长度: {len(segment_text)}")
+                        logger.debug(t("cli.segment_debug", i=i+1, total=len(segments), speaker=speaker, voice=segment_voice, length=len(segment_text)))
 
                     await tts_manager.generate_audio(
                         text=tts_text,
@@ -615,7 +616,7 @@ async def generate_from_file(
                 # Handle the case where the file already exists
                 if audio_path.exists():
                     if config.OUTPUT_DUPLICATE_HANDLING == "skip":
-                        logger.info(f"  ⊙ 文件已存在，跳过: {audio_path}")
+                        logger.info(t("cli.file_exists_skip", path=audio_path))
                         logger.info("")
                         # Clean up temporary files
                         audio_merger = AudioMerger()
@@ -625,19 +626,19 @@ async def generate_from_file(
                         continue
                     elif config.OUTPUT_DUPLICATE_HANDLING == "rename":
                         audio_path = get_unique_filename(audio_path)
-                        logger.info(f"  ⚠ 文件已存在，重命名为: {audio_path.name}")
+                        logger.info(t("cli.file_exists_rename", path=audio_path.name))
                     # overwrite mode needs no special handling
 
-                logger.info(f"  → 合并 {len(temp_audio_files)} 个音频片段...")
+                logger.info(t("cli.merging_audio", count=len(temp_audio_files)))
                 audio_merger = AudioMerger()
                 if audio_merger.merge_audio_files(temp_audio_files, str(audio_path)):
-                    logger.info(f"  ✓ 音频合并完成")
+                    logger.info(t("cli.merge_complete"))
                     # Clean up temporary files
                     audio_merger.cleanup_temp_files(temp_audio_files)
                     import shutil
                     shutil.rmtree(temp_dir, ignore_errors=True)
                 else:
-                    logger.error(f"  ✗ 音频合并失败")
+                    logger.error(t("cli.merge_failed"))
                     raise Exception("音频合并失败")
 
             else:
@@ -653,12 +654,12 @@ async def generate_from_file(
                 # Handle the case where the file already exists
                 if audio_path.exists():
                     if config.OUTPUT_DUPLICATE_HANDLING == "skip":
-                        logger.info(f"  ⊙ 文件已存在，跳过: {audio_path}")
+                        logger.info(t("cli.file_exists_skip", path=audio_path))
                         logger.info("")
                         continue
                     elif config.OUTPUT_DUPLICATE_HANDLING == "rename":
                         audio_path = get_unique_filename(audio_path)
-                        logger.info(f"  ⚠ 文件已存在，重命名为: {audio_path.name}")
+                        logger.info(t("cli.file_exists_rename", path=audio_path.name))
                     # overwrite mode needs no special handling
 
                 # Save chapter text (single-voice mode)
@@ -671,7 +672,7 @@ async def generate_from_file(
                 )
 
                 # TTS generate audio (single-voice mode)
-                logger.info("  → TTS 生成中...")
+                logger.info(t("cli.tts_generating"))
 
                 # Prepare TTS parameters
                 tts_kwargs = {
@@ -686,29 +687,29 @@ async def generate_from_file(
 
                 await tts_manager.generate_audio(**tts_kwargs)
 
-                logger.info(f"  ✓ 生成完成: {audio_path}")
+                logger.info(t("cli.generation_complete", path=audio_path))
 
             logger.info("")
             success_count += 1
             
         except Exception as e:
-            logger.error(f"  ✗ 生成失败: {e}")
+            logger.error(t("cli.generation_failed", error=e))
             logger.info("")
             failed_count += 1
 
             # If the LLM balance is insufficient (402), stop generating subsequent chapters
             msg = str(e)
             if "Insufficient Balance" in msg or "Error code: 402" in msg:
-                logger.error("  ⚠ 检测到 LLM 余额不足（402），终止后续章节生成")
+                logger.error(t("cli.payment_required"))
                 break
 
     # Summary
     logger.info("=" * 60)
-    logger.info("生成完成")
+    logger.info(t("cli.all_done"))
     logger.info("=" * 60)
-    logger.info(f"成功: {success_count} 章")
-    logger.info(f"失败: {failed_count} 章")
-    logger.info(f"总计: {success_count + failed_count} 章")
+    logger.info(t("cli.success_count", count=success_count))
+    logger.info(t("cli.failed_count", count=failed_count))
+    logger.info(t("cli.total_count", count=success_count + failed_count))
 
 
 def main():

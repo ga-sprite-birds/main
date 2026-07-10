@@ -7,6 +7,7 @@ from abc import ABC, abstractmethod
 from typing import Optional
 from pathlib import Path
 from loguru import logger
+from ga_birds.Common.i18n import t
 
 
 class BaseTTSEngine(ABC):
@@ -15,7 +16,7 @@ class BaseTTSEngine(ABC):
     def __init__(self):
         """Initialize the engine"""
         self.engine_name = self.__class__.__name__
-        logger.info(f"初始化 TTS 引擎: {self.engine_name}")
+        logger.info(t("tts.base_engine_initialized", name=self.engine_name))
 
     @abstractmethod
     async def generate(
@@ -75,14 +76,9 @@ class BaseTTSEngine(ABC):
         text_length: int
     ):
         """Log the generation start"""
-        logger.info(
-            f"开始生成音频: {output_path}, "
-            f"音色: {voice}, "
-            f"语速: {rate}, "
-            f"文本长度: {text_length} 字符"
-        )
+        logger.info(t("tts.generation_start", path=output_path, voice=voice, rate=rate, length=text_length))
 
     def _log_generation_complete(self, output_path: str):
         """Log the generation completion"""
-        logger.info(f"音频生成完成: {output_path}")
+        logger.info(t("tts.generation_complete", path=output_path))
 

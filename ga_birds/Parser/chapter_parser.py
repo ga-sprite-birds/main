@@ -12,6 +12,8 @@ from dataclasses import dataclass
 
 from loguru import logger
 
+from ga_birds.Common.i18n import t
+
 
 @dataclass
 class Chapter:
@@ -53,7 +55,7 @@ class ChapterParser:
             re.compile(pattern, re.MULTILINE) for pattern in self.regex_patterns
         ]
         
-        logger.info(f"章节解析器初始化完成，正则模式数: {len(self.regex_patterns)}")
+        logger.info(t("parser.initialized", count=len(self.regex_patterns)))
     
     def parse(self, text: str) -> List[Chapter]:
         """
@@ -83,7 +85,7 @@ class ChapterParser:
         chapter_positions = sorted(set(chapter_positions), key=lambda x: x[0])
 
         if not chapter_positions:
-            logger.warning("未找到章节标题，将整个文本作为单章处理")
+            logger.warning(t("parser.no_chapters"))
             return [Chapter(
                 index=1,
                 title="全文",
@@ -92,7 +94,7 @@ class ChapterParser:
                 end_pos=len(text)
             )]
 
-        logger.info(f"找到 {len(chapter_positions)} 个章节标题")
+        logger.info(t("parser.chapters_found", count=len(chapter_positions)))
 
         # Split chapters
         chapters = []
@@ -115,7 +117,7 @@ class ChapterParser:
 
             # Check chapter length
             if len(content) < self.min_length:
-                logger.warning(f"章节 '{title}' 长度过短 ({len(content)} 字符)，跳过")
+                logger.warning(t("parser.chapter_too_short", title=title, length=len(content)))
                 continue
 
             chapter = Chapter(
@@ -127,9 +129,9 @@ class ChapterParser:
             )
             chapters.append(chapter)
 
-            logger.debug(f"解析章节 {chapter.index}: {title} ({len(content)} 字符)")
+            logger.debug(t("parser.chapter_parsed", index=chapter.index, title=title, length=len(content)))
 
-        logger.info(f"章节解析完成，共 {len(chapters)} 章")
+        logger.info(t("parser.parse_complete", count=len(chapters)))
         return chapters
 
     def get_chapter_by_index(self, chapters: List[Chapter], index: int) -> Optional[Chapter]:

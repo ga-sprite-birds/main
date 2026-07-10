@@ -5,6 +5,7 @@ Automatically assigns voices based on character gender
 
 from typing import Dict, List
 from loguru import logger
+from ga_birds.Common.i18n import t
 
 
 class VoiceAssigner:
@@ -31,7 +32,7 @@ class VoiceAssigner:
         """Initialize the voice assigner"""
         self.male_index = 0
         self.female_index = 0
-        logger.info("音色分配器初始化完成")
+        logger.info(t("character.voice_assigner_initialized"))
     
     def assign_voices(self, characters: List[Dict]) -> List[Dict]:
         """
@@ -48,20 +49,20 @@ class VoiceAssigner:
 
             # If the voice field already exists (manually set by user), skip
             if 'voice' in char and char['voice']:
-                logger.info(f"角色 {char['name']} 已有音色: {char['voice']}")
+                logger.info(t("character.voice_already_set", name=char['name'], voice=char['voice']))
                 continue
 
             # Assign voice based on gender
             if gender == 'male':
                 char['voice'] = self._get_male_voice()
-                logger.info(f"角色 {char['name']} (男) 分配音色: {char['voice']}")
+                logger.info(t("character.voice_assigned_male", name=char['name'], voice=char['voice']))
             elif gender == 'female':
                 char['voice'] = self._get_female_voice()
-                logger.info(f"角色 {char['name']} (女) 分配音色: {char['voice']}")
+                logger.info(t("character.voice_assigned_female", name=char['name'], voice=char['voice']))
             else:
                 # Unknown gender, default to male voice
                 char['voice'] = self._get_male_voice()
-                logger.info(f"角色 {char['name']} (未知) 分配音色: {char['voice']}")
+                logger.info(t("character.voice_assigned_unknown", name=char['name'], voice=char['voice']))
 
         return characters
 
@@ -136,6 +137,6 @@ class VoiceAssigner:
                 return char.get('voice', VoiceAssigner.NARRATOR_VOICE)
 
         # Not found, use the narrator voice
-        logger.warning(f"未找到角色 {speaker} 的音色，使用旁白音色")
+        logger.warning(t("character.voice_not_found", speaker=speaker))
         return character_template.get('narrator', {}).get('voice', VoiceAssigner.NARRATOR_VOICE)
 

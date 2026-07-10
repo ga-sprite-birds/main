@@ -6,6 +6,7 @@ Parses the user-provided character list file
 from typing import List, Dict
 from pathlib import Path
 from loguru import logger
+from ga_birds.Common.i18n import t
 
 
 class CharacterListParser:
@@ -42,7 +43,7 @@ class CharacterListParser:
         file_path = Path(file_path)
         
         if not file_path.exists():
-            logger.error(f"角色列表文件不存在: {file_path}")
+            logger.error(t("character.list_parser_file_not_found", path=file_path))
             return []
         
         characters = []
@@ -72,7 +73,7 @@ class CharacterListParser:
 
                         # Validate gender
                         if gender.lower() not in ['male', 'female', 'unknown', 'narrator']:
-                            logger.warning(f"第 {line_num} 行：性别 '{gender}' 无效，使用 'unknown'")
+                            logger.warning(t("character.list_parser_invalid_gender", line=line_num, gender=gender))
                             gender = 'unknown'
                         
                         characters.append({
@@ -80,14 +81,14 @@ class CharacterListParser:
                             "gender": gender.lower()
                         })
                     else:
-                        logger.warning(f"第 {line_num} 行：格式错误，跳过: {line}")
+                        logger.warning(t("character.list_parser_format_error", line=line_num, text=line))
                         continue
             
-            logger.info(f"✓ 从角色列表文件读取 {len(characters)} 个角色")
+            logger.info(t("character.list_parser_read_success", count=len(characters)))
             return characters
             
         except Exception as e:
-            logger.error(f"读取角色列表文件失败: {e}")
+            logger.error(t("character.list_parser_read_failed", error=e))
             return []
     
     @staticmethod
@@ -102,7 +103,7 @@ class CharacterListParser:
             whether valid
         """
         if not characters:
-            logger.error("角色列表为空")
+            logger.error(t("character.list_parser_empty"))
             return False
 
         # Check for duplicate characters
@@ -110,7 +111,7 @@ class CharacterListParser:
         duplicates = [name for name in names if names.count(name) > 1]
         
         if duplicates:
-            logger.warning(f"检测到重复角色: {', '.join(set(duplicates))}")
+            logger.warning(t("character.list_parser_duplicates", names=", ".join(set(duplicates))))
             return False
         
         return True
@@ -148,5 +149,5 @@ class CharacterListParser:
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(example_content)
         
-        logger.info(f"✓ 示例角色列表文件已创建: {output_path}")
+        logger.info(t("character.list_parser_example_created", path=output_path))
 

@@ -14,6 +14,7 @@ from pydub import AudioSegment
 from loguru import logger
 
 import config
+from ga_birds.Common.i18n import t
 
 
 class AudioExporter:
@@ -30,7 +31,7 @@ class AudioExporter:
         # Ensure the output directory exists
         self.base_path.mkdir(parents=True, exist_ok=True)
 
-        logger.info(f"音频导出器初始化完成，输出路径: {self.base_path}, 策略: {self.strategy}")
+        logger.info(t("audio.exporter_initialized", path=self.base_path, strategy=self.strategy))
     
     def get_output_path(
         self,
@@ -79,7 +80,7 @@ class AudioExporter:
         )
         
         output_path = subdir / filename
-        logger.debug(f"生成输出路径: {output_path}")
+        logger.debug(t("audio.output_path_generated", path=output_path))
         
         return output_path
     
@@ -133,7 +134,7 @@ class AudioExporter:
             input_file = Path(input_path)
             output_path = str(input_file.with_suffix(f".{target_format}"))
         
-        logger.info(f"开始转换音频格式: {input_path} -> {output_path}")
+        logger.info(t("audio.converting_format", input=input_path, output=output_path))
         
         try:
             # Load audio
@@ -146,10 +147,10 @@ class AudioExporter:
                 bitrate=f"{bitrate}k"
             )
             
-            logger.info(f"音频格式转换完成: {output_path}")
+            logger.info(t("audio.conversion_complete", path=output_path))
             return output_path
         except Exception as e:
-            logger.error(f"音频格式转换失败: {e}")
+            logger.error(t("audio.conversion_failed", error=e))
             raise
     
     def merge_audio_files(
@@ -169,7 +170,7 @@ class AudioExporter:
         Returns:
             output file path
         """
-        logger.info(f"Start merging {len(input_paths)} audio files")
+        logger.info(t("audio.merge_start", count=len(input_paths)))
 
         try:
             # Load the first audio
@@ -190,9 +191,9 @@ class AudioExporter:
                 bitrate=f"{self.bitrate}k"
             )
             
-            logger.info(f"音频合并完成: {output_path}")
+            logger.info(t("audio.merge_complete", path=output_path))
             return output_path
         except Exception as e:
-            logger.error(f"音频合并失败: {e}")
+            logger.error(t("audio.merge_failed", error=e))
             raise
 

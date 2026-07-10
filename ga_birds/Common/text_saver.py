@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Optional, List, Dict
 from loguru import logger
 
+from ga_birds.Common.i18n import t
+
 from .config_manager import ConfigManager
 
 
@@ -44,9 +46,9 @@ class ChapterTextSaver:
         try:
             with open(text_path, 'w', encoding=encoding) as f:
                 f.write(final_content)
-            logger.info(f"  ✓ 章节文本已保存: {text_path.name}")
+            logger.info(t("saver.text_saved", name=text_path.name))
         except Exception as e:
-            logger.warning(f"  ⚠ 保存章节文本失败: {e}")
+            logger.warning(t("saver.text_save_failed", error=e))
 
         # If LLM is enabled, also save the original and LLM texts
         if enable_llm and llm_content:
@@ -86,9 +88,9 @@ class ChapterTextSaver:
                     text = segment.get('text', '')
                     # Format: 【speaker】text content
                     f.write(f"【{speaker}】{text}\n\n")
-            logger.info(f"  ✓ 章节文本已保存（带说话人）: {text_path.name}")
+            logger.info(t("saver.text_with_speaker_saved", name=text_path.name))
         except Exception as e:
-            logger.warning(f"  ⚠ 保存章节文本失败: {e}")
+            logger.warning(t("saver.text_save_failed", error=e))
 
         # 2. Save a plain-text version (without speaker labels)
         plain_text_path = audio_path.with_name(
@@ -99,9 +101,9 @@ class ChapterTextSaver:
                 for segment in segments:
                     text = segment.get('text', '')
                     f.write(f"{text}\n\n")
-            logger.info(f"  ✓ 章节文本已保存（纯文本）: {plain_text_path.name}")
+            logger.info(t("saver.plain_text_saved", name=plain_text_path.name))
         except Exception as e:
-            logger.warning(f"  ⚠ 保存纯文本失败: {e}")
+            logger.warning(t("saver.plain_text_save_failed", error=e))
 
         # 3. If LLM is enabled, also save the original and LLM texts
         if enable_llm and llm_content:
@@ -133,9 +135,9 @@ class ChapterTextSaver:
             try:
                 with open(original_text_path, 'w', encoding=encoding) as f:
                     f.write(original_content)
-                logger.info(f"  ✓ 原文已保存: {original_text_path.name}")
+                logger.info(t("saver.original_saved", name=original_text_path.name))
             except Exception as e:
-                logger.warning(f"  ⚠ 保存原文失败: {e}")
+                logger.warning(t("saver.original_save_failed", error=e))
 
         # Save the LLM text
         llm_text_path = audio_path.with_name(
@@ -144,7 +146,7 @@ class ChapterTextSaver:
         try:
             with open(llm_text_path, 'w', encoding=encoding) as f:
                 f.write(llm_content)
-            logger.info(f"  ✓ LLM文本已保存: {llm_text_path.name}")
+            logger.info(t("saver.llm_text_saved", name=llm_text_path.name))
         except Exception as e:
-            logger.warning(f"  ⚠ 保存LLM文本失败: {e}")
+            logger.warning(t("saver.llm_text_save_failed", error=e))
 

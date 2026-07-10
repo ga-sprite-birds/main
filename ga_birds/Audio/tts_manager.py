@@ -11,6 +11,7 @@ from typing import Optional
 from loguru import logger
 
 import config
+from ga_birds.Common.i18n import t
 from .engines import (
     BaseTTSEngine,
     EdgeTTSEngine,
@@ -31,9 +32,9 @@ class TTSManager:
 
         # Validate engine setup
         if not self.engine.validate_setup():
-            raise RuntimeError(f"TTS engine {self.engine_name} setup validation failed")
+            raise RuntimeError(t("tts.validate_failed", engine=self.engine_name))
 
-        logger.info(f"TTS 管理器初始化完成，模式: {self.mode}, 引擎: {self.engine_name}")
+        logger.info(t("tts.manager_initialized", mode=self.mode, engine=self.engine_name))
 
     def _create_engine(self) -> BaseTTSEngine:
         """
@@ -96,7 +97,7 @@ class TTSManager:
                 pitch=pitch,
             )
         except Exception as e:
-            logger.error(f"TTS generation failed: {e}")
+            logger.error(t("tts.generation_failed", error=e))
             raise
 
     def generate_audio_sync(

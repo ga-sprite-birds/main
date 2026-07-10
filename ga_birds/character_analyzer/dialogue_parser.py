@@ -9,6 +9,7 @@ from typing import List, Dict, Optional
 from loguru import logger
 
 import config
+from ga_birds.Common.i18n import t
 
 
 class DialogueParser:
@@ -37,7 +38,7 @@ class DialogueParser:
             for alias in char.get('aliases', []):
                 self.character_names.add(alias)
 
-        logger.info(f"对话解析器初始化完成，已知角色: {len(characters)} 个")
+        logger.info(t("character.analyzer_initialized", count=len(characters)))
 
     @staticmethod
     def add_intro_outro_to_segments(
@@ -57,7 +58,7 @@ class DialogueParser:
             segment list with intro and outro added
         """
         if not intro or not outro:
-            logger.debug("  → 未添加片头片尾（intro 或 outro 为空）")
+            logger.debug(t("character.analyzer_no_intro"))
             return segments
 
         original_count = len(segments)
@@ -78,10 +79,10 @@ class DialogueParser:
             "speaker": "narrator",
         })
 
-        logger.debug(f"  → 片段总数（添加前）: {original_count}")
-        logger.debug(f"  → 片段总数（添加后）: {len(enhanced_segments)}")
-        logger.debug(f"  → 第一个片段: {enhanced_segments[0]}")
-        logger.debug(f"  → 最后一个片段: {enhanced_segments[-1]}")
+        logger.debug(t("character.analyzer_before_count", count=original_count))
+        logger.debug(t("character.analyzer_after_count", count=len(enhanced_segments)))
+        logger.debug(t("character.analyzer_first_segment", segment=enhanced_segments[0]))
+        logger.debug(t("character.analyzer_last_segment", segment=enhanced_segments[-1]))
 
         return enhanced_segments
     
@@ -102,7 +103,7 @@ class DialogueParser:
             ]
         """
         content_length = len(chapter_content)
-        logger.debug(f"章节 {chapter_index} 内容长度: {content_length} 字符")
+        logger.debug(t("character.chapter_content_length", index=chapter_index, length=content_length))
 
         # If the content is short, parse directly
         if content_length <= self.CHUNK_SIZE:
@@ -110,16 +111,16 @@ class DialogueParser:
 
         # Long chapters need to be split into chunks
         chunks = self._split_into_chunks(chapter_content)
-        logger.info(f"  → 章节内容较长，分为 {len(chunks)} 块处理")
+        logger.info(t("character.chapter_split_into_chunks", count=len(chunks)))
 
         all_segments = []
         for i, chunk in enumerate(chunks):
             chunk_num = i + 1
-            logger.debug(f"  → 处理第 {chunk_num}/{len(chunks)} 块")
+            logger.debug(t("character.processing_chunk", current=chunk_num, total=len(chunks)))
             segments = self._parse_chunk(chunk, chapter_index, chunk_num, len(chunks))
             all_segments.extend(segments)
 
-        logger.info(f"  → 解析到 {len(all_segments)} 个对话片段（共 {len(chunks)} 块）")
+        logger.info(t("character.parsed_segments", count=len(all_segments), chunks=len(chunks)))
         return all_segments
 
     def _split_into_chunks(self, content: str) -> List[str]:
@@ -213,16 +214,16 @@ class DialogueParser:
         # Use 4x the input length as the output limit, minimum 4096
         input_len = len(chunk_content)
         dialogue_max_tokens = max(4096, input_len * 4 // 3)  # Chinese: ~1.5 chars/token
-        logger.debug(f"{chunk_desc} 输入长度: {input_len}，输出限制: {dialogue_max_tokens}")
+        logger.debug(t("character.chunk_input_length", desc=chunk_desc, input=input_len, max_tokens=dialogue_max_tokens))
 
         try:
             result = self.llm_manager.generate(prompt, max_tokens=dialogue_max_tokens)
-            logger.debug(f"{chunk_desc} LLM 返回内容长度: {len(result)} 字符")
+            logger.debug(t("character.chunk_llm_result_length", desc=chunk_desc, length=len(result)))
 
             return self._parse_llm_response(result, chapter_index, chunk_num)
 
         except Exception as e:
-            logger.error(f"{chunk_desc} 对话解析失败: {e}")
+            logger.error(t("character.chunk_parse_failed", desc=chunk_desc, error=e))
             raise
 
     def _parse_llm_response(
@@ -244,7 +245,7 @@ class DialogueParser:
         """
         json_match = re.search(r'\{.*\}', result, re.DOTALL)
         if not json_match:
-            logger.warning(f"章节 {chapter_index} 块 {chunk_num} LLM 返回格式错误")
+            logger.warning(t("character.chunk_format_error", chapter=chapter_index, chunk=chunk_num))
             return []
 
         json_str = json_match.group(0)
@@ -258,7 +259,7 @@ class DialogueParser:
             return segments
 
         except json.JSONDecodeError as e:
-            logger.error(f"章节 {chapter_index} 块 {chunk_num} JSON 解析失败: {e}")
+            logger.error(t("character.chunk_json_parse_failed", chapter=chapter_index, chunk=chunk_num, error=e))
             self._save_debug_info(result, json_str, e, chapter_index, chunk_num)
             raise
 
@@ -305,10 +306,7 @@ class DialogueParser:
                     fixed += '}'
                 try:
                     data = json.loads(fixed)
-                    logger.warning(
-                        f"章节 {chapter_index} 块 {chunk_num} "
-                        f"JSON 通过自动补全尾部修复成功"
-                    )
+                    logger.warning(t("character.chunk_json_auto_fixed", chapter=chapter_index, chunk=chunk_num))
                     return data
                 except json.JSONDecodeError:
                     pass
@@ -334,9 +332,9 @@ class DialogueParser:
                 start = max(0, error.pos - 200)
                 end = min(len(json_str), error.pos + 200)
                 f.write(f"...{json_str[start:end]}...")
-            logger.error(f"已保存调试信息到: {debug_file}")
+            logger.error(t("common.save_debug_info", path=debug_file))
         except Exception as write_error:
-            logger.error(f"保存调试信息失败: {write_error}")
+            logger.error(t("common.save_debug_info_failed", error=write_error))
 
     def normalize_speaker(self, speaker: str) -> str:
         """
@@ -359,6 +357,6 @@ class DialogueParser:
                 return char['name']
         
         # Not found, return the original name
-        logger.warning(f"未知说话人: {speaker}，将作为旁白处理")
+        logger.warning(t("character.unknown_speaker", speaker=speaker))
         return "narrator"
 

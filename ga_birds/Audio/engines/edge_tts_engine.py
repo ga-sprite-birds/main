@@ -8,6 +8,7 @@ import edge_tts
 from loguru import logger
 
 import config
+from ga_birds.Common.i18n import t
 from .base import BaseTTSEngine
 from ga_birds.Utils.retry_utils import tts_retry
 
@@ -25,7 +26,7 @@ class EdgeTTSEngine(BaseTTSEngine):
         self.default_volume = config.TTS_VOLUME
         self.default_pitch = config.TTS_PITCH
         
-        logger.info(f"Edge TTS 引擎初始化完成，默认音色: {self.default_voice}")
+        logger.info(t("tts.edge_engine_initialized", voice=self.default_voice))
 
     @tts_retry
     async def generate(
@@ -90,7 +91,7 @@ class EdgeTTSEngine(BaseTTSEngine):
         Returns:
             always True (Edge TTS is an online service and requires no validation)
         """
-        logger.info("✓ Edge TTS requires no validation (online service)")
+        logger.info(t("tts.setup_valid"))
         return True
 
     @staticmethod

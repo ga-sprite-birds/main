@@ -15,6 +15,8 @@ import ollama
 from openai import OpenAI
 from loguru import logger
 
+from ga_birds.Common.i18n import t
+
 import config
 from ga_birds.Utils.retry_utils import llm_retry
 
@@ -41,21 +43,21 @@ class LLMManager:
         if self.mode == "local":
             # Validate local LLM setup
             if not self.model_manager.validate_local_llm_setup():
-                raise RuntimeError("本地 LLM 设置验证失败，请检查配置和模型")
+                raise RuntimeError(t("model.llm_validate_failed"))
 
             # Check whether the local-mode configuration is reasonable
             self._validate_local_config()
 
             self.client = None  # Ollama uses functional calls
-            logger.info(f"LLM 模式: 本地 (Ollama), 模型: {config.LLM_LOCAL_MODEL}")
+            logger.info(t("llm.mode_local", model=config.LLM_LOCAL_MODEL))
         elif self.mode == "api":
             self.client = OpenAI(
                 api_key=config.LLM_API_KEY,
                 base_url=config.LLM_API_ENDPOINT
             )
-            logger.info(f"LLM 模式: API, 模型: {config.LLM_API_MODEL}")
+            logger.info(t("llm.mode_api", model=config.LLM_API_MODEL))
         else:
-            raise ValueError(f"不支持的 LLM 模式: {self.mode}")
+            raise ValueError(t("llm.unsupported_mode", mode=self.mode))
 
     def _validate_local_config(self):
         """Validate the local-mode configuration"""
@@ -78,14 +80,14 @@ class LLMManager:
 
         # Warn if the configured num_ctx exceeds a known limit
         if max_ctx and config.LLM_NUM_CTX > max_ctx:
-            logger.warning(f"⚠ 警告：LLM_NUM_CTX={config.LLM_NUM_CTX} 可能超出模型 {config.LLM_LOCAL_MODEL} 的上下文限制（{max_ctx} tokens）")
-            logger.warning(f"→ 建议修改 .env 配置：LLM_NUM_CTX={max_ctx}")
-            logger.warning(f"→ 如果遇到超时或错误，请降低此配置")
+            logger.warning(t("llm.ctx_warning", ctx=config.LLM_NUM_CTX, model=config.LLM_LOCAL_MODEL, max_ctx=max_ctx))
+            logger.warning(t("llm.ctx_suggestion", max_ctx=max_ctx))
+            logger.warning(t("llm.ctx_timeout_hint"))
 
         # Check whether output tokens are reasonable
         if config.LLM_MAX_TOKENS >= config.LLM_NUM_CTX:
-            logger.warning(f"⚠ 警告：LLM_MAX_TOKENS={config.LLM_MAX_TOKENS} 不应大于等于 LLM_NUM_CTX={config.LLM_NUM_CTX}")
-            logger.warning(f"→ 建议修改 .env 配置：LLM_MAX_TOKENS={config.LLM_NUM_CTX // 4}")
+            logger.warning(t("llm.output_warning", tokens=config.LLM_MAX_TOKENS, ctx=config.LLM_NUM_CTX))
+            logger.warning(t("llm.output_suggestion", suggested=config.LLM_NUM_CTX // 4))
     
     def generate(
         self,
@@ -113,7 +115,7 @@ class LLMManager:
             else:
                 return self._generate_api(prompt, system_prompt, max_tokens)
         except Exception as e:
-            logger.error(f"LLM 生成失败: {e}")
+            logger.error(t("llm.generate_failed", error=e))
             raise
 
     @llm_retry
@@ -134,7 +136,7 @@ class LLMManager:
 
         messages.append({"role": "user", "content": prompt})
 
-        logger.debug(f"调用 Ollama，超时时间: {config.LLM_TIMEOUT} 秒")
+        logger.debug(t("llm.ollama_timeout", timeout=config.LLM_TIMEOUT))
 
         # Create the Ollama client and set the timeout
         client = ollama.Client(
@@ -153,10 +155,7 @@ class LLMManager:
         )
 
         result = response["message"]["content"]
-        logger.debug(
-            f"LLM 本地生成完成，输入: {len(prompt)} 字符，"
-            f"输出: {len(result)} 字符，max_tokens: {max_tokens}"
-        )
+        logger.debug(t("llm.local_done", input=len(prompt), output=len(result), max_tokens=max_tokens))
 
         # Filter the DeepSeek R1 thinking-process tags
         result = self._filter_think_tags(result)
@@ -185,10 +184,10 @@ class LLMManager:
             result = text[last_think_end + len('</think>'):].strip()
 
             if result and len(result) >= 10:
-                logger.debug(f"提取 </think> 后的内容，长度: {len(result)}")
+                logger.debug(t("llm.think_extracted", length=len(result)))
                 return result
             else:
-                logger.warning("⚠ </think> 后内容为空或过短，尝试其他策略")
+                logger.warning(t("llm.think_empty"))
 
         # Strategy 2: remove all <think>...</think> tags and their content
         filtered = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
@@ -202,11 +201,11 @@ class LLMManager:
 
         # Safety check: if the filtered text is empty or too short, return the original
         if not filtered or len(filtered) < 10:
-            logger.warning("⚠ 过滤后文本过短或为空，返回原文")
-            logger.debug(f"原文前200字: {original_text[:200]}...")
+            logger.warning(t("llm.filter_empty"))
+            logger.debug(t("llm.filter_original_preview", text=original_text[:200]))
             return original_text.strip()
 
-        logger.debug(f"使用策略2过滤，结果长度: {len(filtered)}")
+        logger.debug(t("llm.filter_strategy2", length=len(filtered)))
         return filtered
     
     @llm_retry
@@ -235,10 +234,7 @@ class LLMManager:
         )
 
         result = response.choices[0].message.content
-        logger.debug(
-            f"LLM API 生成完成，输入: {len(prompt)} 字符，"
-            f"输出: {len(result)} 字符，max_tokens: {max_tokens}"
-        )
+        logger.debug(t("llm.api_done", input=len(prompt), output=len(result), max_tokens=max_tokens))
 
         return result
     
@@ -281,43 +277,43 @@ class LLMManager:
         # Formula: available space = total context - output reserve - system prompt - safety margin
         available_tokens = config.LLM_NUM_CTX - config.LLM_MAX_TOKENS - system_tokens - 500
 
-        logger.info(f"开始口语化文本，长度: {len(text)} 字符（约 {input_tokens} tokens）")
-        logger.debug(f"可用输入空间: {available_tokens} tokens（上下文={config.LLM_NUM_CTX}, 输出预留={config.LLM_MAX_TOKENS}）")
+        logger.info(t("llm.colloquialize_start", length=len(text), tokens=input_tokens))
+        logger.debug(t("llm.available_tokens", tokens=available_tokens, ctx=config.LLM_NUM_CTX, reserve=config.LLM_MAX_TOKENS))
 
         # Step 3: determine whether segmentation is needed
         if input_tokens > available_tokens:
-            logger.warning(f"⚠ 提示：当前文本较长（约 {input_tokens} tokens）")
-            logger.warning(f"→ 根据配置 LLM_NUM_CTX={config.LLM_NUM_CTX}，可能超出模型上下文限制")
+            logger.warning(t("llm.text_too_long", tokens=input_tokens))
+            logger.warning(t("llm.ctx_warning", ctx=config.LLM_NUM_CTX, model=config.LLM_API_MODEL, max_ctx="unknown"))
 
             # Process by segments
             segments = split_text_smart(text, available_tokens, model_name)
-            logger.info(f"→ 已自动分为 {len(segments)} 段处理，确保生成质量")
-            logger.info(f"→ 建议：如果模型支持更大上下文，可适当增加 LLM_NUM_CTX 配置")
+            logger.info(t("llm.auto_split", count=len(segments)))
+            logger.info(t("llm.split_suggestion"))
 
             # Process each segment separately
             results = []
             for i, segment in enumerate(segments, 1):
                 segment_tokens = count_tokens(segment, model_name)
-                logger.info(f"→ 处理第 {i}/{len(segments)} 段（约 {segment_tokens} tokens）...")
+                logger.info(t("llm.segment_processing", i=i, total=len(segments), tokens=segment_tokens))
 
                 start_time = time.time()
                 result = self._colloquialize_single(segment, system_prompt)
                 elapsed = time.time() - start_time
 
                 result_tokens = count_tokens(result, model_name)
-                logger.info(f"  ✓ 第 {i} 段完成（{segment_tokens} → {result_tokens} tokens，耗时 {elapsed:.1f}s）")
+                logger.info(t("llm.segment_done", i=i, input_tokens=segment_tokens, output_tokens=result_tokens, elapsed=elapsed))
 
                 results.append(result)
 
             # Merge results
             final_result = "\n".join(results)
-            logger.info(f"✓ 文本分段处理完成（共 {len(segments)} 段）")
-            logger.info(f"→ 合并后长度: {len(final_result)} 字符（约 {count_tokens(final_result, model_name)} tokens）")
+            logger.info(t("llm.all_segments_done", count=len(segments)))
+            logger.info(t("llm.merged_length", length=len(final_result), tokens=count_tokens(final_result, model_name)))
 
             return final_result
         else:
             # Single-pass processing
-            logger.debug(f"文本长度适中，单次处理")
+            logger.debug(t("llm.single_pass"))
             return self._colloquialize_single(text, system_prompt)
 
     def _colloquialize_single(self, text: str, system_prompt: str) -> str:
@@ -341,18 +337,18 @@ class LLMManager:
 2. 在 </think> 之后输出改写结果
 3. 只输出改写后的文本，不要有任何说明"""
 
-        logger.debug(f"原文前100字: {text[:100]}...")
+        logger.debug(t("llm.original_preview", text=text[:100]))
 
         result = self.generate(prompt, system_prompt)
 
-        logger.debug(f"LLM 原始输出长度: {len(result)} 字符")
-        logger.debug(f"LLM 原始输出前200字: {result[:200]}...")
+        logger.debug(t("llm.raw_output_length", length=len(result)))
+        logger.debug(t("llm.raw_output_preview", text=result[:200]))
 
         # Filter the thinking-process tags
         filtered_result = self._filter_think_tags(result)
 
-        logger.debug(f"过滤后输出长度: {len(filtered_result)} 字符")
-        logger.debug(f"过滤后前100字: {filtered_result[:100]}...")
+        logger.debug(t("llm.filtered_output_length", length=len(filtered_result)))
+        logger.debug(t("llm.filtered_preview", text=filtered_result[:100]))
 
         return filtered_result
 

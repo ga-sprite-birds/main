@@ -5,6 +5,7 @@ from pathlib import Path
 
 from loguru import logger
 import config
+from ga_birds.Common.i18n import t
 
 
 class CharacterAnalyzer:
@@ -44,7 +45,7 @@ class CharacterAnalyzer:
         
         try:
             result = self.llm_manager.generate(prompt)
-            logger.debug(f"LLM 返回内容长度: {len(result)} 字符")
+            logger.debug(t("character.llm_response_length", length=len(result)))
             
             json_match = re.search(r'\{.*\}', result, re.DOTALL)
             if json_match:
@@ -56,17 +57,17 @@ class CharacterAnalyzer:
                 data = json.loads(json_str)
                 characters = data.get('characters', [])
                 
-                logger.info(f"章节 {chapter_index} 识别到 {len(characters)} 个角色")
+                logger.info(t("character.chapter_characters_found", index=chapter_index, count=len(characters)))
                 return characters
             else:
-                logger.warning(f"章节 {chapter_index} LLM 返回格式错误")
+                logger.warning(t("character.chapter_llm_format_error", index=chapter_index))
                 return []
                 
         except json.JSONDecodeError as e:
-            logger.error(f"章节 {chapter_index} JSON 解析失败: {e}")
+            logger.error(t("character.chapter_json_parse_failed", index=chapter_index, error=e))
             return []
         except Exception as e:
-            logger.error(f"章节 {chapter_index} 分析失败: {e}")
+            logger.error(t("character.chapter_analyze_failed", index=chapter_index, error=e))
             return []
     
     def merge_characters(self, chapter_characters: List[Dict], chapter_index: int):
@@ -161,7 +162,7 @@ class CharacterAnalyzer:
 
         try:
             result = self.llm_manager.generate(prompt)
-            logger.debug(f"LLM 返回内容长度: {len(result)} 字符")
+            logger.debug(t("character.llm_response_length", length=len(result)))
 
             json_match = re.search(r'\{.*\}', result, re.DOTALL)
             if json_match:
@@ -171,17 +172,17 @@ class CharacterAnalyzer:
                 json_str = re.sub(r',\s*]', ']', json_str)
 
                 data = json.loads(json_str)
-                logger.info(f"章节 {chapter_index} 为 {len(data)} 个角色找到信息")
+                logger.info(t("character.chapter_hybrid_found", index=chapter_index, count=len(data)))
                 return data
             else:
-                logger.warning(f"章节 {chapter_index} LLM 返回格式错误")
+                logger.warning(t("character.chapter_llm_format_error", index=chapter_index))
                 return {}
 
         except json.JSONDecodeError as e:
-            logger.error(f"章节 {chapter_index} JSON 解析失败: {e}")
+            logger.error(t("character.chapter_json_parse_failed", index=chapter_index, error=e))
             return {}
         except Exception as e:
-            logger.error(f"章节 {chapter_index} 分析失败: {e}")
+            logger.error(t("character.chapter_analyze_failed", index=chapter_index, error=e))
             return {}
 
     def save_to_json(self, output_path: Path, novel_id: str, novel_title: str):
@@ -197,5 +198,5 @@ class CharacterAnalyzer:
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
-        logger.info(f"角色数据已保存到: {output_path}")
+        logger.info(t("character.data_saved", path=output_path))
 

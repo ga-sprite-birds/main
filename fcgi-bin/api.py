@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from loguru import logger
+from ga_birds.Common.i18n import t
 
 import config
 
@@ -154,7 +155,7 @@ async def upload_file(
                 content = await file.read()
                 f.write(content)
 
-            logger.info(f"文件上传成功: {file_path}")
+            logger.info(t("api.file_upload_success", path=str(file_path)))
         else:
             raise HTTPException(status_code=400, detail="必须提供文件或路径")
         
@@ -177,7 +178,7 @@ async def upload_file(
         # Re-raise HTTPException, preserving the original status code
         raise
     except Exception as e:
-        logger.error(f"文件上传失败: {e}")
+        logger.error(t("api.file_upload_failed", error=e))
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -258,7 +259,7 @@ async def parse_text(request: ParseRequest):
         # Update task status to parsed
         task_manager.update_task_status(request.task_id, TaskStatus.PARSED)
 
-        logger.info(f"任务 {request.task_id} 解析完成，共 {len(chapters)} 章")
+        logger.info(t("api.parse_complete", task_id=request.task_id, count=len(chapters)))
 
         return TaskResponse(
             task_id=request.task_id,
@@ -270,7 +271,7 @@ async def parse_text(request: ParseRequest):
         # Re-raise HTTPException, preserving the original status code
         raise
     except Exception as e:
-        logger.error(f"文本解析失败: {e}")
+        logger.error(t("api.parse_failed", error=e))
         task_manager.update_task_status(request.task_id, TaskStatus.FAILED)
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -322,7 +323,7 @@ async def generate_audio(request: GenerateRequest, background_tasks: BackgroundT
         # Re-raise HTTPException, preserving the original status code
         raise
     except Exception as e:
-        logger.error(f"生成音频失败: {e}")
+        logger.error(t("api.generate_failed", error=e))
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -392,7 +393,7 @@ async def _generate_audio_task(
     try:
         task = task_manager.get_task(task_id)
         if not task:
-            logger.error(f"任务不存在: {task_id}")
+            logger.error(t("api.task_not_found", task_id=task_id))
             return
         
         # Initialize managers (no need to pass settings; managers use config internally)
@@ -409,7 +410,7 @@ async def _generate_audio_task(
             chapter_title = chapter_data["title"]
             chapter_content = chapter_data["content"]
             
-            logger.info(f"开始生成章节 {chapter_index}: {chapter_title}")
+            logger.info(t("api.generating_chapter", index=chapter_index, title=chapter_title))
             
             # Update chapter status
             task_manager.update_chapter_status(
@@ -421,7 +422,7 @@ async def _generate_audio_task(
             try:
                 # LLM colloquialization (optional)
                 if enable_llm and llm_manager:
-                    logger.info(f"章节 {chapter_index} 开始 LLM 口语化")
+                    logger.info(t("api.chapter_llm_start", index=chapter_index))
                     chapter_content = llm_manager.colloquialize_text(chapter_content)
                 
                 # Generate the audio file path
@@ -433,7 +434,7 @@ async def _generate_audio_task(
                 )
                 
                 # TTS generate audio
-                logger.info(f"章节 {chapter_index} 开始 TTS 生成")
+                logger.info(t("api.chapter_tts_start", index=chapter_index))
                 await tts_manager.generate_audio(
                     text=chapter_content,
                     output_path=str(audio_path),
@@ -448,10 +449,10 @@ async def _generate_audio_task(
                     audio_path=str(audio_path)
                 )
                 
-                logger.info(f"章节 {chapter_index} 生成完成: {audio_path}")
+                logger.info(t("api.chapter_complete", index=chapter_index, path=str(audio_path)))
             
             except Exception as e:
-                logger.error(f"章节 {chapter_index} 生成失败: {e}")
+                logger.error(t("api.chapter_failed", index=chapter_index, error=e))
                 task_manager.update_chapter_status(
                     task_id,
                     chapter_index,
@@ -461,10 +462,10 @@ async def _generate_audio_task(
         
         # Update task status to completed
         task_manager.update_task_status(task_id, TaskStatus.COMPLETED)
-        logger.info(f"任务 {task_id} 全部完成")
+        logger.info(t("api.task_all_complete", task_id=task_id))
     
     except Exception as e:
-        logger.error(f"任务 {task_id} 执行失败: {e}")
+        logger.error(t("api.task_failed", task_id=task_id, error=e))
         task_manager.update_task_status(task_id, TaskStatus.FAILED)
 
 
