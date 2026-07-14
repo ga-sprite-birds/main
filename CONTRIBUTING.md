@@ -1,47 +1,47 @@
 # Contributing to GA Sprite Birds
 
-感谢你对 `GA Sprite Birds` 的关注。本文档说明如何提交问题、贡献代码，以及贡献被合并时适用的授权规则。
+Thank you for your interest in `GA Sprite Birds`. This document explains how to file issues, contribute code, and the licensing rules that apply when contributions are merged.
 
-## 项目信息
+## Project Info
 
-- 作者：`adam`
-- 邮箱：`dev@ebf.hk`
-- 官网：<http://ebf.cc>
-- GitHub 源码：<https://github.com/tiger-sprite/ga-sprite-birds>
+- Author: `adam`
+- Email: `dev@ebf.hk`
+- Website: <http://ebf.cc>
+- GitHub Source: <https://github.com/tiger-sprite/ga-sprite-birds>
 
-## 1. 贡献方式
+## 1. How to Contribute
 
-欢迎以下类型的贡献：
+We welcome the following types of contributions:
 
-- Bug 反馈与复现步骤
-- 文档修正与示例补充
-- 单元测试与集成测试改进
-- CLI / API / 核心模块功能修复
-- 新平台接入、自部署体验优化、开发者体验优化
+- Bug reports with reproduction steps
+- Documentation fixes and sample additions
+- Unit test and integration test improvements
+- CLI / API / core module bug fixes
+- New platform integration, self-hosting experience improvements, and developer experience enhancements
 
-如果你准备做较大的变更，建议先创建 issue 说明目标、范围和设计思路，避免和项目路线冲突。
+If you are planning a large change, please open an issue first to describe the goal, scope, and design approach to avoid conflicts with project direction.
 
-## 2. 开始之前
+## 2. Before You Start
 
-建议先阅读以下文档：
+It is recommended to read the following documents first:
 
 - `README.md`
 - `help/INSTALL.md`
 - `help/development-guide.md`
 - `tests/README.md`
 
-本项目当前以 Python 为主，包含：
+This project is currently Python-based and includes:
 
-- CLI 入口：`fcgi-bin/cli.py`
-- API 入口：`fcgi-bin/api.py`
-- 核心模块：`ga_birds/`
-- 测试：`tests/`
+- CLI entry point: `fcgi-bin/cli.py`
+- API entry point: `fcgi-bin/api.py`
+- Core modules: `ga_birds/`
+- Tests: `tests/`
 
-## 3. 开发环境
+## 3. Development Environment
 
-推荐使用 Python `3.10+`。
+Python `3.10+` is recommended.
 
-基础安装流程：
+Basic setup:
 
 ```bash
 python -m venv venv
@@ -50,120 +50,239 @@ python -m pip install --upgrade pip setuptools wheel
 pip install -r requirements.txt
 ```
 
-如果你使用 Conda 或其他环境管理方式，也可以按 `help/INSTALL.md` 中的说明配置。
+If you use Conda or another environment manager, you can also follow the instructions in `help/INSTALL.md`.
 
-## 4. 开发原则
+## 4. Development Principles
 
-提交修改时，请尽量遵循以下原则：
+When submitting changes, please follow these guidelines:
 
-- 保持改动聚焦，不把多个无关问题混在同一个 PR 中
-- 优先修复根因，而不是只做表面补丁
-- 尽量复用现有模块职责边界，不随意打破目录分层
-- 新功能或修复如果存在回归风险，优先补测试
-- 不要提交密钥、令牌、账号、真实敏感文本或其他秘密信息
-- 避免无必要的大规模格式化，减少 review 噪音
+- Keep changes focused; do not mix unrelated issues in the same PR
+- Prefer fixing the root cause over surface-level patches
+- Reuse existing module boundaries; do not arbitrarily break directory layering
+- Add tests for new features or fixes that carry regression risk
+- Do not commit keys, tokens, credentials, real sensitive text, or any other secrets
+- Avoid unnecessary large-scale formatting to reduce review noise
 
-## 5. 代码风格
+## 5. Code Style
 
-请尽量与现有代码风格保持一致：
+Please keep your code consistent with the existing style:
 
-- Python 文件使用小写加下划线命名
-- 类名使用大驼峰
-- 函数名使用小写加下划线
-- API 参数保持下划线风格
-- CLI 长参数保持连字符风格
-- 导入顺序、模块边界、命名规范可参考 `help/development-guide.md`
+- Python files use lowercase with underscores
+- Class names use PascalCase
+- Function names use lowercase with underscores
+- API parameters keep underscore style
+- CLI long parameters keep hyphen style
+- For import order, module boundaries, and naming conventions, refer to `help/development-guide.md`
 
-如果你引入了不直观的业务逻辑，请补充简洁注释，解释“为什么这样做”。
+If you introduce non-obvious business logic, please add concise comments explaining *why* it is done that way.
 
-## 6. 测试要求
+## 6. Testing Requirements
 
-提交前，建议至少完成与你改动直接相关的测试。
+Before submitting, please at least run the tests relevant to your changes.
 
-常用命令：
+Common commands:
 
 ```bash
-# 单元测试
+# Unit tests
 pytest tests/unit -v
 
-# 运行特定测试文件
+# Run a specific test file
 pytest tests/unit/test_upload.py -v
 
-# 集成测试（需要先启动 API）
+# Integration tests (requires API to be running first)
 pytest tests/integration -v
 ```
 
-如果你的改动影响以下内容，请特别注意验证：
+If your changes affect any of the following, be especially careful to verify:
 
-- 上传、解析、生成等 API 流程
-- CLI 参数兼容性
-- 多语言文案
-- 文件路径、输出目录、缓存行为
-- LLM / TTS 相关配置回退逻辑
+- Upload, parsing, generation, and other API flows
+- CLI parameter compatibility
+- Multilingual text
+- File paths, output directories, and caching behavior
+- LLM / TTS related fallback logic
 
-## 7. Pull Request 建议
+## 7. Multi-Language Multi-Role TTS Voice Assignment
 
-PR 描述建议尽量包含：
+When the text contains multiple characters (speakers), the system automatically assigns distinct voices to each one. The resolution order is as follows.
 
-- 变更背景
-- 变更内容
-- 为什么这样改
-- 测试方式
-- 是否有兼容性影响
+### 7.1 Single-Role Mode
 
-推荐使用小而清晰的 PR，这会明显降低 review 成本。
+If only a single narrator or character is present, `TTS_VOICE` from the `.env` configuration is used throughout.
 
-## 8. Issue 反馈建议
+### 7.2 Multi-Role Mode
 
-提交 issue 时，建议尽量提供：
+`TTS_VOICE` serves as the **ultimate fallback** only. The resolution chain is:
 
-- 运行环境（OS、Python 版本）
-- 启动方式（CLI / API）
-- 输入类型（txt / pdf）
-- 错误日志或堆栈
-- 最小可复现步骤
-- 期望结果与实际结果
+1. **Per-language voice preference** (`voice_preferences.by_language`)
+   - Each character can define language-specific voices. If the current segment's language matches an entry (e.g. `zh`, `en`), that voice is used.
 
-如果问题和第三方服务有关，也请说明：
+2. **Character profile & region hint**
+   - If a character profile contains a `region_hint` (e.g. "british", "american", "cantonese"), the system refines the locale selection accordingly.
+   - Voices are then drawn from the auto-built voice pool for that locale, gender-matched and cycled to distribute distinct voices across characters.
 
-- 使用的是本地 LLM 还是 API 模式
-- 使用的是哪种 TTS 引擎
-- 是否存在特殊网络环境
+3. **Fallback to `TTS_VOICE`**
+   - If none of the above rules match, a warning is logged and `TTS_VOICE` from the `.env` file is used as the fallback.
 
-## 9. 贡献授权规则
+### 7.3 Locale Preferences
 
-本项目采用 `Apache License 2.0` 开源。
+The system maps content languages to preferred locales in order of priority:
 
-除非你明确声明相反并事先与维护者达成书面约定，否则你有意提交到本项目、希望被纳入代码库的任何贡献，都将默认按 `Apache-2.0` 授权并分发。
+| Language | Preferred Locales |
+|----------|------------------|
+| `en`     | en-US, en-GB, en-AU, en-CA, en-IN |
+| `zh`     | zh-CN, zh-TW, zh-HK |
+| `ja`     | ja-JP |
+| `de`     | de-DE, de-AT, de-CH |
+| `fr`     | fr-FR, fr-CA, fr-CH |
+| `es`     | es-ES, es-MX, es-US |
+| `pt`     | pt-BR, pt-PT |
+| `ru`     | ru-RU |
+| `ko`     | ko-KR |
+| `it`     | it-IT |
 
-提交贡献即表示你确认：
+### 7.4 Region Hints
 
-- 你有权提交该贡献
-- 该贡献不会侵犯你所知的第三方权利
-- 你同意该贡献作为本项目的一部分，以 `Apache-2.0` 许可证发布
+Region keywords in character profiles refine locale selection:
 
-如果你代表公司或组织提交代码，请先确认你有相应授权。
+| Keyword(s)       | Locale  |
+|------------------|---------|
+| british, uk, england  | en-GB |
+| american, usa, us     | en-US |
+| canada                | en-CA |
+| australia             | en-AU |
+| india                 | en-IN |
+| china, mandarin       | zh-CN |
+| taiwan                | zh-TW |
+| hong kong, cantonese  | zh-HK |
+| japan, tokyo          | ja-JP |
+| brazil                | pt-BR |
+| portugal              | pt-PT |
+| mexico                | es-MX |
+| spain                 | es-ES |
+| france                | fr-FR |
+| germany               | de-DE |
+| italy                 | it-IT |
+| korea                 | ko-KR |
 
-## 10. 关于未来授权调整
+### 7.5 Voice Pool Auto-Building
 
-项目维护者可能会在未来为新版本调整发布策略、仓库结构、商业化方式或附属项目的授权安排。
+When voice assignment falls through to the auto-pool path, the system:
 
-但除非另有明确书面协议，已按 `Apache-2.0` 合法发布的代码版本，其既有授权不会被追溯撤销。
+1. Builds a voice catalog by querying the TTS engine (e.g. edge-tts) for available voices in the resolved locale.
+2. Separates voices into `male` / `female` pools based on the TTS engine's gender metadata.
+3. Selects a voice from the appropriate gender pool using round-robin rotation, ensuring different characters of the same gender get distinct voices when possible.
 
-如果项目未来引入单独的贡献者许可协议（CLA）或开发者证书流程（DCO），会在仓库文档中明确说明。
+### 7.6 Character Template Format (Reference)
 
-## 11. 行为预期
+The character voice template used internally follows this structure:
 
-请保持专业、尊重和建设性的沟通方式。对问题、设计分歧和代码 review 的讨论，优先聚焦事实、复现、影响和改进方案。
+```json
+{
+  "novel_id": "...",
+  "novel_title": "...",
+  "narrator": {
+    "voice": "zh-CN-XiaoxiaoNeural",
+    "voice_preferences": {
+      "default": "zh-CN-XiaoxiaoNeural",
+      "by_language": {
+        "en": "en-US-JennyNeural",
+        "ja": "ja-JP-NanamiNeural"
+      }
+    },
+    "profile": {
+      "personality": ["objective", "calm"]
+    }
+  },
+  "characters": [
+    {
+      "name": "Alice",
+      "gender": "female",
+      "voice_preferences": {
+        "by_language": {
+          "en": "en-US-AriaNeural",
+          "zh": "zh-CN-XiaoxiaoNeural"
+        }
+      },
+      "profile": {
+        "region_hint": "british",
+        "personality": ["gentle", "kind"]
+      }
+    }
+  ]
+}
+```
+
+### 7.7 Key Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `TTS_VOICE` | Default / fallback voice (e.g. `zh-CN-YunxiNeural`) |
+| `TTS_ENGINE` | TTS engine to use (currently `edge`) |
+| `TTS_VOICE_CATALOG_CACHE` | Path to cached TTS voice catalog |
+
+## 8. Pull Request Guidelines
+
+PR descriptions should ideally include:
+
+- Background of the change
+- What was changed
+- Why it was changed
+- How it was tested
+- Whether there are compatibility impacts
+
+Small, focused PRs are preferred — they significantly reduce review cost.
+
+## 9. Issue Reporting Guidelines
+
+When filing an issue, please provide as much of the following as possible:
+
+- Runtime environment (OS, Python version)
+- Startup method (CLI / API)
+- Input type (txt / pdf)
+- Error logs or stack traces
+- Minimal reproduction steps
+- Expected vs. actual results
+
+If the issue involves third-party services, please also specify:
+
+- Whether using local LLM or API mode
+- Which TTS engine is being used
+- Whether there is a special network environment
+
+## 10. Contribution Licensing
+
+This project is open-sourced under the `Apache License 2.0`.
+
+Unless you explicitly state otherwise and have a prior written agreement with the maintainer, any contribution you intentionally submit to this project with the intent of being included in the codebase will be licensed and distributed under `Apache-2.0` by default.
+
+By submitting a contribution, you confirm:
+
+- You have the right to submit the contribution
+- The contribution does not infringe any third-party rights to your knowledge
+- You agree that the contribution will be released under the `Apache-2.0` license as part of this project
+
+If you are submitting code on behalf of a company or organization, please confirm that you have the proper authorization.
+
+## 11. Future License Adjustments
+
+The project maintainer may adjust release strategies, repository structure, commercialization approaches, or licensing arrangements for subsidiary projects in the future.
+
+However, unless otherwise specified in a separate written agreement, code versions lawfully released under `Apache-2.0` will not have their existing license retroactively revoked.
+
+If the project introduces a separate Contributor License Agreement (CLA) or Developer Certificate of Origin (DCO) in the future, it will be clearly documented in the repository.
+
+## 12. Code of Conduct
+
+Please maintain professional, respectful, and constructive communication. When discussing issues, design disagreements, and code reviews, focus on facts, reproduction, impact, and improvement plans.
 
 ---
 
-**作者**：`adam`  
-**邮箱**：`dev@ebf.hk`  
-**官网**：<http://ebf.cc>  
-**GitHub 源码**：<https://github.com/tiger-sprite/ga-sprite-birds>  
-**更新时间**：2026-07-09
+**Author**: `adam`  
+**Email**: `dev@ebf.hk`  
+**Website**: <http://ebf.cc>  
+**GitHub Source**: <https://github.com/tiger-sprite/ga-sprite-birds>  
+**Last updated**: 2026-07-10
 
 ---
 
-感谢你的贡献。
+Thank you for your contribution.
