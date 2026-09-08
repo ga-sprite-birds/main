@@ -1,0 +1,29 @@
+# === OS 系统文件 ===
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# === IDE / 编辑器 ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# === 依赖 ===
+node_modules/
+
+# === 构建产物 ===
+/dist
+
+# === Vite 缓存 ===
+.vite/
+
+# === 日志 / 缓存 / 调试 ===
+/cache
+/logs
+/debug
+/data
+
+# === 项目特有 ===
+/ga-build

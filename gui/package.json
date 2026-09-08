@@ -1,0 +1,25 @@
+{
+  "name": "ga-sprite-birds-gui",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:mock": "vite --mode development",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "dependencies": {
+    "vue": "^3.5.0",
+    "vue-router": "^4.5.0",
+    "pinia": "^3.0.0",
+    "axios": "^1.7.0",
+    "element-plus": "^2.9.0",
+    "@element-plus/icons-vue": "^2.3.0",
+    "vue-i18n": "^11.0.0"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0",
+    "@vitejs/plugin-vue": "^5.0.0"
+  }
+}

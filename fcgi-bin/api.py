@@ -108,12 +108,38 @@ class TaskResponse(BaseModel):
 
 @app.get("/")
 async def root():
-    """Root path"""
+    """Serve the packaged GUI at the site root"""
+    return _get_gui_index_response()
+
+
+@app.get("/api/status")
+async def api_status():
+    """API health status"""
     return {
         "name": "音频朗读系统 API",
         "version": "1.0.0",
         "status": "running"
     }
+
+
+@app.get("/index.html")
+async def gui_index():
+    """Serve the packaged GUI entry file"""
+    return _get_gui_index_response()
+
+
+@app.get("/policy/{full_path:path}")
+async def gui_policy_route(full_path: str):
+    """Serve the GUI for browser history routes"""
+    return _get_gui_index_response()
+
+
+def _get_gui_index_response():
+    """Build the GUI index file response"""
+    index_path = Path(__file__).resolve().parents[1] / "index.html"
+    if not index_path.exists():
+        raise HTTPException(status_code=404, detail="GUI 文件不存在，请先在 gui 目录执行 npm run build")
+    return FileResponse(index_path, media_type="text/html")
 
 
 @app.post("/upload", response_model=TaskResponse)
@@ -493,4 +519,3 @@ if __name__ == "__main__":
         port=config.API_PORT,
         log_level=config.LOG_LEVEL.lower()
     )
-

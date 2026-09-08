@@ -1,0 +1,29 @@
+:root {
+    /* ── 布局尺寸（不随主题变化） ─────────────────────── */
+    --header-height: 60px;
+    --sidebar-width: 200px;
+    --sidebar-collapsed-width: 64px;
+    --footer-height: 50px;
+
+    /* ── 语义色板（由主题系统动态设置，此处为 fallback） ── */
+    --theme-primary: #409eff;
+    --theme-page-bg: #f0f2f5;
+    --theme-surface-bg: #ffffff;
+    --theme-aside-bg: #304156;
+    --theme-aside-text: #303133;
+    --theme-text-color: #303133;
+    --theme-muted-text: #909399;
+    --theme-border-color: #e4e7ed;
+    --theme-hover-bg: #ecf5ff;
+    --theme-active-bg: #d9ecff;
+    --theme-header-bg: #ffffff;
+    --theme-header-text: #303133;
+    --theme-surface-gradient-start: #e4e7ed;
+
+    /* ── Element Plus 预设色（fallback） ──────────────── */
+    --el-color-primary: #409eff;
+    --el-color-success: #67c23a;
+    --el-color-warning: #e6a23c;
+    --el-color-danger: #f56c6c;
+    --el-color-info: #909399;
+}

@@ -24,22 +24,18 @@ client = TestClient(app)
 
 @pytest.mark.unit
 def test_root():
-    """Test that the root path returns correct information"""
+    """Test that the root path serves the GUI"""
     response = client.get("/")
     
     assert response.status_code == 200
-    data = response.json()
-    
-    assert "name" in data
-    assert "version" in data
-    assert "status" in data
-    assert data["status"] == "running"
+    assert "text/html" in response.headers["content-type"]
+    assert "<div id=\"app\"></div>" in response.text
 
 
 @pytest.mark.unit
 def test_root_response_structure():
-    """Test the root path response structure"""
-    response = client.get("/")
+    """Test the API status response structure"""
+    response = client.get("/api/status")
     data = response.json()
     
     # Verify required fields
@@ -51,4 +47,3 @@ def test_root_response_structure():
     assert isinstance(data["name"], str)
     assert isinstance(data["version"], str)
     assert isinstance(data["status"], str)
-

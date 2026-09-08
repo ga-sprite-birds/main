@@ -1,0 +1,490 @@
+<template>
+  <div class="page-container page-container--wide audio-page">
+    <section class="page-heading">
+      <div>
+        <p class="eyebrow">{{ appTitle }}</p>
+        <h1>{{ $t("audio.title") }}</h1>
+      </div>
+      <el-tag :type="serviceReady ? 'success' : 'info'" effect="plain">
+        {{ serviceReady ? $t("audio.apiOnline") : $t("audio.apiPending") }}
+      </el-tag>
+    </section>
+
+    <section class="workspace-grid">
+      <div class="panel flow-panel">
+        <div class="panel-header">
+          <h2>{{ $t("audio.source") }}</h2>
+          <el-tag effect="plain">{{ currentStepLabel }}</el-tag>
+        </div>
+
+        <el-tabs v-model="sourceMode" class="source-tabs">
+          <el-tab-pane :label="$t('audio.uploadFile')" name="file">
+            <el-upload
+              drag
+              :auto-upload="false"
+              :limit="1"
+              :on-change="handleFileChange"
+              :on-remove="handleFileRemove"
+              :accept="'.txt,.pdf'"
+            >
+              <el-icon class="upload-icon"><UploadFilled /></el-icon>
+              <div class="el-upload__text">{{ $t("audio.dropText") }}</div>
+            </el-upload>
+          </el-tab-pane>
+          <el-tab-pane :label="$t('audio.localPath')" name="path">
+            <el-input
+              v-model="localPath"
+              clearable
+              :placeholder="$t('audio.pathPlaceholder')"
+            >
+              <template #prefix>
+                <el-icon><FolderOpened /></el-icon>
+              </template>
+            </el-input>
+          </el-tab-pane>
+        </el-tabs>
+
+        <el-form label-position="top" class="option-form">
+          <el-form-item :label="$t('audio.outputPath')">
+            <el-input v-model="outputPath" clearable :placeholder="$t('audio.outputPlaceholder')" />
+          </el-form-item>
+          <el-form-item :label="$t('audio.voice')">
+            <el-select v-model="voice" filterable allow-create default-first-option>
+              <el-option
+                v-for="item in voiceOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item>
+            <el-checkbox v-model="enableLlm">{{ $t("audio.enableLlm") }}</el-checkbox>
+          </el-form-item>
+        </el-form>
+
+        <div class="action-row">
+          <el-button
+            type="primary"
+            :icon="Upload"
+            :loading="busyAction === 'upload'"
+            :disabled="!canUpload"
+            @click="uploadSource"
+          >
+            {{ $t("audio.uploadAction") }}
+          </el-button>
+          <el-button
+            :icon="DocumentChecked"
+            :loading="busyAction === 'parse'"
+            :disabled="!taskId || busy"
+            @click="parseSource"
+          >
+            {{ $t("audio.parseAction") }}
+          </el-button>
+          <el-button
+            type="success"
+            :icon="VideoPlay"
+            :loading="busyAction === 'generate'"
+            :disabled="!canGenerate"
+            @click="generateSource"
+          >
+            {{ $t("audio.generateAction") }}
+          </el-button>
+        </div>
+      </div>
+
+      <div class="panel status-panel">
+        <div class="panel-header">
+          <h2>{{ $t("audio.progress") }}</h2>
+          <el-button :icon="Refresh" circle :disabled="!taskId || busyAction" @click="refreshStatus" />
+        </div>
+
+        <div class="progress-ring">
+          <el-progress type="dashboard" :percentage="progressPercent" :status="progressStatus" />
+          <div class="progress-copy">
+            <strong>{{ statusText }}</strong>
+            <span>{{ completedChapters }}/{{ totalChapters }} {{ $t("audio.chapterUnit") }}</span>
+          </div>
+        </div>
+
+        <el-descriptions :column="1" border class="task-meta">
+          <el-descriptions-item :label="$t('audio.taskId')">
+            <span class="mono">{{ taskId || "-" }}</span>
+          </el-descriptions-item>
+          <el-descriptions-item :label="$t('audio.createdAt')">
+            {{ formatDate(statusData?.created_at) }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="$t('audio.finishedAt')">
+            {{ formatDate(statusData?.completed_at) }}
+          </el-descriptions-item>
+        </el-descriptions>
+      </div>
+    </section>
+
+    <section class="panel chapter-panel">
+      <div class="panel-header">
+        <h2>{{ $t("audio.chapters") }}</h2>
+        <span class="panel-subtitle">{{ $t("audio.chaptersHint") }}</span>
+      </div>
+
+      <el-empty v-if="chapters.length === 0" :description="$t('audio.emptyChapters')" />
+      <el-table v-else :data="chapters" class="chapter-table" stripe>
+        <el-table-column prop="index" :label="$t('audio.index')" width="90" />
+        <el-table-column prop="title" :label="$t('audio.chapterTitle')" min-width="220" show-overflow-tooltip />
+        <el-table-column :label="$t('audio.chapterStatus')" width="130">
+          <template #default="{ row }">
+            <el-tag :type="statusTagType(row.status)" effect="plain">
+              {{ mapStatus(row.status) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column :label="$t('audio.listen')" min-width="260">
+          <template #default="{ row }">
+            <audio
+              v-if="row.status === 'completed'"
+              controls
+              preload="none"
+              :src="getChapterAudioUrl(taskId, row.index)"
+            />
+            <span v-else class="muted">{{ row.error || $t("audio.waitingAudio") }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column :label="$t('audio.download')" width="120" align="right">
+          <template #default="{ row }">
+            <el-button
+              v-if="row.status === 'completed'"
+              :icon="Download"
+              circle
+              tag="a"
+              :href="getChapterAudioUrl(taskId, row.index)"
+              :download="`${row.index}-${row.title || 'chapter'}.mp3`"
+            />
+          </template>
+        </el-table-column>
+      </el-table>
+    </section>
+  </div>
+</template>
+
+<script setup>
+import { computed, onBeforeUnmount, ref } from "vue"
+import { useI18n } from "vue-i18n"
+import { ElMessage } from "element-plus"
+import {
+  DocumentChecked,
+  Download,
+  FolderOpened,
+  Refresh,
+  Upload,
+  UploadFilled,
+  VideoPlay,
+} from "@element-plus/icons-vue"
+import {
+  generateAudio,
+  getChapterAudioUrl,
+  getTaskStatus,
+  parseAudioSource,
+  uploadAudioSource,
+} from "@/api/audio.js"
+
+const { locale, t } = useI18n({ useScope: "global" })
+
+const appTitle = import.meta.env.VITE_APP_TITLE || "GA Sprite Birds"
+const sourceMode = ref("file")
+const selectedFile = ref(null)
+const localPath = ref("")
+const outputPath = ref("")
+const voice = ref("zh-CN-YunxiNeural")
+const enableLlm = ref(true)
+const taskId = ref("")
+const statusData = ref(null)
+const busyAction = ref("")
+const pollTimer = ref(null)
+
+const voiceOptions = [
+  { label: "云希 - 中文男声", value: "zh-CN-YunxiNeural" },
+  { label: "晓晓 - 中文女声", value: "zh-CN-XiaoxiaoNeural" },
+  { label: "云扬 - 中文新闻男声", value: "zh-CN-YunyangNeural" },
+  { label: "云健 - 中文男声", value: "zh-CN-YunjianNeural" },
+  { label: "Jenny - English", value: "en-US-JennyNeural" },
+  { label: "Guy - English", value: "en-US-GuyNeural" },
+]
+
+const busy = computed(() => Boolean(busyAction.value))
+const canUpload = computed(() => {
+  if (busy.value) return false
+  return sourceMode.value === "file" ? Boolean(selectedFile.value) : Boolean(localPath.value.trim())
+})
+const canGenerate = computed(() => {
+  return taskId.value && statusData.value?.status === "parsed" && !busy.value
+})
+const totalChapters = computed(() => statusData.value?.total_chapters || 0)
+const completedChapters = computed(() => statusData.value?.completed_chapters || 0)
+const chapters = computed(() => statusData.value?.chapters || [])
+const progressPercent = computed(() => Math.round((statusData.value?.progress || 0) * 100))
+const serviceReady = computed(() => Boolean(taskId.value || statusData.value))
+const progressStatus = computed(() => {
+  if (statusData.value?.status === "failed") return "exception"
+  if (statusData.value?.status === "completed") return "success"
+  return undefined
+})
+const statusText = computed(() => mapStatus(statusData.value?.status || "idle"))
+const currentStepLabel = computed(() => {
+  if (!taskId.value) return t("audio.stepSource")
+  if (statusData.value?.status === "parsed") return t("audio.stepGenerate")
+  if (statusData.value?.status === "generating") return t("audio.stepRunning")
+  if (statusData.value?.status === "completed") return t("audio.stepDone")
+  return t("audio.stepParse")
+})
+
+function handleFileChange(uploadFile) {
+  selectedFile.value = uploadFile.raw
+}
+
+function handleFileRemove() {
+  selectedFile.value = null
+}
+
+async function uploadSource() {
+  busyAction.value = "upload"
+  try {
+    const response = await uploadAudioSource({
+      file: sourceMode.value === "file" ? selectedFile.value : null,
+      path: sourceMode.value === "path" ? localPath.value.trim() : "",
+      outputPath: outputPath.value.trim(),
+      language: locale.value,
+    })
+    taskId.value = response.task_id
+    statusData.value = {
+      task_id: response.task_id,
+      status: response.status,
+      total_chapters: 0,
+      completed_chapters: 0,
+      progress: 0,
+      chapters: [],
+    }
+    ElMessage.success(response.message || t("audio.uploaded"))
+  } finally {
+    busyAction.value = ""
+  }
+}
+
+async function parseSource() {
+  busyAction.value = "parse"
+  try {
+    await parseAudioSource(taskId.value, locale.value)
+    await refreshStatus()
+    ElMessage.success(t("audio.parsed"))
+  } finally {
+    busyAction.value = ""
+  }
+}
+
+async function generateSource() {
+  busyAction.value = "generate"
+  try {
+    await generateAudio(taskId.value, {
+      voice: voice.value,
+      outputPath: outputPath.value.trim(),
+      enableLlm: enableLlm.value,
+      language: locale.value,
+    })
+    await refreshStatus()
+    startPolling()
+    ElMessage.success(t("audio.generating"))
+  } finally {
+    busyAction.value = ""
+  }
+}
+
+async function refreshStatus() {
+  if (!taskId.value) return
+  statusData.value = await getTaskStatus(taskId.value)
+  if (["completed", "failed", "cancelled"].includes(statusData.value?.status)) {
+    stopPolling()
+  }
+}
+
+function startPolling() {
+  stopPolling()
+  pollTimer.value = window.setInterval(refreshStatus, 2500)
+}
+
+function stopPolling() {
+  if (pollTimer.value) {
+    window.clearInterval(pollTimer.value)
+    pollTimer.value = null
+  }
+}
+
+function mapStatus(status) {
+  return t(`audio.status.${status || "idle"}`)
+}
+
+function statusTagType(status) {
+  const map = {
+    completed: "success",
+    failed: "danger",
+    generating: "warning",
+    parsing: "warning",
+    parsed: "primary",
+  }
+  return map[status] || "info"
+}
+
+function formatDate(value) {
+  if (!value) return "-"
+  return new Date(value).toLocaleString()
+}
+
+onBeforeUnmount(stopPolling)
+</script>
+
+<style scoped>
+.audio-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.page-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 72px;
+}
+
+.eyebrow {
+  margin: 0 0 6px;
+  color: var(--theme-text-color);
+  opacity: 0.72;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.page-heading h1,
+.panel h2 {
+  margin: 0;
+  color: var(--theme-text-color);
+}
+
+.page-heading h1 {
+  font-size: 28px;
+  line-height: 1.25;
+  font-weight: 700;
+}
+
+.workspace-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.6fr);
+  gap: 18px;
+}
+
+.panel {
+  background: var(--theme-surface-bg);
+  border: 1px solid var(--theme-border-color);
+  border-radius: 8px;
+  padding: 18px;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.panel-header h2 {
+  font-size: 17px;
+}
+
+.panel-subtitle,
+.muted {
+  color: var(--theme-muted-text);
+  font-size: 13px;
+}
+
+.option-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px 160px;
+  gap: 14px;
+  align-items: end;
+  margin-top: 16px;
+}
+
+.option-form :deep(.el-form-item) {
+  margin-bottom: 0;
+}
+
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.upload-icon {
+  color: var(--theme-primary);
+  font-size: 44px;
+}
+
+.progress-ring {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin: 8px 0 20px;
+}
+
+.progress-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--theme-text-color);
+}
+
+.progress-copy span,
+.mono {
+  color: var(--theme-muted-text);
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.task-meta {
+  width: 100%;
+}
+
+.chapter-table audio {
+  width: 100%;
+  height: 34px;
+  display: block;
+}
+
+@media (max-width: 1100px) {
+  .workspace-grid,
+  .option-form {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .page-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .panel {
+    padding: 14px;
+  }
+
+  .action-row .el-button {
+    flex: 1;
+  }
+}
+</style>

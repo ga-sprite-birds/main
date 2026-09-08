@@ -256,6 +256,29 @@ class TaskManager:
         task = self.get_task(task_id)
         if not task:
             return {}
+
+        def serialize_chapter(chapter):
+            if isinstance(chapter, dict):
+                status = chapter.get("status")
+                return {
+                    "index": chapter.get("index"),
+                    "title": chapter.get("title"),
+                    "status": status.value if hasattr(status, "value") else status,
+                    "audio_path": chapter.get("audio_path"),
+                    "error": chapter.get("error"),
+                    "started_at": chapter.get("started_at"),
+                    "completed_at": chapter.get("completed_at"),
+                }
+
+            return {
+                "index": chapter.index,
+                "title": chapter.title,
+                "status": chapter.status.value if hasattr(chapter.status, "value") else chapter.status,
+                "audio_path": chapter.audio_path,
+                "error": chapter.error,
+                "started_at": chapter.started_at.isoformat() if chapter.started_at else None,
+                "completed_at": chapter.completed_at.isoformat() if chapter.completed_at else None,
+            }
         
         return {
             "task_id": task.task_id,
@@ -263,9 +286,9 @@ class TaskManager:
             "total_chapters": task.total_chapters,
             "completed_chapters": task.completed_chapters,
             "progress": task.completed_chapters / task.total_chapters if task.total_chapters > 0 else 0,
+            "chapters": [serialize_chapter(chapter) for chapter in task.chapters],
             "created_at": task.created_at.isoformat(),
             "started_at": task.started_at.isoformat() if task.started_at else None,
             "completed_at": task.completed_at.isoformat() if task.completed_at else None,
             "error": task.error
         }
-
