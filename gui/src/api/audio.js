@@ -53,7 +53,15 @@ export function getTaskStatus(taskId) {
   })
 }
 
-export function getChapterAudioUrl(taskId, chapterIndex) {
+export function listTasks() {
+  return request({
+    url: "/tasks",
+    method: "get",
+  })
+}
+
+export function getChapterAudioUrl(taskId, chapterIndex, version) {
   const baseUrl = `${import.meta.env.VITE_API_BASE_URL || ""}${import.meta.env.VITE_API_PREFIX || ""}`
-  return `${baseUrl}/task/${taskId}/chapter/${chapterIndex}`
+  const suffix = version ? `?v=${encodeURIComponent(version)}` : ""
+  return `${baseUrl}/task/${taskId}/chapter/${chapterIndex}${suffix}`
 }

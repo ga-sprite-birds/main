@@ -157,8 +157,14 @@ TTS_VOICE_CATALOG_CACHE = os.getenv(
 # Format: Comma-separated list of regular expression strings
 CHAPTER_REGEX_PATTERNS = os.getenv(
     'CHAPTER_REGEX_PATTERNS',
-    '^第[零一二三四五六七八九十百千万0-9]+章,^第[零一二三四五六七八九十百千万0-9]+卷'
+    '^第[零一二三四五六七八九十百千万0-9]+[章回卷节](?![\\u4e00-\\u9fff]),^第[零一二三四五六七八九十百千万0-9]+卷(?![\\u4e00-\\u9fff])'
 ).split(',')
+
+# CHAPTER_NORMALIZE_ENABLED: Whether to normalize irregular chapter headings
+# Purpose: Converts Markdown-style headings (e.g. "**第一章**", "## 第一章")
+#          into a canonical "第一章 ..." format before chapter splitting,
+#          so ChapterParser does not need per-article rules
+CHAPTER_NORMALIZE_ENABLED = os.getenv('CHAPTER_NORMALIZE_ENABLED', 'true').lower() == 'true'
 
 # CHAPTER_MIN_LENGTH: Minimum chapter length
 # Purpose: Filters out chapters that are too short to avoid false recognition

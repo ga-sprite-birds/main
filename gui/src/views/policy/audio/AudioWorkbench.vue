@@ -17,38 +17,44 @@
           <el-tag effect="plain">{{ currentStepLabel }}</el-tag>
         </div>
 
-        <el-tabs v-model="sourceMode" class="source-tabs">
-          <el-tab-pane :label="$t('audio.uploadFile')" name="file">
-            <el-upload
-              drag
-              :auto-upload="false"
-              :limit="1"
-              :on-change="handleFileChange"
-              :on-remove="handleFileRemove"
-              :accept="'.txt,.pdf'"
-            >
-              <el-icon class="upload-icon"><UploadFilled /></el-icon>
-              <div class="el-upload__text">{{ $t("audio.dropText") }}</div>
-            </el-upload>
-          </el-tab-pane>
-          <el-tab-pane :label="$t('audio.localPath')" name="path">
-            <el-input
-              v-model="localPath"
-              clearable
-              :placeholder="$t('audio.pathPlaceholder')"
-            >
-              <template #prefix>
-                <el-icon><FolderOpened /></el-icon>
-              </template>
-            </el-input>
-          </el-tab-pane>
-        </el-tabs>
+        <el-upload
+          drag
+          multiple
+          class="source-upload"
+          :auto-upload="false"
+          :disabled="busy || isGenerating"
+          :on-change="handleFileChange"
+          :on-remove="handleFileRemove"
+          :accept="'.txt,.md,.pdf'"
+        >
+          <el-icon class="upload-icon"><UploadFilled /></el-icon>
+          <div class="el-upload__text">{{ $t("audio.dropText") }}</div>
+        </el-upload>
 
         <el-form label-position="top" class="option-form">
           <el-form-item :label="$t('audio.outputPath')">
-            <el-input v-model="outputPath" clearable :placeholder="$t('audio.outputPlaceholder')" />
+            <el-autocomplete
+              v-model="outputPath"
+              :fetch-suggestions="fetchOutputPathSuggestions"
+              :placeholder="$t('audio.outputPlaceholder')"
+              :prefix-icon="FolderOpened"
+              clearable
+            />
           </el-form-item>
-          <el-form-item :label="$t('audio.voice')">
+          <el-form-item>
+            <template #label>
+              <span class="voice-label">
+                {{ $t("audio.voice") }}
+                <a
+                  class="voice-preview"
+                  href="https://edge-tts.com/zh-CN/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {{ $t("audio.voicePreview") }}
+                </a>
+              </span>
+            </template>
             <el-select v-model="voice" filterable allow-create default-first-option>
               <el-option
                 v-for="item in voiceOptions"
@@ -65,18 +71,9 @@
 
         <div class="action-row">
           <el-button
-            type="primary"
-            :icon="Upload"
-            :loading="busyAction === 'upload'"
-            :disabled="!canUpload"
-            @click="uploadSource"
-          >
-            {{ $t("audio.uploadAction") }}
-          </el-button>
-          <el-button
             :icon="DocumentChecked"
             :loading="busyAction === 'parse'"
-            :disabled="!taskId || busy"
+            :disabled="!taskId || busy || isGenerating"
             @click="parseSource"
           >
             {{ $t("audio.parseAction") }}
@@ -142,9 +139,10 @@
           <template #default="{ row }">
             <audio
               v-if="row.status === 'completed'"
+              :key="row.completed_at || row.index"
               controls
               preload="none"
-              :src="getChapterAudioUrl(taskId, row.index)"
+              :src="getChapterAudioUrl(taskId, row.index, row.completed_at)"
             />
             <span v-else class="muted">{{ row.error || $t("audio.waitingAudio") }}</span>
           </template>
@@ -156,7 +154,7 @@
               :icon="Download"
               circle
               tag="a"
-              :href="getChapterAudioUrl(taskId, row.index)"
+              :href="getChapterAudioUrl(taskId, row.index, row.completed_at)"
               :download="`${row.index}-${row.title || 'chapter'}.mp3`"
             />
           </template>
@@ -167,15 +165,15 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref } from "vue"
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { useI18n } from "vue-i18n"
+import { useRoute, useRouter } from "vue-router"
 import { ElMessage } from "element-plus"
 import {
   DocumentChecked,
   Download,
   FolderOpened,
   Refresh,
-  Upload,
   UploadFilled,
   VideoPlay,
 } from "@element-plus/icons-vue"
@@ -186,13 +184,20 @@ import {
   parseAudioSource,
   uploadAudioSource,
 } from "@/api/audio.js"
+import { AUDIO_TASK_STORAGE_KEY, useTaskDisplay } from "@/utils/taskDisplay.js"
+import { get as getStoredValue, set as setStoredValue } from "@/utils/storage.js"
+
+const OUTPUT_HISTORY_KEY = "audio_output_paths"
+const OUTPUT_HISTORY_LIMIT = 12
 
 const { locale, t } = useI18n({ useScope: "global" })
+const route = useRoute()
+const router = useRouter()
+const { mapStatus, statusTagType, formatDate } = useTaskDisplay()
 
 const appTitle = import.meta.env.VITE_APP_TITLE || "GA Sprite Birds"
-const sourceMode = ref("file")
-const selectedFile = ref(null)
-const localPath = ref("")
+const uploadQueue = []
+const uploading = ref(false)
 const outputPath = ref("")
 const voice = ref("zh-CN-YunxiNeural")
 const enableLlm = ref(true)
@@ -211,10 +216,7 @@ const voiceOptions = [
 ]
 
 const busy = computed(() => Boolean(busyAction.value))
-const canUpload = computed(() => {
-  if (busy.value) return false
-  return sourceMode.value === "file" ? Boolean(selectedFile.value) : Boolean(localPath.value.trim())
-})
+const isGenerating = computed(() => statusData.value?.status === "generating")
 const canGenerate = computed(() => {
   return taskId.value && statusData.value?.status === "parsed" && !busy.value
 })
@@ -238,23 +240,65 @@ const currentStepLabel = computed(() => {
 })
 
 function handleFileChange(uploadFile) {
-  selectedFile.value = uploadFile.raw
+  if (!uploadFile.raw) return
+  uploadQueue.push({ file: uploadFile.raw, uid: uploadFile.uid })
+  processUploadQueue()
 }
 
-function handleFileRemove() {
-  selectedFile.value = null
+function handleFileRemove(uploadFile) {
+  const index = uploadQueue.findIndex((item) => item.uid === uploadFile.uid)
+  if (index >= 0) uploadQueue.splice(index, 1)
 }
 
-async function uploadSource() {
+async function processUploadQueue() {
+  if (uploading.value) return
+
+  uploading.value = true
+  try {
+    while (uploadQueue.length > 0) {
+      const item = uploadQueue.shift()
+      try {
+        await uploadFile(item.file)
+      } catch (error) {
+        // The request interceptor already shows the error message.
+      }
+    }
+  } finally {
+    uploading.value = false
+  }
+}
+
+function getOutputPathHistory() {
+  const saved = getStoredValue(OUTPUT_HISTORY_KEY)
+  if (!Array.isArray(saved)) return []
+  return saved.filter((item) => typeof item === "string" && item.trim())
+}
+
+function rememberOutputPath() {
+  const value = outputPath.value.trim()
+  if (!value) return
+
+  const history = getOutputPathHistory().filter((item) => item !== value)
+  setStoredValue(OUTPUT_HISTORY_KEY, [value, ...history].slice(0, OUTPUT_HISTORY_LIMIT))
+}
+
+function fetchOutputPathSuggestions(_queryString, callback) {
+  callback(getOutputPathHistory().map((value) => ({ value })))
+}
+
+async function uploadFile(file) {
+  rememberOutputPath()
   busyAction.value = "upload"
+  taskId.value = ""
+  statusData.value = null
   try {
     const response = await uploadAudioSource({
-      file: sourceMode.value === "file" ? selectedFile.value : null,
-      path: sourceMode.value === "path" ? localPath.value.trim() : "",
+      file,
       outputPath: outputPath.value.trim(),
       language: locale.value,
     })
     taskId.value = response.task_id
+    localStorage.setItem(AUDIO_TASK_STORAGE_KEY, response.task_id)
     statusData.value = {
       task_id: response.task_id,
       status: response.status,
@@ -272,8 +316,12 @@ async function uploadSource() {
 async function parseSource() {
   busyAction.value = "parse"
   try {
-    await parseAudioSource(taskId.value, locale.value)
+    const response = await parseAudioSource(taskId.value, locale.value)
     await refreshStatus()
+    statusData.value = {
+      ...(statusData.value || {}),
+      status: response.status || "parsed",
+    }
     ElMessage.success(t("audio.parsed"))
   } finally {
     busyAction.value = ""
@@ -281,19 +329,46 @@ async function parseSource() {
 }
 
 async function generateSource() {
+  rememberOutputPath()
   busyAction.value = "generate"
   try {
-    await generateAudio(taskId.value, {
+    const response = await generateAudio(taskId.value, {
       voice: voice.value,
       outputPath: outputPath.value.trim(),
       enableLlm: enableLlm.value,
       language: locale.value,
     })
     await refreshStatus()
+    statusData.value = {
+      ...(statusData.value || {}),
+      status: response.status || "generating",
+    }
     startPolling()
     ElMessage.success(t("audio.generating"))
   } finally {
     busyAction.value = ""
+  }
+}
+
+async function loadTask(id) {
+  if (!id) return
+
+  stopPolling()
+  taskId.value = id
+  localStorage.setItem(AUDIO_TASK_STORAGE_KEY, id)
+
+  try {
+    statusData.value = await getTaskStatus(id)
+    if (route.query.task) {
+      router.replace({ path: "/policy/dashboard" })
+    }
+    if (statusData.value?.status === "generating") {
+      startPolling()
+    }
+  } catch (error) {
+    taskId.value = ""
+    statusData.value = null
+    localStorage.removeItem(AUDIO_TASK_STORAGE_KEY)
   }
 }
 
@@ -317,25 +392,19 @@ function stopPolling() {
   }
 }
 
-function mapStatus(status) {
-  return t(`audio.status.${status || "idle"}`)
-}
+onMounted(() => {
+  const taskFromRoute = route.query.task
+  const savedTaskId = localStorage.getItem(AUDIO_TASK_STORAGE_KEY)
+  const targetTaskId = taskFromRoute || savedTaskId
+  if (targetTaskId) loadTask(targetTaskId)
+})
 
-function statusTagType(status) {
-  const map = {
-    completed: "success",
-    failed: "danger",
-    generating: "warning",
-    parsing: "warning",
-    parsed: "primary",
-  }
-  return map[status] || "info"
-}
-
-function formatDate(value) {
-  if (!value) return "-"
-  return new Date(value).toLocaleString()
-}
+watch(
+  () => route.query.task,
+  (id) => {
+    if (id && id !== taskId.value) loadTask(id)
+  },
+)
 
 onBeforeUnmount(stopPolling)
 </script>
@@ -417,6 +486,23 @@ onBeforeUnmount(stopPolling)
 
 .option-form :deep(.el-form-item) {
   margin-bottom: 0;
+}
+
+.voice-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.voice-preview {
+  color: var(--theme-primary);
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.voice-preview:hover {
+  text-decoration: underline;
 }
 
 .action-row {

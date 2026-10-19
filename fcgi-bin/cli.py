@@ -54,6 +54,7 @@ _common_module = importlib.import_module(f'{_core_module_name}.Common')
 # Import required classes and functions
 read_text_file = _utils_module.read_text_file
 extract_pdf_text = _utils_module.extract_pdf_text
+normalize_chapter_headings = _utils_module.normalize_chapter_headings
 get_unique_filename = _utils_module.get_unique_filename
 ChapterParser = _parser_module.ChapterParser
 LLMManager = _llm_module.LLMManager
@@ -141,6 +142,10 @@ async def generate_from_file(
             remove_headers_footers=True,
             fix_pdf_linebreaks=True
         )
+
+    # Normalize irregular chapter headings (Markdown bold/heading, etc.)
+    if config.CHAPTER_NORMALIZE_ENABLED:
+        text = normalize_chapter_headings(text)
 
     # Chapter splitting
     logger.info(t("cli.parsing_chapters"))

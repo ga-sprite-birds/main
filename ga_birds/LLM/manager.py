@@ -233,7 +233,11 @@ class LLMManager:
             max_tokens=max_tokens
         )
 
-        result = response.choices[0].message.content
+        choice = response.choices[0]
+        if getattr(choice, "finish_reason", None) == "length":
+            logger.warning(t("llm.truncated_result"))
+
+        result = choice.message.content or ""
         logger.debug(t("llm.api_done", input=len(prompt), output=len(result), max_tokens=max_tokens))
 
         return result
@@ -310,6 +314,10 @@ class LLMManager:
             logger.info(t("llm.all_segments_done", count=len(segments)))
             logger.info(t("llm.merged_length", length=len(final_result), tokens=count_tokens(final_result, model_name)))
 
+            if not final_result.strip():
+                logger.warning(t("llm.empty_result_fallback"))
+                return text
+
             return final_result
         else:
             # Single-pass processing
@@ -349,6 +357,10 @@ class LLMManager:
 
         logger.debug(t("llm.filtered_output_length", length=len(filtered_result)))
         logger.debug(t("llm.filtered_preview", text=filtered_result[:100]))
+
+        if not filtered_result.strip():
+            logger.warning(t("llm.empty_result_fallback"))
+            return text
 
         return filtered_result
 

@@ -3,6 +3,8 @@ Edge TTS engine
 Microsoft Edge TTS API implementation
 """
 
+import os
+import uuid
 from typing import Optional
 import edge_tts
 from loguru import logger
@@ -10,7 +12,7 @@ from loguru import logger
 import config
 from ga_birds.Common.i18n import t
 from .base import BaseTTSEngine
-from ga_birds.Utils.retry_utils import tts_retry
+from ga_birds.Utils.retry_utils import NonRetryableError, tts_retry
 
 
 class EdgeTTSEngine(BaseTTSEngine):
@@ -55,6 +57,9 @@ class EdgeTTSEngine(BaseTTSEngine):
         Raises:
             Exception: TTS generation failed (retried 5 times)
         """
+        if not text or not text.strip():
+            raise NonRetryableError(t("tts.empty_text"))
+
         # Use passed parameters or defaults
         voice = voice or self.default_voice
         rate = rate if rate is not None else self.default_rate
@@ -63,26 +68,38 @@ class EdgeTTSEngine(BaseTTSEngine):
 
         # Ensure output directory exists
         output_file = self._ensure_output_dir(output_path)
+        temp_path = output_file.with_name(
+            f".{output_file.name}.{uuid.uuid4().hex}.part"
+        )
 
         # Log
         self._log_generation_start(output_path, voice, rate, len(text))
 
-        # Create TTS communication object
-        communicate = edge_tts.Communicate(
-            text=text,
-            voice=voice,
-            rate=self._format_rate(rate),
-            volume=self._format_volume(volume),
-            pitch=self._format_pitch(pitch),
-        )
+        try:
+            # Create TTS communication object
+            communicate = edge_tts.Communicate(
+                text=text,
+                voice=voice,
+                rate=self._format_rate(rate),
+                volume=self._format_volume(volume),
+                pitch=self._format_pitch(pitch),
+            )
 
-        # Generate audio file (auto-retried on failure)
-        await communicate.save(str(output_file))
+            # Write to a temporary file first; only publish it when complete
+            await communicate.save(str(temp_path))
 
-        # Log completion
-        self._log_generation_complete(output_path)
+            if not temp_path.exists() or temp_path.stat().st_size == 0:
+                raise RuntimeError(t("tts.empty_audio"))
 
-        return str(output_file)
+            os.replace(temp_path, output_file)
+
+            # Log completion
+            self._log_generation_complete(output_path)
+
+            return str(output_file)
+        finally:
+            if temp_path.exists():
+                temp_path.unlink(missing_ok=True)
 
     def validate_setup(self) -> bool:
         """

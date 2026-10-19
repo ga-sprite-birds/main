@@ -18,7 +18,7 @@ pip install \
     "ollama>=0.1.6" \
     "openai>=1.0.0" \
     "httpx>=0.26.0" \
-    "edge-tts>=6.1.9" \
+    "edge-tts>=7.3.1" \
     "pydub>=0.25.1" \
     "soundfile>=0.12.1" \
     "loguru>=0.7.2" \

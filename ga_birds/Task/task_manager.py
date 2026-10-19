@@ -219,6 +219,31 @@ class TaskManager:
         """
         return list(self.tasks.values())
 
+    @staticmethod
+    def _serialize_task_summary(task: Task) -> Dict[str, Any]:
+        """Build a reusable task summary for API/CLI output."""
+        return {
+            "task_id": task.task_id,
+            "filename": task.metadata.get("filename"),
+            "status": task.status.value if hasattr(task.status, "value") else task.status,
+            "total_chapters": task.total_chapters,
+            "completed_chapters": task.completed_chapters,
+            "progress": task.completed_chapters / task.total_chapters if task.total_chapters > 0 else 0,
+            "created_at": task.created_at.isoformat(),
+            "completed_at": task.completed_at.isoformat() if task.completed_at else None,
+            "error": task.error,
+        }
+
+    def get_task_summary(self, task_id: str) -> Optional[Dict[str, Any]]:
+        """Return a single task summary, or None when the task does not exist."""
+        task = self.get_task(task_id)
+        return self._serialize_task_summary(task) if task else None
+
+    def list_task_summaries(self) -> List[Dict[str, Any]]:
+        """List task summaries sorted by creation time, newest first."""
+        tasks = sorted(self.tasks.values(), key=lambda task: task.created_at, reverse=True)
+        return [self._serialize_task_summary(task) for task in tasks]
+
     def cancel_task(self, task_id: str) -> bool:
         """
         Cancel a task

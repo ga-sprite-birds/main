@@ -10,6 +10,7 @@ from tenacity import (
     retry,
     stop_after_attempt,
     wait_exponential,
+    retry_if_exception,
     retry_if_exception_type,
     before_sleep_log,
     RetryError
@@ -34,6 +35,22 @@ class NonRetryableError(Exception):
     pass
 
 
+def _is_retryable_tts_error(exception: Exception) -> bool:
+    """TTS errors are retryable except explicitly classified failures."""
+    return not isinstance(exception, NonRetryableError)
+
+
+def _is_retryable_llm_error(exception: Exception) -> bool:
+    """LLM errors are retryable except authentication and bad-request failures."""
+    if isinstance(exception, NonRetryableError):
+        return False
+    return exception.__class__.__name__ not in (
+        "AuthenticationError",
+        "PermissionDeniedError",
+        "BadRequestError",
+    )
+
+
 # ============================================
 # TTS retry decorator
 # ============================================
@@ -45,12 +62,7 @@ tts_retry = retry(
         min=1,         # minimum delay 1 second
         max=30         # maximum delay 30 seconds
     ),
-    retry=retry_if_exception_type((
-        ConnectionError,
-        TimeoutError,
-        OSError,
-        Exception  # catch all exceptions, but log them
-    )),
+    retry=retry_if_exception(_is_retryable_tts_error),
     before_sleep=before_sleep_log(logger, logging.WARNING),
     reraise=True  # raise the original exception after retries fail
 )
@@ -67,11 +79,7 @@ llm_retry = retry(
         min=1,
         max=10
     ),
-    retry=retry_if_exception_type((
-        ConnectionError,
-        TimeoutError,
-        Exception
-    )),
+    retry=retry_if_exception(_is_retryable_llm_error),
     before_sleep=before_sleep_log(logger, logging.WARNING),
     reraise=True
 )

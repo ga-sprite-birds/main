@@ -12,6 +12,7 @@ from .file_utils import (
     clean_text_for_tts,
     get_unique_filename
 )
+from .text_normalizer import normalize_chapter_headings
 from .model_manager import ModelManager
 
 __all__ = [
@@ -22,5 +23,6 @@ __all__ = [
     "preprocess_text",
     "clean_text_for_tts",
     "get_unique_filename",
+    "normalize_chapter_headings",
     "ModelManager",
 ]

@@ -130,11 +130,20 @@
     "task_not_found": "任务不存在: {task_id}",
     "generating_chapter": "正在生成第 {index} 章: {title}",
     "chapter_llm_start": "第 {index} 章: LLM 口语化处理开始",
+    "chapter_llm_failed": "第 {index} 章: LLM 口语化失败: {error}",
+    "chapter_llm_fallback": "第 {index} 章: 使用原文继续生成",
     "chapter_tts_start": "第 {index} 章: TTS 生成开始",
     "chapter_complete": "第 {index} 章生成完成: {path}",
     "chapter_failed": "第 {index} 章生成失败: {error}",
     "task_all_complete": "任务 {task_id} 全部完成",
-    "task_failed": "任务 {task_id} 失败: {error}"
+    "task_failed": "任务 {task_id} 失败: {error}",
+    "task_all_failed": "任务 {task_id} 所有章节生成失败",
+    "task_partial_failed": "任务 {task_id} 部分章节生成失败",
+    "task_already_generating": "任务正在生成中，请勿重复提交",
+    "file_exists_skip": "文件已存在，跳过生成: {path}",
+    "file_exists_rename": "文件已存在，使用新文件名: {path}",
+    "empty_file_removed": "已删除空音频文件: {path}",
+    "audio_file_empty": "音频文件为空，请重新生成: {path}"
   },
   "llm": {
     "mode_local": "LLM 模式: 本地 (Ollama), 模型: {model}",
@@ -165,10 +174,12 @@
     "merged_length": "合并后长度: {length} 字符（约 {tokens} tokens）",
     "single_pass": "文本长度适中，单次处理",
     "original_preview": "原文前100字: {text}...",
-    "raw_output_length": "LLM 原始输出长度: {len} 字符",
+    "raw_output_length": "LLM 原始输出长度: {length} 字符",
     "raw_output_preview": "LLM 原始输出前200字: {text}...",
-    "filtered_output_length": "过滤后输出长度: {len} 字符",
-    "filtered_preview": "过滤后前100字: {text}..."
+    "filtered_output_length": "过滤后输出长度: {length} 字符",
+    "filtered_preview": "过滤后前100字: {text}...",
+    "truncated_result": "LLM 输出因长度限制被截断",
+    "empty_result_fallback": "LLM 返回空结果，回退使用原文"
   },
   "model": {
     "cache_dir_ready": "缓存目录已就绪: {path}",
@@ -234,6 +245,7 @@
     "pdf_extract_success": "成功提取 PDF 文本: {path} ({size} 字符)",
     "pdf_extract_failed": "提取 PDF 文本失败: {path}, 错误: {error}",
     "preprocess_done": "文本预处理完成，处理前: {before} 字符，处理后: {after} 字符",
+    "normalize_done": "章节标题规范化完成，共修正 {count} 行",
     "text_only_punctuation": "文本只包含标点，跳过: {text}",
     "unsupported_format": "不支持的文件格式: {suffix}",
     "empty_content": "文件内容为空"
@@ -268,7 +280,9 @@
     "generation_failed": "TTS 生成失败: {error}",
     "setup_valid": "Edge TTS 无需验证（在线服务）",
     "pydub_not_installed": "pydub 未安装，尝试使用 ffmpeg",
-    "validate_failed": "TTS 引擎 {engine} 设置验证失败"
+    "validate_failed": "TTS 引擎 {engine} 设置验证失败",
+    "empty_text": "文本为空，无法生成音频",
+    "empty_audio": "TTS 未返回音频数据，已删除空文件"
   },
   "parser": {
     "initialized": "章节解析器初始化完成，正则模式数: {count}",

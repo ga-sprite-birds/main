@@ -130,11 +130,20 @@
     "task_not_found": "Task not found: {task_id}",
     "generating_chapter": "Generating chapter {index}: {title}",
     "chapter_llm_start": "Chapter {index}: LLM colloquialization started",
+    "chapter_llm_failed": "Chapter {index}: LLM colloquialization failed: {error}",
+    "chapter_llm_fallback": "Chapter {index}: continuing with the original text",
     "chapter_tts_start": "Chapter {index}: TTS generation started",
     "chapter_complete": "Chapter {index} generated: {path}",
     "chapter_failed": "Chapter {index} generation failed: {error}",
     "task_all_complete": "Task {task_id} completed",
-    "task_failed": "Task {task_id} failed: {error}"
+    "task_failed": "Task {task_id} failed: {error}",
+    "task_all_failed": "Task {task_id} failed for all chapters",
+    "task_partial_failed": "Task {task_id} failed for some chapters",
+    "task_already_generating": "Task is already generating; duplicate request rejected",
+    "file_exists_skip": "File exists; skipping generation: {path}",
+    "file_exists_rename": "File exists; using a new filename: {path}",
+    "empty_file_removed": "Removed empty audio file: {path}",
+    "audio_file_empty": "Audio file is empty; regenerate it: {path}"
   },
   "llm": {
     "mode_local": "LLM mode: local (Ollama), model: {model}",
@@ -168,7 +177,9 @@
     "raw_output_length": "LLM raw output length: {length} chars",
     "raw_output_preview": "LLM raw output (first 200 chars): {text}...",
     "filtered_output_length": "Filtered output length: {length} chars",
-    "filtered_preview": "Filtered output (first 100 chars): {text}..."
+    "filtered_preview": "Filtered output (first 100 chars): {text}...",
+    "truncated_result": "LLM output was truncated by the token limit",
+    "empty_result_fallback": "LLM returned an empty result; falling back to original text"
   },
   "model": {
     "cache_dir_ready": "Cache directory ready: {path}",
@@ -234,6 +245,7 @@
     "pdf_extract_success": "Successfully extracted PDF text: {path} ({size} characters)",
     "pdf_extract_failed": "Failed to extract PDF text: {path}, error: {error}",
     "preprocess_done": "Text preprocessing complete: before {before}, after {after} characters",
+    "normalize_done": "Chapter heading normalization complete: {count} line(s) updated",
     "text_only_punctuation": "Text contains only punctuation; skipping: {text}",
     "unsupported_format": "Unsupported file format: {suffix}",
     "empty_content": "File content is empty"
@@ -268,7 +280,9 @@
     "generation_failed": "TTS generation failed: {error}",
     "setup_valid": "Edge TTS requires no validation (online service)",
     "pydub_not_installed": "pydub is not installed; trying ffmpeg",
-    "validate_failed": "TTS engine {engine} setup validation failed"
+    "validate_failed": "TTS engine {engine} setup validation failed",
+    "empty_text": "Text is empty; cannot generate audio",
+    "empty_audio": "TTS returned no audio data; empty file removed"
   },
   "parser": {
     "initialized": "Chapter parser initialized with {count} pattern(s)",
