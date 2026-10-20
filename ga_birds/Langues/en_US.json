@@ -143,7 +143,16 @@
     "file_exists_skip": "File exists; skipping generation: {path}",
     "file_exists_rename": "File exists; using a new filename: {path}",
     "empty_file_removed": "Removed empty audio file: {path}",
-    "audio_file_empty": "Audio file is empty; regenerate it: {path}"
+    "audio_file_empty": "Audio file is empty; regenerate it: {path}",
+    "pause_requested": "Pause requested; it will stop after the current chapter",
+    "resume_started": "Resumed generating the remaining chapters",
+    "task_not_generating": "Task is not generating",
+    "task_not_paused": "Task is not paused",
+    "task_generating_no_delete": "Task is generating; chapters cannot be deleted now",
+    "chapter_skip_completed": "Chapter {index} already generated; skipped",
+    "task_paused": "Task {task_id} paused",
+    "task_partial_complete": "Task {task_id} partially complete; some chapters are still pending",
+    "task_job_cancelled": "Task {task_id} generation cancelled"
   },
   "llm": {
     "mode_local": "LLM mode: local (Ollama), model: {model}",
@@ -298,7 +307,10 @@
     "task_created": "Task created: {task_id}, chapters: {count}",
     "task_status_updated": "Task {task_id} status updated: {status}",
     "chapter_completed": "Task {task_id}, chapter {index} completed: {title}",
-    "task_cancelled": "Task {task_id} cancelled"
+    "task_cancelled": "Task {task_id} cancelled",
+    "pause_requested": "Task {task_id} received a pause request",
+    "chapter_audio_deleted": "Task {task_id} chapter {index} audio deleted",
+    "audio_delete_failed": "Failed to delete audio file: {path}, error: {error}"
   },
   "sprite": {
     "manager_initialized": "Sprite manager initialized",

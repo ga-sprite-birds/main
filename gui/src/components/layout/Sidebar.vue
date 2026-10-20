@@ -18,11 +18,6 @@
         <template #title>{{ $t("route.dashboard") }}</template>
       </el-menu-item>
 
-      <el-menu-item index="/policy/tasks">
-        <el-icon><List /></el-icon>
-        <template #title>{{ $t("route.tasks") }}</template>
-      </el-menu-item>
-
       <el-menu-item index="/policy/theme">
         <el-icon><Setting /></el-icon>
         <template #title>{{ $t("theme.settings") }}</template>
@@ -36,7 +31,7 @@
 import { computed } from "vue"
 import { useRoute } from "vue-router"
 import { useThemeStore } from "@/store/modules/theme.js"
-import { Headset, List, Setting } from "@element-plus/icons-vue"
+import { Headset, Setting } from "@element-plus/icons-vue"
 
 defineProps({
   collapsed: { type: Boolean, default: false },

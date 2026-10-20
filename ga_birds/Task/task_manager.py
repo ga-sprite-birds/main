@@ -6,6 +6,7 @@ Version: v1.0
 Dev team: Tiger
 """
 
+import os
 import uuid
 import asyncio
 import importlib
@@ -32,6 +33,7 @@ class TaskStatus(str, Enum):
     PARSING = "parsing"  # parsing
     PARSED = "parsed"  # parsed
     GENERATING = "generating"  # generating
+    PAUSED = "paused"  # paused (between chapters)
     COMPLETED = "completed"  # completed
     FAILED = "failed"  # failed
     CANCELLED = "cancelled"  # cancelled
@@ -62,6 +64,7 @@ class Task:
     started_at: Optional[datetime] = None  # start time
     completed_at: Optional[datetime] = None  # completion time
     metadata: Dict[str, Any] = field(default_factory=dict)  # metadata (file name, config, etc.)
+    pause_requested: bool = False  # transient flag: pause after the current chapter
 
 
 class TaskManager:
@@ -181,12 +184,17 @@ class TaskManager:
                 
                 if error:
                     chapter.error = error
-                
-                # Update the completed chapter count
+
+                # Recompute the completed chapter count so repeated generation
+                # or deletion never makes the counter drift
+                task.completed_chapters = sum(
+                    1 for item in task.chapters
+                    if item.status == TaskStatus.COMPLETED
+                )
+
                 if status == TaskStatus.COMPLETED:
-                    task.completed_chapters += 1
                     logger.info(t("task.chapter_completed", task_id=task_id, index=chapter_index, title=chapter.title))
-                
+
                 break
     
     def get_chapter_audio(self, task_id: str, chapter_index: int) -> Optional[str]:
@@ -219,30 +227,99 @@ class TaskManager:
         """
         return list(self.tasks.values())
 
-    @staticmethod
-    def _serialize_task_summary(task: Task) -> Dict[str, Any]:
-        """Build a reusable task summary for API/CLI output."""
-        return {
-            "task_id": task.task_id,
-            "filename": task.metadata.get("filename"),
-            "status": task.status.value if hasattr(task.status, "value") else task.status,
-            "total_chapters": task.total_chapters,
-            "completed_chapters": task.completed_chapters,
-            "progress": task.completed_chapters / task.total_chapters if task.total_chapters > 0 else 0,
-            "created_at": task.created_at.isoformat(),
-            "completed_at": task.completed_at.isoformat() if task.completed_at else None,
-            "error": task.error,
-        }
-
-    def get_task_summary(self, task_id: str) -> Optional[Dict[str, Any]]:
-        """Return a single task summary, or None when the task does not exist."""
+    def get_chapter_status(self, task_id: str, chapter_index: int) -> Optional[TaskStatus]:
+        """Return a chapter's status, or None when it does not exist."""
         task = self.get_task(task_id)
-        return self._serialize_task_summary(task) if task else None
+        if not task:
+            return None
+        for chapter in task.chapters:
+            if chapter.index == chapter_index:
+                return chapter.status
+        return None
 
-    def list_task_summaries(self) -> List[Dict[str, Any]]:
-        """List task summaries sorted by creation time, newest first."""
-        tasks = sorted(self.tasks.values(), key=lambda task: task.created_at, reverse=True)
-        return [self._serialize_task_summary(task) for task in tasks]
+    def is_running(self, task_id: str) -> bool:
+        """Return whether the task currently has a running generation job."""
+        running = self.running_tasks.get(task_id)
+        return bool(running and not running.done())
+
+    def request_pause(self, task_id: str) -> bool:
+        """Ask a running task to pause after the current chapter."""
+        task = self.get_task(task_id)
+        if not task:
+            return False
+        task.pause_requested = True
+        logger.info(t("task.pause_requested", task_id=task_id))
+        return True
+
+    def clear_pause(self, task_id: str) -> bool:
+        """Clear the pause flag before resuming."""
+        task = self.get_task(task_id)
+        if not task:
+            return False
+        task.pause_requested = False
+        return True
+
+    def mark_chapters_paused(
+        self,
+        task_id: str,
+        chapter_indexes: Optional[List[int]] = None
+    ) -> None:
+        """Mark pending chapters as paused so the UI reflects the pause."""
+        task = self.get_task(task_id)
+        if not task:
+            return
+        wanted = set(chapter_indexes) if chapter_indexes else None
+        for chapter in task.chapters:
+            if wanted is not None and chapter.index not in wanted:
+                continue
+            if chapter.status == TaskStatus.PENDING:
+                chapter.status = TaskStatus.PAUSED
+
+    def delete_chapter_audio(
+        self,
+        task_id: str,
+        chapter_index: int,
+        delete_file: bool = True
+    ) -> bool:
+        """
+        Delete a chapter's generated audio and reset it to pending.
+
+        Args:
+            task_id: task ID
+            chapter_index: chapter number
+            delete_file: whether to also remove the file from disk
+
+        Returns:
+            whether the chapter was found and reset
+        """
+        task = self.get_task(task_id)
+        if not task:
+            return False
+
+        for chapter in task.chapters:
+            if chapter.index != chapter_index:
+                continue
+
+            path = chapter.audio_path
+            if delete_file and path and os.path.exists(path):
+                try:
+                    os.remove(path)
+                except OSError as error:
+                    logger.warning(t("task.audio_delete_failed", path=path, error=error))
+
+            chapter.audio_path = None
+            chapter.status = TaskStatus.PENDING
+            chapter.error = None
+            chapter.started_at = None
+            chapter.completed_at = None
+            task.completed_chapters = sum(
+                1 for item in task.chapters if item.status == TaskStatus.COMPLETED
+            )
+
+            logger.info(t("task.chapter_audio_deleted", task_id=task_id, index=chapter_index))
+            return True
+
+        return False
 
     def cancel_task(self, task_id: str) -> bool:
         """

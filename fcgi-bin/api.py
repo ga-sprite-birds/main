@@ -7,11 +7,12 @@ Dev team: Tiger
 """
 
 import os
+import asyncio
 import importlib
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -96,6 +97,7 @@ class GenerateRequest(BaseModel):
     output_path: Optional[str] = None  # Output path (overrides config)
     enable_llm: bool = True  # Whether to enable LLM colloquialization
     language: Optional[str] = None  # UI language (en_US, zh_CN)
+    chapter_indexes: Optional[List[int]] = None  # Generate only these chapters; None means all
 
 
 class TaskResponse(BaseModel):
@@ -123,12 +125,6 @@ async def api_status():
         "version": "1.0.0",
         "status": "running"
     }
-
-
-@app.get("/tasks")
-async def list_tasks():
-    """List task summaries, newest first"""
-    return task_manager.list_task_summaries()
 
 
 @app.get("/index.html")
@@ -314,14 +310,41 @@ async def parse_text(request: ParseRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def _launch_generation(
+    task,
+    voice: Optional[str],
+    output_path: Optional[str],
+    enable_llm: bool,
+    chapter_indexes: Optional[List[int]]
+) -> None:
+    """Start a managed background generation job for a task."""
+    task.pause_requested = False
+
+    # Stop any job that is still winding down so it cannot clobber the new one
+    existing = task_manager.running_tasks.get(task.task_id)
+    if existing and not existing.done():
+        existing.cancel()
+
+    task_manager.update_task_status(task.task_id, TaskStatus.GENERATING)
+    job = asyncio.create_task(
+        _generate_audio_task(
+            task_id=task.task_id,
+            voice=voice,
+            output_path=output_path,
+            enable_llm=enable_llm,
+            chapter_indexes=chapter_indexes,
+        )
+    )
+    task_manager.running_tasks[task.task_id] = job
+
+
 @app.post("/generate", response_model=TaskResponse)
-async def generate_audio(request: GenerateRequest, background_tasks: BackgroundTasks):
+async def generate_audio(request: GenerateRequest):
     """
-    Start audio generation (asynchronous)
+    Start audio generation (asynchronous).
 
     Args:
-        request: Generate request
-        background_tasks: Background tasks
+        request: Generate request; chapter_indexes limits generation to selected chapters
 
     Returns:
         Task information
@@ -341,19 +364,22 @@ async def generate_audio(request: GenerateRequest, background_tasks: BackgroundT
         # Check whether the task has been parsed
         if not task.metadata.get("chapters"):
             raise HTTPException(status_code=400, detail="任务尚未解析，请先调用 /parse")
-        
-        # Add a background task
-        background_tasks.add_task(
-            _generate_audio_task,
-            task_id=request.task_id,
+
+        # Remember the options so resume can reuse them
+        task.metadata["generation"] = {
+            "voice": request.voice,
+            "output_path": request.output_path,
+            "enable_llm": request.enable_llm,
+        }
+
+        _launch_generation(
+            task=task,
             voice=request.voice,
             output_path=request.output_path,
-            enable_llm=request.enable_llm
+            enable_llm=request.enable_llm,
+            chapter_indexes=request.chapter_indexes,
         )
-        
-        # Update task status
-        task_manager.update_task_status(request.task_id, TaskStatus.GENERATING)
-        
+
         return TaskResponse(
             task_id=request.task_id,
             status="generating",
@@ -366,6 +392,57 @@ async def generate_audio(request: GenerateRequest, background_tasks: BackgroundT
     except Exception as e:
         logger.error(t("api.generate_failed", error=e))
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/task/{task_id}/pause", response_model=TaskResponse)
+async def pause_generation(task_id: str):
+    """Pause a running generation after the current chapter finishes."""
+    task = task_manager.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail=t("api.task_not_found", task_id=task_id))
+
+    if task.status != TaskStatus.GENERATING or not task_manager.is_running(task_id):
+        raise HTTPException(status_code=409, detail=t("api.task_not_generating"))
+
+    task_manager.request_pause(task_id)
+    return TaskResponse(task_id=task_id, status="pausing", message=t("api.pause_requested"))
+
+
+@app.post("/task/{task_id}/resume", response_model=TaskResponse)
+async def resume_generation(task_id: str):
+    """Resume a paused generation from the next unfinished chapter."""
+    task = task_manager.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail=t("api.task_not_found", task_id=task_id))
+
+    if task.status != TaskStatus.PAUSED:
+        raise HTTPException(status_code=409, detail=t("api.task_not_paused"))
+
+    options = task.metadata.get("generation", {})
+    _launch_generation(
+        task=task,
+        voice=options.get("voice"),
+        output_path=options.get("output_path"),
+        enable_llm=options.get("enable_llm", True),
+        chapter_indexes=None,
+    )
+    return TaskResponse(task_id=task_id, status="generating", message=t("api.resume_started"))
+
+
+@app.delete("/task/{task_id}/chapter/{chapter_index}")
+async def delete_chapter_audio(task_id: str, chapter_index: int):
+    """Delete a chapter's generated audio file and reset it to pending."""
+    task = task_manager.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail=t("api.task_not_found", task_id=task_id))
+
+    if task.status == TaskStatus.GENERATING:
+        raise HTTPException(status_code=409, detail=t("api.task_generating_no_delete"))
+
+    if not task_manager.delete_chapter_audio(task_id, chapter_index):
+        raise HTTPException(status_code=404, detail=f"章节不存在: {chapter_index}")
+
+    return {"task_id": task_id, "chapter_index": chapter_index, "status": "pending"}
 
 
 @app.get("/task/{task_id}/status")
@@ -424,7 +501,8 @@ async def _generate_audio_task(
     task_id: str,
     voice: Optional[str] = None,
     output_path: Optional[str] = None,
-    enable_llm: bool = True
+    enable_llm: bool = True,
+    chapter_indexes: Optional[List[int]] = None
 ):
     """
     Background audio generation task
@@ -434,7 +512,9 @@ async def _generate_audio_task(
         voice: Voice timbre
         output_path: Output path
         enable_llm: Whether to enable LLM
+        chapter_indexes: Generate only these chapters; None means all chapters
     """
+    paused = False
     try:
         task = task_manager.get_task(task_id)
         if not task:
@@ -448,13 +528,33 @@ async def _generate_audio_task(
         
         # Get chapter data
         chapters_data = task.metadata.get("chapters", [])
+        if chapter_indexes:
+            wanted = set(chapter_indexes)
+            chapters_data = [
+                item for item in chapters_data if item["index"] in wanted
+            ]
         
         # Generate audio chapter by chapter
         for chapter_data in chapters_data:
+            # Stop when the task was removed while generating
+            if task_manager.get_task(task_id) is None:
+                logger.warning(t("api.task_not_found", task_id=task_id))
+                return
+
+            # Between-chapter pause: stop before starting the next chapter
+            if task.pause_requested:
+                paused = True
+                break
+
             chapter_index = chapter_data["index"]
             chapter_title = chapter_data["title"]
             chapter_content = chapter_data["content"]
-            
+
+            # Skip chapters that already have audio
+            if task_manager.get_chapter_status(task_id, chapter_index) == TaskStatus.COMPLETED:
+                logger.info(t("api.chapter_skip_completed", index=chapter_index))
+                continue
+
             logger.info(t("api.generating_chapter", index=chapter_index, title=chapter_title))
             
             # Update chapter status
@@ -525,25 +625,45 @@ async def _generate_audio_task(
                     TaskStatus.FAILED,
                     error=str(e)
                 )
-        
+
+        if paused:
+            task_manager.mark_chapters_paused(task_id, chapter_indexes)
+            task_manager.update_task_status(task_id, TaskStatus.PAUSED)
+            logger.info(t("api.task_paused", task_id=task_id))
+            return
+
+        completed_chapters = [
+            chapter for chapter in task.chapters
+            if chapter.status == TaskStatus.COMPLETED
+        ]
         failed_chapters = [
             chapter for chapter in task.chapters
             if chapter.status == TaskStatus.FAILED
         ]
-        if failed_chapters:
-            if len(failed_chapters) == task.total_chapters:
-                task.error = t("api.task_all_failed", task_id=task_id)
-            else:
-                task.error = t("api.task_partial_failed", task_id=task_id)
+
+        if len(completed_chapters) == task.total_chapters:
+            task_manager.update_task_status(task_id, TaskStatus.COMPLETED)
+            logger.info(t("api.task_all_complete", task_id=task_id))
+        elif failed_chapters:
+            task.error = t("api.task_partial_failed", task_id=task_id)
             task_manager.update_task_status(task_id, TaskStatus.FAILED)
             logger.error(task.error)
         else:
-            task_manager.update_task_status(task_id, TaskStatus.COMPLETED)
-            logger.info(t("api.task_all_complete", task_id=task_id))
-    
+            # Some chapters are still pending; return to the parsed state
+            task_manager.update_task_status(task_id, TaskStatus.PARSED)
+            logger.info(t("api.task_partial_complete", task_id=task_id))
+
+    except asyncio.CancelledError:
+        logger.info(t("api.task_job_cancelled", task_id=task_id))
+        task_manager.update_task_status(task_id, TaskStatus.CANCELLED)
+        raise
     except Exception as e:
         logger.error(t("api.task_failed", task_id=task_id, error=e))
         task_manager.update_task_status(task_id, TaskStatus.FAILED)
+    finally:
+        # Only clear the registration if it still points at this job
+        if task_manager.running_tasks.get(task_id) is asyncio.current_task():
+            task_manager.running_tasks.pop(task_id, None)
 
 
 # ============================================

@@ -9,11 +9,16 @@ export function useTaskDisplay() {
     return t(`audio.status.${status || "idle"}`)
   }
 
+  function mapChapterStatus(status) {
+    return t(`audio.chapterState.${status || "pending"}`)
+  }
+
   function statusTagType(status) {
     const map = {
       completed: "success",
       failed: "danger",
       generating: "warning",
+      paused: "warning",
       parsing: "warning",
       parsed: "primary",
     }
@@ -27,6 +32,7 @@ export function useTaskDisplay() {
 
   return {
     mapStatus,
+    mapChapterStatus,
     statusTagType,
     formatDate,
   }

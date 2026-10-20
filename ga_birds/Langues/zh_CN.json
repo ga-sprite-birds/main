@@ -143,7 +143,16 @@
     "file_exists_skip": "文件已存在，跳过生成: {path}",
     "file_exists_rename": "文件已存在，使用新文件名: {path}",
     "empty_file_removed": "已删除空音频文件: {path}",
-    "audio_file_empty": "音频文件为空，请重新生成: {path}"
+    "audio_file_empty": "音频文件为空，请重新生成: {path}",
+    "pause_requested": "已请求暂停，将在当前章节完成后暂停",
+    "resume_started": "已继续生成剩余章节",
+    "task_not_generating": "任务未在生成中",
+    "task_not_paused": "任务未处于暂停状态",
+    "task_generating_no_delete": "任务正在生成中，暂不能删除章节",
+    "chapter_skip_completed": "第 {index} 章已生成，跳过",
+    "task_paused": "任务 {task_id} 已暂停",
+    "task_partial_complete": "任务 {task_id} 部分章节完成，仍有待生成章节",
+    "task_job_cancelled": "任务 {task_id} 生成任务已取消"
   },
   "llm": {
     "mode_local": "LLM 模式: 本地 (Ollama), 模型: {model}",
@@ -298,7 +307,10 @@
     "task_created": "创建任务: {task_id}, 章节数: {count}",
     "task_status_updated": "任务 {task_id} 状态更新: {status}",
     "chapter_completed": "任务 {task_id} 章节 {index} 完成: {title}",
-    "task_cancelled": "任务 {task_id} 已取消"
+    "task_cancelled": "任务 {task_id} 已取消",
+    "pause_requested": "任务 {task_id} 收到暂停请求",
+    "chapter_audio_deleted": "任务 {task_id} 章节 {index} 音频已删除",
+    "audio_delete_failed": "删除音频文件失败: {path}, 错误: {error}"
   },
   "sprite": {
     "manager_initialized": "角色管理器初始化完成",

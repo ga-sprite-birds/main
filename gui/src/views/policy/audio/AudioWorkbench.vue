@@ -78,15 +78,6 @@
           >
             {{ $t("audio.parseAction") }}
           </el-button>
-          <el-button
-            type="success"
-            :icon="VideoPlay"
-            :loading="busyAction === 'generate'"
-            :disabled="!canGenerate"
-            @click="generateSource"
-          >
-            {{ $t("audio.generateAction") }}
-          </el-button>
         </div>
       </div>
 
@@ -120,22 +111,90 @@
 
     <section class="panel chapter-panel">
       <div class="panel-header">
-        <h2>{{ $t("audio.chapters") }}</h2>
-        <span class="panel-subtitle">{{ $t("audio.chaptersHint") }}</span>
+        <div>
+          <h2>{{ $t("audio.chapters") }}</h2>
+          <span class="panel-subtitle">{{ $t("audio.chaptersHint") }}</span>
+        </div>
+        <el-select
+          v-model="statusFilter"
+          class="status-filter"
+          clearable
+          :placeholder="$t('audio.filterStatus')"
+        >
+          <el-option
+            v-for="option in statusFilterOptions"
+            :key="option.value"
+            :label="option.label"
+            :value="option.value"
+          />
+        </el-select>
+      </div>
+
+      <div class="chapter-actions">
+        <el-button
+          type="primary"
+          :icon="VideoPlay"
+          :loading="busyAction === 'start'"
+          :disabled="!canStartSelected"
+          @click="startSelectedChapters"
+        >
+          {{ $t("audio.startSelected") }}
+        </el-button>
+        <el-button
+          :icon="VideoPause"
+          :disabled="!isGenerating || busy"
+          @click="pauseGeneration"
+        >
+          {{ $t("audio.pauseAction") }}
+        </el-button>
+        <el-button
+          type="success"
+          plain
+          :icon="VideoPlay"
+          :disabled="!isPaused || busy"
+          @click="resumeGeneration"
+        >
+          {{ $t("audio.resumeAction") }}
+        </el-button>
+        <el-button
+          type="danger"
+          plain
+          :icon="Delete"
+          :disabled="!canDeleteSelected || busy"
+          @click="deleteSelectedChapters"
+        >
+          {{ $t("audio.deleteAction") }}
+        </el-button>
+        <el-button :disabled="chapters.length === 0" @click="invertSelection">
+          {{ $t("audio.invertSelection") }}
+        </el-button>
+        <span class="panel-subtitle">
+          {{ $t("audio.selectedCount", { count: selectedIndexes.length }) }}
+        </span>
       </div>
 
       <el-empty v-if="chapters.length === 0" :description="$t('audio.emptyChapters')" />
-      <el-table v-else :data="chapters" class="chapter-table" stripe>
-        <el-table-column prop="index" :label="$t('audio.index')" width="90" />
-        <el-table-column prop="title" :label="$t('audio.chapterTitle')" min-width="220" show-overflow-tooltip />
-        <el-table-column :label="$t('audio.chapterStatus')" width="130">
+      <el-empty v-else-if="visibleChapters.length === 0" :description="$t('audio.emptyFilteredChapters')" />
+      <el-table
+        v-else
+        ref="chapterTableRef"
+        :data="visibleChapters"
+        class="chapter-table"
+        row-key="index"
+        stripe
+        @selection-change="handleSelectionChange"
+      >
+        <el-table-column type="selection" width="46" reserve-selection />
+        <el-table-column prop="index" :label="$t('audio.index')" width="80" />
+        <el-table-column prop="title" :label="$t('audio.chapterTitle')" min-width="200" show-overflow-tooltip />
+        <el-table-column :label="$t('audio.chapterStatus')" width="120">
           <template #default="{ row }">
             <el-tag :type="statusTagType(row.status)" effect="plain">
-              {{ mapStatus(row.status) }}
+              {{ mapChapterStatus(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column :label="$t('audio.listen')" min-width="260">
+        <el-table-column :label="$t('audio.listen')" min-width="240">
           <template #default="{ row }">
             <audio
               v-if="row.status === 'completed'"
@@ -147,7 +206,7 @@
             <span v-else class="muted">{{ row.error || $t("audio.waitingAudio") }}</span>
           </template>
         </el-table-column>
-        <el-table-column :label="$t('audio.download')" width="120" align="right">
+        <el-table-column :label="$t('audio.download')" width="110" align="right">
           <template #default="{ row }">
             <el-button
               v-if="row.status === 'completed'"
@@ -165,23 +224,27 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue"
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue"
 import { useI18n } from "vue-i18n"
-import { useRoute, useRouter } from "vue-router"
-import { ElMessage } from "element-plus"
+import { ElMessage, ElMessageBox } from "element-plus"
 import {
+  Delete,
   DocumentChecked,
   Download,
   FolderOpened,
   Refresh,
   UploadFilled,
+  VideoPause,
   VideoPlay,
 } from "@element-plus/icons-vue"
 import {
+  deleteChapterAudio,
   generateAudio,
   getChapterAudioUrl,
   getTaskStatus,
   parseAudioSource,
+  pauseAudio,
+  resumeAudio,
   uploadAudioSource,
 } from "@/api/audio.js"
 import { AUDIO_TASK_STORAGE_KEY, useTaskDisplay } from "@/utils/taskDisplay.js"
@@ -191,9 +254,7 @@ const OUTPUT_HISTORY_KEY = "audio_output_paths"
 const OUTPUT_HISTORY_LIMIT = 12
 
 const { locale, t } = useI18n({ useScope: "global" })
-const route = useRoute()
-const router = useRouter()
-const { mapStatus, statusTagType, formatDate } = useTaskDisplay()
+const { mapStatus, mapChapterStatus, statusTagType, formatDate } = useTaskDisplay()
 
 const appTitle = import.meta.env.VITE_APP_TITLE || "GA Sprite Birds"
 const uploadQueue = []
@@ -205,6 +266,10 @@ const taskId = ref("")
 const statusData = ref(null)
 const busyAction = ref("")
 const pollTimer = ref(null)
+const chapterTableRef = ref(null)
+const selectedIndexes = ref([])
+const statusFilter = ref("")
+const selectionInitializedFor = ref("")
 
 const voiceOptions = [
   { label: "云希 - 中文男声", value: "zh-CN-YunxiNeural" },
@@ -217,12 +282,28 @@ const voiceOptions = [
 
 const busy = computed(() => Boolean(busyAction.value))
 const isGenerating = computed(() => statusData.value?.status === "generating")
-const canGenerate = computed(() => {
-  return taskId.value && statusData.value?.status === "parsed" && !busy.value
-})
+const isPaused = computed(() => statusData.value?.status === "paused")
 const totalChapters = computed(() => statusData.value?.total_chapters || 0)
 const completedChapters = computed(() => statusData.value?.completed_chapters || 0)
 const chapters = computed(() => statusData.value?.chapters || [])
+const visibleChapters = computed(() => {
+  if (!statusFilter.value) return chapters.value
+  return chapters.value.filter((row) => row.status === statusFilter.value)
+})
+const statusFilterOptions = computed(() => [
+  { value: "pending", label: t("audio.chapterState.pending") },
+  { value: "generating", label: t("audio.chapterState.generating") },
+  { value: "completed", label: t("audio.chapterState.completed") },
+  { value: "paused", label: t("audio.chapterState.paused") },
+  { value: "failed", label: t("audio.chapterState.failed") },
+])
+const canStart = computed(() => {
+  return Boolean(taskId.value) && chapters.value.length > 0 && !isGenerating.value && !busy.value
+})
+const canStartSelected = computed(() => canStart.value && selectedIndexes.value.length > 0)
+const canDeleteSelected = computed(() => {
+  return Boolean(taskId.value) && selectedIndexes.value.length > 0 && !isGenerating.value && !busy.value
+})
 const progressPercent = computed(() => Math.round((statusData.value?.progress || 0) * 100))
 const serviceReady = computed(() => Boolean(taskId.value || statusData.value))
 const progressStatus = computed(() => {
@@ -235,6 +316,7 @@ const currentStepLabel = computed(() => {
   if (!taskId.value) return t("audio.stepSource")
   if (statusData.value?.status === "parsed") return t("audio.stepGenerate")
   if (statusData.value?.status === "generating") return t("audio.stepRunning")
+  if (statusData.value?.status === "paused") return t("audio.stepPaused")
   if (statusData.value?.status === "completed") return t("audio.stepDone")
   return t("audio.stepParse")
 })
@@ -328,23 +410,109 @@ async function parseSource() {
   }
 }
 
-async function generateSource() {
+async function startChapters(indexes) {
+  if (!taskId.value || indexes.length === 0) return
+
   rememberOutputPath()
-  busyAction.value = "generate"
+  busyAction.value = "start"
   try {
-    const response = await generateAudio(taskId.value, {
+    await generateAudio(taskId.value, {
       voice: voice.value,
       outputPath: outputPath.value.trim(),
       enableLlm: enableLlm.value,
       language: locale.value,
+      chapterIndexes: indexes,
     })
     await refreshStatus()
-    statusData.value = {
-      ...(statusData.value || {}),
-      status: response.status || "generating",
-    }
     startPolling()
     ElMessage.success(t("audio.generating"))
+  } finally {
+    busyAction.value = ""
+  }
+}
+
+function startSelectedChapters() {
+  startChapters([...selectedIndexes.value])
+}
+
+async function selectAllByDefault() {
+  // Check every chapter once, as soon as a task's chapters are first shown
+  if (selectionInitializedFor.value === taskId.value) return
+  if (chapters.value.length === 0) return
+
+  await nextTick()
+  const table = chapterTableRef.value
+  if (!table) return
+
+  table.clearSelection()
+  chapters.value.forEach((row) => table.toggleRowSelection(row, true))
+  selectionInitializedFor.value = taskId.value
+}
+
+async function pauseGeneration() {
+  if (!taskId.value) return
+
+  busyAction.value = "pause"
+  try {
+    await pauseAudio(taskId.value)
+    ElMessage.info(t("audio.pauseRequested"))
+    startPolling()
+  } finally {
+    busyAction.value = ""
+  }
+}
+
+async function resumeGeneration() {
+  if (!taskId.value) return
+
+  busyAction.value = "resume"
+  try {
+    await resumeAudio(taskId.value)
+    await refreshStatus()
+    startPolling()
+    ElMessage.success(t("audio.generating"))
+  } finally {
+    busyAction.value = ""
+  }
+}
+
+function handleSelectionChange(rows) {
+  selectedIndexes.value = rows.map((row) => row.index)
+}
+
+function invertSelection() {
+  const table = chapterTableRef.value
+  if (!table) return
+
+  const selected = new Set(selectedIndexes.value)
+  visibleChapters.value.forEach((row) => {
+    table.toggleRowSelection(row, !selected.has(row.index))
+  })
+}
+
+async function deleteSelectedChapters() {
+  const indexes = [...selectedIndexes.value]
+  if (indexes.length === 0) return
+
+  try {
+    await ElMessageBox.confirm(
+      t("audio.deleteConfirm", { count: indexes.length }),
+      t("audio.deleteTitle"),
+      { type: "warning" }
+    )
+  } catch (error) {
+    return
+  }
+
+  busyAction.value = "delete"
+  try {
+    for (const index of indexes) {
+      await deleteChapterAudio(taskId.value, index)
+    }
+    chapterTableRef.value?.clearSelection()
+    selectedIndexes.value = []
+    await refreshStatus()
+    ElMessage.success(t("audio.deleted"))
   } finally {
     busyAction.value = ""
   }
@@ -355,13 +523,12 @@ async function loadTask(id) {
 
   stopPolling()
   taskId.value = id
+  selectionInitializedFor.value = ""
   localStorage.setItem(AUDIO_TASK_STORAGE_KEY, id)
 
   try {
     statusData.value = await getTaskStatus(id)
-    if (route.query.task) {
-      router.replace({ path: "/policy/dashboard" })
-    }
+    await selectAllByDefault()
     if (statusData.value?.status === "generating") {
       startPolling()
     }
@@ -375,7 +542,8 @@ async function loadTask(id) {
 async function refreshStatus() {
   if (!taskId.value) return
   statusData.value = await getTaskStatus(taskId.value)
-  if (["completed", "failed", "cancelled"].includes(statusData.value?.status)) {
+  await selectAllByDefault()
+  if (["completed", "failed", "cancelled", "paused"].includes(statusData.value?.status)) {
     stopPolling()
   }
 }
@@ -393,18 +561,9 @@ function stopPolling() {
 }
 
 onMounted(() => {
-  const taskFromRoute = route.query.task
   const savedTaskId = localStorage.getItem(AUDIO_TASK_STORAGE_KEY)
-  const targetTaskId = taskFromRoute || savedTaskId
-  if (targetTaskId) loadTask(targetTaskId)
+  if (savedTaskId) loadTask(savedTaskId)
 })
-
-watch(
-  () => route.query.task,
-  (id) => {
-    if (id && id !== taskId.value) loadTask(id)
-  },
-)
 
 onBeforeUnmount(stopPolling)
 </script>
@@ -510,6 +669,22 @@ onBeforeUnmount(stopPolling)
   flex-wrap: wrap;
   gap: 10px;
   margin-top: 18px;
+}
+
+.chapter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.chapter-actions .el-button + .el-button {
+  margin-left: 0;
+}
+
+.status-filter {
+  width: 180px;
 }
 
 .upload-icon {

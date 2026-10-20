@@ -1,6 +1,5 @@
 import PolicyLayout from "@/components/layout/PolicyLayout.vue"
 import AudioWorkbench from "@/views/policy/audio/AudioWorkbench.vue"
-import TaskList from "@/views/policy/tasks/index.vue"
 import ThemePage from "@/views/policy/theme/index.vue"
 
 const policyRoutes = [
@@ -14,12 +13,6 @@ const policyRoutes = [
                 name: "PolicyDashboard",
                 component: AudioWorkbench,
                 meta: { title: "route.dashboard" },
-            },
-            {
-                path: "tasks",
-                name: "PolicyTasks",
-                component: TaskList,
-                meta: { title: "route.tasks" },
             },
             {
                 path: "theme",

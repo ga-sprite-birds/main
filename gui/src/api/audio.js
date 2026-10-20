@@ -42,20 +42,35 @@ export function generateAudio(taskId, options = {}) {
       output_path: options.outputPath || undefined,
       enable_llm: options.enableLlm,
       language: options.language,
+      chapter_indexes: options.chapterIndexes || undefined,
     },
+  })
+}
+
+export function pauseAudio(taskId) {
+  return request({
+    url: `/task/${taskId}/pause`,
+    method: "post",
+  })
+}
+
+export function resumeAudio(taskId) {
+  return request({
+    url: `/task/${taskId}/resume`,
+    method: "post",
+  })
+}
+
+export function deleteChapterAudio(taskId, chapterIndex) {
+  return request({
+    url: `/task/${taskId}/chapter/${chapterIndex}`,
+    method: "delete",
   })
 }
 
 export function getTaskStatus(taskId) {
   return request({
     url: `/task/${taskId}/status`,
-    method: "get",
-  })
-}
-
-export function listTasks() {
-  return request({
-    url: "/tasks",
     method: "get",
   })
 }
