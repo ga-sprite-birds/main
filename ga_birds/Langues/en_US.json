@@ -291,7 +291,11 @@
     "pydub_not_installed": "pydub is not installed; trying ffmpeg",
     "validate_failed": "TTS engine {engine} setup validation failed",
     "empty_text": "Text is empty; cannot generate audio",
-    "empty_audio": "TTS returned no audio data; empty file removed"
+    "empty_audio": "TTS returned no audio data; empty file removed",
+    "chunked": "Long text split into {count} chunks: {path} ({length} characters)",
+    "chunk_started": "Generating chunk: {path} ({current}/{total})",
+    "chunk_complete": "Chunk complete: {path} ({current}/{total})",
+    "chunk_retry": "Chunk failed (attempt {attempt}/{total}); retrying: {error}"
   },
   "parser": {
     "initialized": "Chapter parser initialized with {count} pattern(s)",
@@ -310,7 +314,11 @@
     "task_cancelled": "Task {task_id} cancelled",
     "pause_requested": "Task {task_id} received a pause request",
     "chapter_audio_deleted": "Task {task_id} chapter {index} audio deleted",
-    "audio_delete_failed": "Failed to delete audio file: {path}, error: {error}"
+    "audio_delete_failed": "Failed to delete audio file: {path}, error: {error}",
+    "record_restored": "Restored task record: {task_id}",
+    "record_load_failed": "Failed to load task record: {path}, error: {error}",
+    "record_save_failed": "Failed to save task record: {task_id}, error: {error}",
+    "record_delete_failed": "Failed to delete task record: {task_id}, error: {error}"
   },
   "sprite": {
     "manager_initialized": "Sprite manager initialized",

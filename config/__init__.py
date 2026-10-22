@@ -150,6 +150,19 @@ TTS_VOICE_CATALOG_CACHE = os.getenv(
     './cache/voices/edge_voices.json'
 )
 
+# TTS_CHUNK_MAX_CHARS: Maximum characters sent in one TTS request
+# Purpose: Long chapters are split into smaller chunks so a single stalled
+#          network request cannot block the whole chapter forever.
+TTS_CHUNK_MAX_CHARS = int(os.getenv('TTS_CHUNK_MAX_CHARS', '2000'))
+
+# TTS_CHUNK_TIMEOUT: Seconds to wait for one TTS chunk before timing out and retrying
+TTS_CHUNK_TIMEOUT = int(os.getenv('TTS_CHUNK_TIMEOUT', '180'))
+
+# TASK_CACHE_DIR: Directory for persisted task records
+# Purpose: Tasks are kept as readable JSON files so they survive a restart.
+#          The record is deleted automatically once the task completes.
+TASK_CACHE_DIR = os.getenv('TASK_CACHE_DIR', './cache/tasks')
+
 # ========== Chapter configuration ==========
 
 # CHAPTER_REGEX_PATTERNS: Chapter recognition regular expressions

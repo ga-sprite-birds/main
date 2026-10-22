@@ -4,7 +4,12 @@ Global pytest configuration and fixtures
 
 import pytest
 import asyncio
+import os
+import tempfile
 from pathlib import Path
+
+# Keep persisted task records out of the real cache while running tests
+os.environ.setdefault("TASK_CACHE_DIR", tempfile.mkdtemp(prefix="ga_sprite_tasks_"))
 
 # Test data directory
 TEST_ROOT = Path(__file__).parent

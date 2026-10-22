@@ -291,7 +291,11 @@
     "pydub_not_installed": "pydub 未安装，尝试使用 ffmpeg",
     "validate_failed": "TTS 引擎 {engine} 设置验证失败",
     "empty_text": "文本为空，无法生成音频",
-    "empty_audio": "TTS 未返回音频数据，已删除空文件"
+    "empty_audio": "TTS 未返回音频数据，已删除空文件",
+    "chunked": "长文本已切分为 {count} 个分片生成: {path}（共 {length} 字符）",
+    "chunk_started": "分片生成中: {path}（{current}/{total}）",
+    "chunk_complete": "分片生成完成: {path}（{current}/{total}）",
+    "chunk_retry": "分片生成失败（第 {attempt}/{total} 次），稍后重试: {error}"
   },
   "parser": {
     "initialized": "章节解析器初始化完成，正则模式数: {count}",
@@ -310,7 +314,11 @@
     "task_cancelled": "任务 {task_id} 已取消",
     "pause_requested": "任务 {task_id} 收到暂停请求",
     "chapter_audio_deleted": "任务 {task_id} 章节 {index} 音频已删除",
-    "audio_delete_failed": "删除音频文件失败: {path}, 错误: {error}"
+    "audio_delete_failed": "删除音频文件失败: {path}, 错误: {error}",
+    "record_restored": "已恢复任务记录: {task_id}",
+    "record_load_failed": "任务记录加载失败: {path}, 错误: {error}",
+    "record_save_failed": "任务记录保存失败: {task_id}, 错误: {error}",
+    "record_delete_failed": "任务记录删除失败: {task_id}, 错误: {error}"
   },
   "sprite": {
     "manager_initialized": "角色管理器初始化完成",

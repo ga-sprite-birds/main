@@ -4,15 +4,17 @@ Microsoft Edge TTS API implementation
 """
 
 import os
+import re
+import asyncio
 import uuid
-from typing import Optional
+from typing import Optional, List
 import edge_tts
 from loguru import logger
 
 import config
 from ga_birds.Common.i18n import t
 from .base import BaseTTSEngine
-from ga_birds.Utils.retry_utils import NonRetryableError, tts_retry
+from ga_birds.Utils.retry_utils import NonRetryableError
 
 
 class EdgeTTSEngine(BaseTTSEngine):
@@ -30,7 +32,6 @@ class EdgeTTSEngine(BaseTTSEngine):
         
         logger.info(t("tts.edge_engine_initialized", voice=self.default_voice))
 
-    @tts_retry
     async def generate(
         self,
         text: str,
@@ -76,17 +77,41 @@ class EdgeTTSEngine(BaseTTSEngine):
         self._log_generation_start(output_path, voice, rate, len(text))
 
         try:
-            # Create TTS communication object
-            communicate = edge_tts.Communicate(
-                text=text,
-                voice=voice,
-                rate=self._format_rate(rate),
-                volume=self._format_volume(volume),
-                pitch=self._format_pitch(pitch),
-            )
+            # Split long chapters so one stalled request cannot hang everything
+            chunks = self._split_text(text, config.TTS_CHUNK_MAX_CHARS)
+            total_chunks = len(chunks)
+            if total_chunks > 1:
+                logger.info(t(
+                    "tts.chunked",
+                    path=output_path,
+                    count=total_chunks,
+                    length=len(text)
+                ))
 
             # Write to a temporary file first; only publish it when complete
-            await communicate.save(str(temp_path))
+            with temp_path.open("wb") as handle:
+                for order, chunk in enumerate(chunks, 1):
+                    if total_chunks > 1:
+                        logger.info(t(
+                            "tts.chunk_started",
+                            path=output_path,
+                            current=order,
+                            total=total_chunks
+                        ))
+
+                    audio = await self._synthesize_chunk(
+                        chunk, voice, rate, volume, pitch
+                    )
+                    handle.write(audio)
+                    handle.flush()
+
+                    if total_chunks > 1:
+                        logger.info(t(
+                            "tts.chunk_complete",
+                            path=output_path,
+                            current=order,
+                            total=total_chunks
+                        ))
 
             if not temp_path.exists() or temp_path.stat().st_size == 0:
                 raise RuntimeError(t("tts.empty_audio"))
@@ -100,6 +125,110 @@ class EdgeTTSEngine(BaseTTSEngine):
         finally:
             if temp_path.exists():
                 temp_path.unlink(missing_ok=True)
+
+    async def _synthesize_chunk(
+        self,
+        text: str,
+        voice: str,
+        rate: float,
+        volume: float,
+        pitch: int,
+    ) -> bytes:
+        """
+        Synthesize one text chunk with a hard timeout and visible retries.
+
+        Args:
+            text: chunk text
+            voice: voice name
+            rate: speech rate multiplier
+            volume: volume multiplier
+            pitch: pitch offset in Hz
+
+        Returns:
+            raw MP3 bytes for this chunk
+        """
+        attempts = 5
+        last_error = None
+
+        for attempt in range(1, attempts + 1):
+            communicate = edge_tts.Communicate(
+                text=text,
+                voice=voice,
+                rate=self._format_rate(rate),
+                volume=self._format_volume(volume),
+                pitch=self._format_pitch(pitch),
+            )
+            audio = bytearray()
+
+            async def collect():
+                async for chunk in communicate.stream():
+                    if chunk["type"] == "audio":
+                        audio.extend(chunk["data"])
+
+            try:
+                await asyncio.wait_for(collect(), timeout=config.TTS_CHUNK_TIMEOUT)
+
+                if not audio:
+                    raise RuntimeError(t("tts.empty_audio"))
+
+                return bytes(audio)
+            except asyncio.CancelledError:
+                raise
+            except Exception as error:
+                last_error = error
+                logger.warning(t(
+                    "tts.chunk_retry",
+                    attempt=attempt,
+                    total=attempts,
+                    error=error
+                ))
+                if attempt < attempts:
+                    await asyncio.sleep(min(30, 2 ** (attempt - 1)))
+
+        raise last_error
+
+    @staticmethod
+    def _split_text(text: str, max_chars: int) -> List[str]:
+        """
+        Split text into chunks at sentence boundaries.
+
+        Args:
+            text: full text
+            max_chars: maximum characters per chunk
+
+        Returns:
+            list of text chunks
+        """
+        text = text.strip()
+        if len(text) <= max_chars:
+            return [text]
+
+        sentences = re.split(r"(?<=[。！？!?；;])", text)
+        chunks = []
+        buffer = ""
+
+        for sentence in sentences:
+            if not sentence:
+                continue
+
+            # Hard-split a single oversized sentence
+            while len(sentence) > max_chars:
+                if buffer:
+                    chunks.append(buffer)
+                    buffer = ""
+                chunks.append(sentence[:max_chars])
+                sentence = sentence[max_chars:]
+
+            if buffer and len(buffer) + len(sentence) > max_chars:
+                chunks.append(buffer)
+                buffer = sentence
+            else:
+                buffer += sentence
+
+        if buffer.strip():
+            chunks.append(buffer)
+
+        return chunks or [text]
 
     def validate_setup(self) -> bool:
         """

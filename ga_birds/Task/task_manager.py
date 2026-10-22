@@ -7,6 +7,7 @@ Dev team: Tiger
 """
 
 import os
+import json
 import uuid
 import asyncio
 import importlib
@@ -14,6 +15,7 @@ from enum import Enum
 from dataclasses import dataclass, field
 from typing import Optional, Dict, List, Any
 from datetime import datetime
+from pathlib import Path
 
 from loguru import logger
 
@@ -70,13 +72,16 @@ class Task:
 class TaskManager:
     """Task manager"""
 
-    def __init__(self):
+    def __init__(self, persist: bool = True):
         """Initialize the task manager"""
         self.tasks: Dict[str, Task] = {}
         self.max_concurrent_tasks = config.TASK_MAX_CONCURRENT
         self.running_tasks: Dict[str, asyncio.Task] = {}
+        self.persist = persist
+        self.record_dir = Path(config.TASK_CACHE_DIR)
 
         logger.info(t("task.manager_initialized", count=self.max_concurrent_tasks))
+        self._load_records()
     
     def create_task(
         self,
@@ -113,6 +118,7 @@ class TaskManager:
         
         self.tasks[task_id] = task
         logger.info(t("task.task_created", task_id=task_id, count=task.total_chapters))
+        self._save_record(task_id)
         
         return task_id
     
@@ -146,6 +152,7 @@ class TaskManager:
                 task.completed_at = datetime.now()
             
             logger.info(t("task.task_status_updated", task_id=task_id, status=status.value))
+            self._save_record(task_id)
     
     def update_chapter_status(
         self,
@@ -195,6 +202,7 @@ class TaskManager:
                 if status == TaskStatus.COMPLETED:
                     logger.info(t("task.chapter_completed", task_id=task_id, index=chapter_index, title=chapter.title))
 
+                self._save_record(task_id)
                 break
     
     def get_chapter_audio(self, task_id: str, chapter_index: int) -> Optional[str]:
@@ -275,6 +283,8 @@ class TaskManager:
             if chapter.status == TaskStatus.PENDING:
                 chapter.status = TaskStatus.PAUSED
 
+        self._save_record(task_id)
+
     def delete_chapter_audio(
         self,
         task_id: str,
@@ -317,6 +327,7 @@ class TaskManager:
             )
 
             logger.info(t("task.chapter_audio_deleted", task_id=task_id, index=chapter_index))
+            self._save_record(task_id)
             return True
 
         return False
@@ -344,7 +355,140 @@ class TaskManager:
         logger.info(t("task.task_cancelled", task_id=task_id))
         
         return True
-    
+
+    def save_task(self, task_id: str) -> None:
+        """Persist the current task state after external changes."""
+        self._save_record(task_id)
+
+    def _record_path(self, task_id: str) -> Path:
+        return self.record_dir / f"{task_id}.json"
+
+    @staticmethod
+    def _iso(value: Optional[datetime]) -> Optional[str]:
+        return value.isoformat() if value else None
+
+    def _serialize_record(self, task: Task) -> Dict[str, Any]:
+        """Build a JSON-safe snapshot of the task."""
+        return {
+            "task_id": task.task_id,
+            "status": task.status.value if hasattr(task.status, "value") else task.status,
+            "total_chapters": task.total_chapters,
+            "completed_chapters": task.completed_chapters,
+            "error": task.error,
+            "created_at": self._iso(task.created_at),
+            "started_at": self._iso(task.started_at),
+            "completed_at": self._iso(task.completed_at),
+            "metadata": task.metadata,
+            "chapters": [
+                {
+                    "index": chapter.index,
+                    "title": chapter.title,
+                    "status": chapter.status.value if hasattr(chapter.status, "value") else chapter.status,
+                    "audio_path": chapter.audio_path,
+                    "error": chapter.error,
+                    "started_at": self._iso(chapter.started_at),
+                    "completed_at": self._iso(chapter.completed_at),
+                }
+                for chapter in task.chapters
+            ],
+        }
+
+    def _save_record(self, task_id: str) -> None:
+        """Write the task record atomically; remove it once the task completes."""
+        if not self.persist:
+            return
+
+        task = self.get_task(task_id)
+        if not task:
+            return
+
+        if task.status == TaskStatus.COMPLETED:
+            self._delete_record(task_id)
+            return
+
+        try:
+            self.record_dir.mkdir(parents=True, exist_ok=True)
+            path = self._record_path(task_id)
+            temp_path = path.with_suffix(".json.tmp")
+            temp_path.write_text(
+                json.dumps(self._serialize_record(task), ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            os.replace(temp_path, path)
+        except (OSError, TypeError) as error:
+            logger.warning(t("task.record_save_failed", task_id=task_id, error=error))
+
+    def _delete_record(self, task_id: str) -> None:
+        """Remove a task record from disk."""
+        if not self.persist:
+            return
+
+        try:
+            self._record_path(task_id).unlink(missing_ok=True)
+        except OSError as error:
+            logger.warning(t("task.record_delete_failed", task_id=task_id, error=error))
+
+    def _load_records(self) -> None:
+        """Restore tasks from the cache directory on startup."""
+        if not self.persist or not self.record_dir.is_dir():
+            return
+
+        for path in sorted(self.record_dir.glob("*.json")):
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+                task = self._deserialize_record(data)
+            except Exception as error:
+                logger.warning(t("task.record_load_failed", path=path, error=error))
+                continue
+
+            if task.status == TaskStatus.COMPLETED:
+                path.unlink(missing_ok=True)
+                continue
+
+            # A restart kills running jobs; resume from the last finished chapter
+            if task.status == TaskStatus.GENERATING:
+                for chapter in task.chapters:
+                    if chapter.status == TaskStatus.GENERATING:
+                        chapter.status = TaskStatus.PENDING
+                        chapter.started_at = None
+                task.status = TaskStatus.PAUSED
+
+            task.pause_requested = False
+            self.tasks[task.task_id] = task
+            logger.info(t("task.record_restored", task_id=task.task_id))
+            self._save_record(task.task_id)
+
+    def _deserialize_record(self, data: Dict[str, Any]) -> Task:
+        """Rebuild a task object from a saved record."""
+        def parse_time(value):
+            return datetime.fromisoformat(value) if value else None
+
+        chapters = [
+            ChapterProgress(
+                index=item.get("index"),
+                title=item.get("title") or "",
+                status=TaskStatus(item.get("status") or TaskStatus.PENDING.value),
+                audio_path=item.get("audio_path"),
+                error=item.get("error"),
+                started_at=parse_time(item.get("started_at")),
+                completed_at=parse_time(item.get("completed_at")),
+            )
+            for item in data.get("chapters", [])
+        ]
+
+        return Task(
+            task_id=data["task_id"],
+            status=TaskStatus(data.get("status") or TaskStatus.PENDING.value),
+            total_chapters=data.get("total_chapters", len(chapters)),
+            completed_chapters=data.get("completed_chapters", 0),
+            chapters=chapters,
+            error=data.get("error"),
+            created_at=parse_time(data.get("created_at")) or datetime.now(),
+            started_at=parse_time(data.get("started_at")),
+            completed_at=parse_time(data.get("completed_at")),
+            metadata=data.get("metadata") or {},
+        )
+
     def get_task_progress(self, task_id: str) -> Dict[str, Any]:
         """
         Get task progress
