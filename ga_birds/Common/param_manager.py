@@ -26,6 +26,7 @@ class ParamManager:
         'rate': ('TTS_RATE', float),
         'volume': ('TTS_VOLUME', float),
         'pitch': ('TTS_PITCH', int),
+        'prosody_mode': ('TTS_PROSODY_MODE', str),
 
         # Multi-character voice related
         'multi_voice': ('ENABLE_MULTI_VOICE', bool),

@@ -55,6 +55,7 @@ def test_upload_sanitizes_client_filename():
     saved_name = Path(task.metadata["file_path"]).name
     assert ".." not in saved_name
     assert saved_name.endswith("_evil.md")
+    assert task.metadata["source_name"] == "evil.md"
 
 
 @pytest.mark.unit
@@ -96,6 +97,44 @@ def test_generate_rejects_invalid_rate(sample_text_file):
         json={"task_id": task_id, "chapter_indexes": [1], "rate": 9}
     )
     assert response.status_code == 400
+
+
+@pytest.mark.unit
+def test_generate_rejects_invalid_prosody_mode(sample_text_file):
+    task_id = _create_parsed_task(sample_text_file)
+    response = client.post(
+        "/generate",
+        json={
+            "task_id": task_id,
+            "chapter_indexes": [1],
+            "prosody_mode": "dramatic",
+        }
+    )
+    assert response.status_code == 400
+
+
+@pytest.mark.unit
+def test_delete_task_clears_task_and_generated_files(sample_text_file, tmp_path):
+    task_id = _create_parsed_task(sample_text_file)
+    task = api_module.task_manager.get_task(task_id)
+    source_path = Path(task.metadata["file_path"])
+
+    audio_path = tmp_path / "001.mp3"
+    text_path = tmp_path / "001.txt"
+    audio_path.write_bytes(b"audio")
+    text_path.write_text("text", encoding="utf-8")
+    task.chapters[0].audio_path = str(audio_path)
+
+    response = client.delete(f"/task/{task_id}")
+
+    assert response.status_code == 200
+    assert api_module.task_manager.get_task(task_id) is None
+    assert not audio_path.exists()
+    assert not text_path.exists()
+    assert not api_module.task_manager._record_path(task_id).exists()
+    assert client.get(f"/task/{task_id}/status").status_code == 404
+    # Clearing a task must not delete the user's uploaded source file.
+    assert source_path.exists()
 
 
 @pytest.mark.unit

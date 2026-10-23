@@ -328,6 +328,31 @@ class TaskManager:
 
         return False
 
+    def delete_task(self, task_id: str, delete_files: bool = True) -> bool:
+        """
+        Delete a whole task, its generated audio, and its persisted record.
+
+        Uploaded source files are intentionally kept; they may be the user's
+        original book and are not owned by the task record.
+        """
+        task = self.get_task(task_id)
+        if not task:
+            return False
+
+        running = self.running_tasks.pop(task_id, None)
+        if running and not running.done():
+            running.cancel()
+
+        if delete_files:
+            for chapter in task.chapters:
+                if chapter.audio_path:
+                    self._remove_chapter_files(chapter.audio_path)
+
+        self.tasks.pop(task_id, None)
+        self._delete_record(task_id)
+        logger.info(t("task.task_deleted", task_id=task_id))
+        return True
+
     @staticmethod
     def _remove_chapter_files(audio_path: str) -> None:
         """Remove the audio file and its sibling text exports."""

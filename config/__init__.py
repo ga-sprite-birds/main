@@ -151,6 +151,20 @@ TTS_CHUNK_MAX_CHARS = int(os.getenv('TTS_CHUNK_MAX_CHARS', '2000'))
 # TTS_CHUNK_TIMEOUT: Seconds to wait for one TTS chunk before timing out and retrying
 TTS_CHUNK_TIMEOUT = int(os.getenv('TTS_CHUNK_TIMEOUT', '180'))
 
+# TTS_PROSODY_MODE: Punctuation-based pauses and lightweight tone changes
+# Purpose: Edge TTS only accepts plain text, so pauses are added by
+#          synthesizing sentence-sized units and inserting silence.
+# Allowed values:
+#   off      - original behaviour, one request per chapter (default)
+#   pause    - split at sentence boundaries and insert silence
+#   prosody  - pause mode plus subtle question/exclamation/ellipsis changes
+TTS_PROSODY_MODE = os.getenv('TTS_PROSODY_MODE', 'off').strip().lower()
+
+# TTS_PROSODY_MAX_UNIT_CHARS: Maximum characters per prosody unit
+# Purpose: Smaller units give more precise pauses but require more TTS calls.
+# Recommendation: 120-300
+TTS_PROSODY_MAX_UNIT_CHARS = int(os.getenv('TTS_PROSODY_MAX_UNIT_CHARS', '120'))
+
 # ========== Chapter configuration ==========
 
 # CHAPTER_REGEX_PATTERNS: Chapter recognition regular expressions
@@ -207,12 +221,13 @@ TEXT_PREPROCESSING_ENABLED = os.getenv('TEXT_PREPROCESSING_ENABLED', 'true').low
 
 # ========== Output configuration ==========
 
-# OUTPUT_BASE_PATH: Output base path
-# Purpose: Output directory for audio files
+# OUTPUT_BASE_PATH: Output root
+# Purpose: Root directory for audio files. Each source filename (without its
+#          extension) is appended as a subdirectory.
 OUTPUT_BASE_PATH = os.getenv('OUTPUT_BASE_PATH', './output')
 
 # OUTPUT_STRATEGY: Output strategy
-# Purpose: Controls how the output directory is organized
+# Purpose: Controls the subdirectory layout below the per-source directory
 # Allowed values: by_role (by character), by_model (by model), by_date (by date)
 OUTPUT_STRATEGY = os.getenv('OUTPUT_STRATEGY', 'by_role')
 
@@ -231,6 +246,19 @@ OUTPUT_BITRATE = int(os.getenv('OUTPUT_BITRATE', '128'))
 # Purpose: Controls the naming format of output files
 # Supported variables: {index}, {title}, {role}, {date}, {format}
 OUTPUT_FILENAME_TEMPLATE = os.getenv('OUTPUT_FILENAME_TEMPLATE', '{index:03d}-{title}.{format}')
+
+# OUTPUT_FRONT_MATTER_MARKERS: Titles treated as front matter
+# Purpose: Front-matter chapters use the 000 prefix and a normalized label.
+# Format: comma-separated title prefixes, e.g. "导读,前言,序言,引言"
+# Set to an empty value to disable front-matter handling.
+OUTPUT_FRONT_MATTER_MARKERS = [
+    item.strip()
+    for item in os.getenv(
+        'OUTPUT_FRONT_MATTER_MARKERS',
+        '导读,前言'
+    ).split(',')
+    if item.strip()
+]
 
 # OUTPUT_KEEP_TEMP_FILES: Keep temporary files
 # Purpose: Whether to keep temporary files generated during processing

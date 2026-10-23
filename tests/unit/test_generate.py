@@ -122,6 +122,34 @@ def test_generate_with_custom_voice(sample_text_file):
 
 
 @pytest.mark.unit
+def test_generate_stores_prosody_mode(sample_text_file, monkeypatch):
+    """The selected pause/tone mode is passed through and saved for resume."""
+    captured = {}
+
+    def fake_launch(task, **kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr(api_module, "_launch_generation", fake_launch)
+
+    upload_response = client.post(
+        "/upload",
+        params={"path": str(sample_text_file)}
+    )
+    task_id = upload_response.json()["task_id"]
+    client.post("/parse", json={"task_id": task_id})
+
+    response = client.post(
+        "/generate",
+        json={"task_id": task_id, "prosody_mode": "pause"}
+    )
+
+    assert response.status_code == 200
+    assert captured["prosody_mode"] == "pause"
+    task = api_module.task_manager.get_task(task_id)
+    assert task.metadata["generation"]["prosody_mode"] == "pause"
+
+
+@pytest.mark.unit
 def test_generate_disable_llm(sample_text_file):
     """Test disabling the LLM"""
     # Upload and parse

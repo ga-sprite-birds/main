@@ -47,3 +47,4 @@ def test_root_response_structure():
     assert isinstance(data["name"], str)
     assert isinstance(data["version"], str)
     assert isinstance(data["status"], str)
+    assert data["defaults"]["prosody_mode"] in {"off", "pause", "prosody"}

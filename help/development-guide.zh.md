@@ -152,7 +152,8 @@ content = preprocess_text(content, remove_extra_newlines=True)
 |------|------|------|
 | TTSManager | `tts_manager.py` | TTS 引擎管理（当前版本使用 Edge TTS） |
 | AudioExporter | `audio_exporter.py` | 音频导出路径管理 |
-| AudioMerger | `audio_merger.py` | 音频合并（多角色模式） |
+| AudioMerger | `audio_merger.py` | 音频合并与静音插入 |
+| prosody | `prosody.py` | 按标点切分、插入停顿、轻微语气调整 |
 | chapter_generator | `chapter_generator.py` | 单角色章节共享流程（LLM、片头片尾、文本、TTS、重名处理） |
 | Engines | `engines/` | TTS 引擎实现 |
 
@@ -403,6 +404,8 @@ TTS_VOICE=zh-CN-XiaoxiaoNeural  # 默认音色
 TTS_RATE=1.0                    # 语速
 TTS_CHUNK_MAX_CHARS=2000        # 长文本分块大小（按句子边界）
 TTS_CHUNK_TIMEOUT=180           # 单个分块超时（秒）
+TTS_PROSODY_MODE=off            # off / pause / prosody
+TTS_PROSODY_MAX_UNIT_CHARS=120  # 每个停顿单元的最大字符数
 OUTPUT_BITRATE=192              # 输出比特率
 
 # ===== LLM 配置 =====

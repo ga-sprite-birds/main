@@ -44,6 +44,7 @@ export function generateAudio(taskId, options = {}) {
       output_path: options.outputPath || undefined,
       enable_llm: options.enableLlm,
       rate: options.rate,
+      prosody_mode: options.prosodyMode || undefined,
       language: options.language,
       chapter_indexes: options.chapterIndexes || undefined,
     },
@@ -71,12 +72,23 @@ export function deleteChapterAudio(taskId, chapterIndex) {
   })
 }
 
+export function clearAudioTask(taskId) {
+  return request({
+    url: `/task/${taskId}`,
+    method: "delete",
+    // The view handles 404 and other clear failures with a friendly message.
+    silent: true,
+  })
+}
+
 export function getTaskStatus(taskId, options = {}) {
   return request({
     url: `/task/${taskId}/status`,
     method: "get",
     // Bypass any HTTP cache so a deleted chapter cannot reappear.
     params: { _: Date.now() },
+    // A chapter merge can block briefly; do not abandon polling on that.
+    timeout: 120000,
     silent: options.silent,
   })
 }

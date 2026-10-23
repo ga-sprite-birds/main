@@ -6,12 +6,12 @@ ChapterParser can rely on a single, stable chapter format instead of adding
 per-article regular expressions.
 
 Supported input formats (examples):
-    **第一章** **世界新秩序**   ->  第一章 世界新秩序
-    ## 第一章 世界新秩序         ->  第一章 世界新秩序
+    **第一章** **示例标题**   ->  第一章 示例标题
+    ## 第一章 示例标题         ->  第一章 示例标题
     ### 第一节 小节              ->  第一节 小节
-    第一章 世界新秩序            ->  第一章 世界新秩序 (unchanged)
+    第一章 示例标题            ->  第一章 示例标题 (unchanged)
 
-Body text that merely starts with a chapter marker, e.g. "第三回合谈判...",
+Body text that merely starts with a chapter marker, e.g. "第三回合的比赛...",
 is left untouched.
 
 Version: v1.0
@@ -28,7 +28,7 @@ from ga_birds.Common.i18n import t
 _CHAPTER_MARKER = r'第\s*[零一二三四五六七八九十百千万0-9]+\s*[章回卷节]'
 
 # A chapter heading must not be followed directly by a Chinese character,
-# otherwise text like "第三回合谈判" would be misdetected as a chapter.
+# otherwise text like "第三回合的比赛" would be misdetected as a chapter.
 _CHAPTER_HEAD = re.compile(rf'^{_CHAPTER_MARKER}(?![\u4e00-\u9fff])')
 
 # Markdown heading marks (# ## ...) at the beginning of a line

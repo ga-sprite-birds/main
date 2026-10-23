@@ -115,8 +115,8 @@ class DialogueParser:
         Returns:
             dialogue segment list, format:
             [
-                {"text": "二叔走了过来，说：", "speaker": "narrator"},
-                {"text": "你去哪里？", "speaker": "二叔"},
+                {"text": "角色E走了过来，说：", "speaker": "narrator"},
+                {"text": "你去哪里？", "speaker": "角色E"},
                 ...
             ]
         """
@@ -224,7 +224,7 @@ class DialogueParser:
 {{
   "segments": [
     {{
-      "text": "二叔走了过来，说：",
+      "text": "角色E走了过来，说：",
       "speaker": "narrator",
       "segment_type": "narration",
       "language": "zh",
@@ -234,7 +234,7 @@ class DialogueParser:
     }},
     {{
       "text": "你去哪里？",
-      "speaker": "二叔",
+      "speaker": "角色E",
       "segment_type": "dialogue",
       "language": "zh",
       "emotion": "serious",
@@ -242,7 +242,7 @@ class DialogueParser:
       "tts_params": {{"rate": 1.02, "pitch": -1, "volume": 1.02}}
     }},
     {{
-      "text": "老爸回答：",
+      "text": "角色B回答：",
       "speaker": "narrator",
       "segment_type": "narration",
       "language": "zh",
@@ -252,7 +252,7 @@ class DialogueParser:
     }},
     {{
       "text": "我去买菜。",
-      "speaker": "老爸",
+      "speaker": "角色B",
       "segment_type": "dialogue",
       "language": "zh",
       "emotion": "calm",

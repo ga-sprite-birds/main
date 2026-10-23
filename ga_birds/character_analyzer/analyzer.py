@@ -267,26 +267,26 @@ Return format (must be valid JSON):
 {{
   "characters": [
     {{
-      "name": "陈长生",
-      "aliases": ["长生", "陈某"],
+      "name": "角色A",
+      "aliases": ["A", "A某"],
       "gender": "male",
       "personality": ["冷静", "理智", "善良"],
       "profile": {{
         "age_group": "adult",
-        "occupation": "修行者",
+        "occupation": "unknown",
         "region_hint": "unknown",
         "accent_preference": "unknown",
         "speech_style": ["简洁", "温和"]
       }}
     }},
     {{
-      "name": "徐有容",
-      "aliases": ["有容", "徐姑娘"],
+      "name": "角色B",
+      "aliases": ["B", "B姑娘"],
       "gender": "female",
       "personality": ["高傲", "强大", "美丽"],
       "profile": {{
         "age_group": "adult",
-        "occupation": "修行者",
+        "occupation": "unknown",
         "region_hint": "unknown",
         "accent_preference": "unknown",
         "speech_style": ["冷静", "礼貌"]
@@ -373,8 +373,8 @@ Return format (must be valid JSON):
 
 返回格式（必须是有效的 JSON）：
 {{
-  "陈洪德": {{
-    "aliases": ["洪德", "小洪德"],
+  "角色A": {{
+    "aliases": ["A", "小A"],
     "personality": ["善良", "勇敢", "热血"],
     "profile": {{
       "age_group": "adult",
@@ -384,8 +384,8 @@ Return format (must be valid JSON):
       "speech_style": ["直接", "热情"]
     }}
   }},
-  "老爸": {{
-    "aliases": ["父亲", "老子"],
+  "角色B": {{
+    "aliases": ["父亲", "B"],
     "personality": ["严厉", "关心", "传统"],
     "profile": {{
       "age_group": "adult",

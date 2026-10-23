@@ -56,7 +56,7 @@ class CharacterMerger:
 {character_list_str}
 
 要求：
-1. 识别可能是同一个人的角色（如"洪德"和"陈洪德"、"老爸"和"父亲"）
+1. 识别可能是同一个人的角色（如"A"和"角色A"、"B"和"角色B"）
 2. 对于每组重复角色，选择最完整的名字作为主名称
 3. 返回合并建议的 JSON 格式
 
@@ -64,14 +64,14 @@ class CharacterMerger:
 {{
   "merge_groups": [
     {{
-      "primary_name": "陈洪德",
-      "duplicate_names": ["洪德", "小洪德"],
-      "reason": "都是指同一个人，陈洪德是完整名字"
+      "primary_name": "角色A",
+      "duplicate_names": ["A", "小A"],
+      "reason": "都是指同一个人，角色A是完整名字"
     }},
     {{
-      "primary_name": "老爸",
-      "duplicate_names": ["父亲"],
-      "reason": "都是指陈洪德的父亲"
+      "primary_name": "角色B",
+      "duplicate_names": ["B"],
+      "reason": "都是指同一个角色"
     }}
   ]
 }}

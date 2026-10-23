@@ -67,6 +67,71 @@ class AudioMerger:
             logger.error(t("audio.merge_failed", error=e))
             return False
 
+    def merge_audio_files_with_pauses(
+        self,
+        audio_files: List[str],
+        output_path: str,
+        pauses_after: List[int],
+    ) -> bool:
+        """
+        Merge audio files and insert silence after each segment.
+
+        Args:
+            audio_files: list of audio file paths
+            output_path: output file path
+            pauses_after: pause in milliseconds after each audio file
+
+        Returns:
+            whether successful
+        """
+        if not audio_files:
+            return False
+
+        try:
+            from pydub import AudioSegment
+
+            logger.info(t("audio.merge_start", count=len(audio_files)))
+            Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+
+            combined = (
+                AudioSegment.from_file(audio_files[0])
+                .set_frame_rate(24000)
+                .set_channels(1)
+            )
+
+            for index, audio_file in enumerate(audio_files):
+                if index > 0:
+                    segment = (
+                        AudioSegment.from_file(audio_file)
+                        .set_frame_rate(combined.frame_rate)
+                        .set_channels(combined.channels)
+                    )
+                    combined += segment
+
+                pause = pauses_after[index] if index < len(pauses_after) else 0
+                if pause > 0:
+                    combined += AudioSegment.silent(
+                        duration=int(pause),
+                        frame_rate=combined.frame_rate,
+                    ).set_channels(combined.channels)
+
+            output_format = Path(output_path).suffix[1:]
+            bitrate = f"{config.OUTPUT_BITRATE}k"
+            combined.export(output_path, format=output_format, bitrate=bitrate)
+
+            logger.debug(
+                t("audio.merge_export_params", format=output_format, bitrate=bitrate)
+            )
+            logger.info(t("audio.merge_complete", path=output_path))
+            return True
+
+        except ImportError:
+            logger.error(t("tts.pydub_not_installed"))
+            return False
+        except Exception as e:
+            logger.error(t("audio.merge_failed", error=e))
+            return False
+
     def _merge_with_ffmpeg(self, audio_files: List[str], output_path: str) -> bool:
         """
         Merge audio using ffmpeg (fallback method)

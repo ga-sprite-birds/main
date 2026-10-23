@@ -71,10 +71,10 @@
 
 ```bash
 # 分析整本小说
-bash cli.sh -i debug/六相全功-utf8.txt --analyze-characters
+bash cli.sh -i input.txt --analyze-characters
 
 # 分析指定章节范围
-bash cli.sh -i debug/六相全功-utf8.txt --analyze-characters --start 1 --end 10
+bash cli.sh -i input.txt --analyze-characters --start 1 --end 10
 ```
 
 **输出示例**：
@@ -88,23 +88,23 @@ bash cli.sh -i debug/六相全功-utf8.txt --analyze-characters --start 1 --end 
 
 开始分析角色...
 分析章节 1: 第一章
-  → 识别到 5 个角色: 陈洪德, 老爸, 爷爷, 二叔, 旁白
+  → 识别到 5 个角色: 角色A, 角色B, 角色C, 角色E, 旁白
 分析章节 2: 第二章
-  → 识别到 3 个角色: 陈洪德, 老爸, 王婶
+  → 识别到 3 个角色: 角色A, 角色B, 角色D
 
 ✓ 共识别 15 个角色
 
 正在检查并合并重复角色...
 开始分析重复角色...
 发现 2 组重复角色，开始合并...
-  合并: 洪德 → 陈洪德
-    原因: 都是指同一个人，陈洪德是完整名字
-  合并: 父亲 → 老爸
-    原因: 都是指陈洪德的父亲
+  合并: A → 角色A
+    原因: 都是指同一个人，角色A是完整名字
+  合并: 父亲 → 角色B
+    原因: 都是指角色A的父亲
 ✓ 合并完成：15 个角色 → 13 个角色
 
 为角色分配音色...
-✓ 角色配音模板已保存: cache/role/六相全功-utf8_characters.json
+✓ 角色配音模板已保存: cache/role/example_book_characters.json
 ```
 
 ---
@@ -123,12 +123,12 @@ bash cli.sh -i debug/六相全功-utf8.txt --analyze-characters --start 1 --end 
 # 性别可选值：male, female, unknown, narrator
 
 # 主要角色
-陈洪德 male
-老爸 male
-爷爷 male
+角色A male
+角色B male
+角色C male
 
 # 配角
-二叔 male
+角色E male
 
 # 特殊角色
 旁白 narrator
@@ -148,7 +148,7 @@ bash cli.sh -i debug/六相全功-utf8.txt --analyze-characters --start 1 --end 
 #### 步骤 2：运行混合模式分析
 
 ```bash
-bash cli.sh -i debug/六相全功-utf8.txt \
+bash cli.sh -i input.txt \
   --analyze-characters \
   --character-list characters.txt \
   --start 1 \
@@ -161,21 +161,21 @@ bash cli.sh -i debug/六相全功-utf8.txt \
 角色分析模式：混合模式
 ============================================================
 
-✓ 从角色列表文件读取 7 个角色: 陈洪德, 老爸, 爷爷, 二叔, 旁白, 其他
+✓ 从角色列表文件读取 7 个角色: 角色A, 角色B, 角色C, 角色E, 旁白, 其他
 
 开始分析角色...
 分析章节 1: 第一章
-  → 陈洪德: 别名 ['洪德', '小洪德']
-  → 老爸: 别名 ['父亲', '老子']
-  → 爷爷: 别名 ['老爷子']
+  → 角色A: 别名 ['A', '小A']
+  → 角色B: 别名 ['父亲', 'B']
+  → 角色C: 别名 ['C']
 分析章节 2: 第二章
-  → 陈洪德: 别名 ['德子']
-  → 二叔: 别名 ['二叔公']
+  → 角色A: 别名 ['小A']
+  → 角色E: 别名 ['E']
 
 ✓ 共识别 7 个角色
 
 为角色分配音色...
-✓ 角色配音模板已保存: cache/role/六相全功-utf8_characters.json
+✓ 角色配音模板已保存: cache/role/example_book_characters.json
 ```
 
 ---
@@ -183,7 +183,7 @@ bash cli.sh -i debug/六相全功-utf8.txt \
 #### 步骤 3：检查生成的模板
 
 ```bash
-cat cache/role/六相全功-utf8_characters.json
+cat cache/role/example_book_characters.json
 ```
 
 ---
@@ -191,7 +191,7 @@ cat cache/role/六相全功-utf8_characters.json
 #### 步骤 4：生成多角色配音
 
 ```bash
-bash cli.sh -i debug/六相全功-utf8.txt --multi-voice
+bash cli.sh -i input.txt --multi-voice
 ```
 
 ---
@@ -214,12 +214,12 @@ bash cli.sh -i debug/六相全功-utf8.txt --multi-voice
 
 1. **第一步**：用**智能分析模式**快速生成模板
    ```bash
-   bash cli.sh -i debug/六相全功-utf8.txt --analyze-characters --start 1 --end 5
+   bash cli.sh -i input.txt --analyze-characters --start 1 --end 5
    ```
 
 2. **第二步**：检查模板，发现重复角色或问题
    ```bash
-   cat cache/role/六相全功-utf8_characters.json
+   cat cache/role/example_book_characters.json
    ```
 
 3. **第三步**：创建角色列表文件，去除重复
@@ -229,12 +229,12 @@ bash cli.sh -i debug/六相全功-utf8.txt --multi-voice
 
 4. **第四步**：用**混合模式**重新分析，生成精确模板
    ```bash
-   bash cli.sh -i debug/六相全功-utf8.txt --analyze-characters --character-list characters.txt
+   bash cli.sh -i input.txt --analyze-characters --character-list characters.txt
    ```
 
 5. **第五步**：生成多角色配音
    ```bash
-   bash cli.sh -i debug/六相全功-utf8.txt --multi-voice
+   bash cli.sh -i input.txt --multi-voice
    ```
 
 ---
@@ -245,13 +245,13 @@ bash cli.sh -i debug/六相全功-utf8.txt --multi-voice
 
 ```json
 {
-  "novel_id": "六相全功-utf8",
-  "novel_title": "六相全功",
+  "novel_id": "example_book",
+  "novel_title": "示例书名",
   "total_characters": 5,
   "characters": [
     {
-      "name": "陈洪德",
-      "aliases": ["洪德", "小洪德", "德子"],
+      "name": "角色A",
+      "aliases": ["A", "小A", "小A"],
       "gender": "male",
       "voice": "zh-CN-YunxiNeural",
       "description": "",
@@ -261,11 +261,11 @@ bash cli.sh -i debug/六相全功-utf8.txt --multi-voice
       "last_chapter": 20
     },
     {
-      "name": "老爸",
-      "aliases": ["父亲", "老子"],
+      "name": "角色B",
+      "aliases": ["父亲", "B"],
       "gender": "male",
       "voice": "zh-CN-YunjianNeural",
-      "description": "陈洪德的父亲",
+      "description": "角色A的父亲",
       "personality": ["严厉", "关心", "传统"],
       "appearance_count": 32,
       "first_chapter": 1,
@@ -310,7 +310,7 @@ PERSONALITY_TAGS = {
 
 **示例**：
 ```python
-# 对话：陈洪德说："我一定要救他！"
+# 对话：角色A说："我一定要救他！"
 # 角色性格：["热血", "勇敢", "善良"]
 # → TTS 参数调整：语速 +10%，音调 +5%，情绪强度 +20%
 ```
@@ -395,25 +395,25 @@ CHAPTER_KEEP_TITLE=true
 
 1. **第一步**：用智能分析模式分析一遍
    ```bash
-   bash cli.sh -i debug/六相全功-utf8.txt --analyze-characters --start 1 --end 5
+   bash cli.sh -i input.txt --analyze-characters --start 1 --end 5
    ```
 
 2. **第二步**：查看生成的模板，找出主要角色
    ```bash
-   cat cache/role/六相全功-utf8_characters.json
+   cat cache/role/example_book_characters.json
    ```
 
 3. **第三步**：手动去重，创建角色列表文件
    ```bash
    # 创建 characters.txt
-   陈洪德 male
-   老爸 male
-   爷爷 male
+   角色A male
+   角色B male
+   角色C male
    ```
 
 4. **第四步**：用混合模式重新分析
    ```bash
-   bash cli.sh -i debug/六相全功-utf8.txt --analyze-characters --character-list characters.txt
+   bash cli.sh -i input.txt --analyze-characters --character-list characters.txt
    ```
 
 ---
@@ -426,7 +426,7 @@ CHAPTER_KEEP_TITLE=true
 
 1. **检测重复角色**：
    - LLM 分析所有识别到的角色
-   - 识别可能是同一个人的角色（如"洪德"和"陈洪德"）
+   - 识别可能是同一个人的角色（如"A"和"角色A"）
 
 2. **自动合并**：
    - 选择最完整的名字作为主名称
@@ -442,10 +442,10 @@ CHAPTER_KEEP_TITLE=true
 正在检查并合并重复角色...
 开始分析重复角色...
 发现 2 组重复角色，开始合并...
-  合并: 洪德 → 陈洪德
-    原因: 都是指同一个人，陈洪德是完整名字
-  合并: 父亲 → 老爸
-    原因: 都是指陈洪德的父亲
+  合并: A → 角色A
+    原因: 都是指同一个人，角色A是完整名字
+  合并: 父亲 → 角色B
+    原因: 都是指角色A的父亲
 ✓ 合并完成：15 个角色 → 13 个角色
 ```
 
@@ -484,7 +484,7 @@ CHAPTER_KEEP_TITLE=true
 
 **示例**：
 ```python
-# 对话：陈洪德说："我一定要救他！"
+# 对话：角色A说："我一定要救他！"
 # 角色性格：["热血", "勇敢", "善良"]
 
 # TTS 参数调整：
@@ -505,13 +505,13 @@ CHAPTER_KEEP_TITLE=true
 
 ```bash
 # 步骤 1：分析角色
-bash cli.sh -i debug/六相全功-utf8.txt --analyze-characters --start 1 --end 5
+bash cli.sh -i input.txt --analyze-characters --start 1 --end 5
 
 # 步骤 2：检查生成的模板
-cat cache/role/六相全功-utf8_characters.json
+cat cache/role/example_book_characters.json
 
 # 步骤 3：生成多角色配音
-bash cli.sh -i debug/六相全功-utf8.txt --multi-voice --start 1 --end 5
+bash cli.sh -i input.txt --multi-voice --start 1 --end 5
 ```
 
 **✅ 优点**：
@@ -530,10 +530,10 @@ bash cli.sh -i debug/六相全功-utf8.txt --multi-voice --start 1 --end 5
 # 步骤 1：创建角色列表
 cat > characters.txt << EOF
 # 主要角色
-陈洪德 male
-老爸 male
-爷爷 male
-二叔 male
+角色A male
+角色B male
+角色C male
+角色E male
 
 # 特殊角色
 旁白 narrator
@@ -541,15 +541,15 @@ cat > characters.txt << EOF
 EOF
 
 # 步骤 2：运行混合模式分析
-bash cli.sh -i debug/六相全功-utf8.txt \
+bash cli.sh -i input.txt \
   --analyze-characters \
   --character-list characters.txt
 
 # 步骤 3：检查生成的模板
-cat cache/role/六相全功-utf8_characters.json
+cat cache/role/example_book_characters.json
 
 # 步骤 4：生成多角色配音
-bash cli.sh -i debug/六相全功-utf8.txt --multi-voice
+bash cli.sh -i input.txt --multi-voice
 ```
 
 **✅ 优点**：
@@ -593,13 +593,13 @@ bash cli.sh -i debug/六相全功-utf8.txt --multi-voice
 
 ```bash
 # 1. 智能分析模式（快速测试）
-bash cli.sh -i debug/六相全功-utf8.txt --analyze-characters --start 1 --end 5
+bash cli.sh -i input.txt --analyze-characters --start 1 --end 5
 
 # 2. 混合模式（正式生产）
-bash cli.sh -i debug/六相全功-utf8.txt --analyze-characters --character-list characters.txt
+bash cli.sh -i input.txt --analyze-characters --character-list characters.txt
 
 # 3. 生成多角色配音
-bash cli.sh -i debug/六相全功-utf8.txt --multi-voice
+bash cli.sh -i input.txt --multi-voice
 ```
 
 ---

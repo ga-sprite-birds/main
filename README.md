@@ -16,6 +16,7 @@ GA Sprite Birds splits a text file into chapters, optionally rewrites each chapt
 | **LLM colloquialization** | Rewrite written text into natural speech | ✅ | ✅ | ✅ |
 | **Chapter splitting** | Detect chapter headings and generate separately | ✅ | ✅ | ✅ |
 | **Chapter selection** | Generate only checked chapters | ✅ | ✅ | ✅ |
+| **Punctuation pauses** | Sentence-level pauses and optional light tone | ✅ | ✅ | ✅ |
 | **Pause / resume** | Stop after the current chapter and continue later | ✅ | ❌ | ✅ |
 | **Task persistence** | Restore interrupted or paused tasks after a restart | ✅ | — | ✅ |
 | **Multilingual UI** | Chinese and English | ✅ | ✅ | ✅ |
@@ -111,10 +112,10 @@ npm run build    # writes ../index.html
 ## GUI workflow
 
 1. Drop one or more `.txt`, `.md`, or `.pdf` files into the upload area.
-2. Set the output directory and voice, then click **Parse**.
+2. Set the output root, voice, and pause/tone mode, then click **Parse**.
 3. Select the chapters to generate (all chapters are checked by default) and click **Start**.
 4. Use **Pause** to stop after the current chapter; use **Resume** to continue the remaining selected chapters.
-5. Completed chapters can be played or downloaded. **Delete** removes the chapter's audio and companion text files from disk after confirmation.
+5. Completed chapters can be played or downloaded. **Clear task** removes all chapter audio, companion text files, the parsed chapter list, and the task record after confirmation. Uploaded source files are kept; upload again to start over.
 
 Only the latest task is kept in the browser. Task records live in `cache/tasks/` and are deleted automatically when a task completes.
 
@@ -131,6 +132,9 @@ bash cli.sh -i input.txt
 # Choose a voice and speech rate (0.5-2.0)
 bash cli.sh -i input.txt --voice zh-CN-YunxiNeural --rate 1.2
 
+# Add punctuation pauses (pause) or pauses plus light tone (prosody)
+bash cli.sh -i input.txt --prosody pause
+
 # Skip LLM colloquialization (faster)
 bash cli.sh -i input.txt --no-llm
 
@@ -144,7 +148,7 @@ bash cli.sh -i input.txt -o ./my_output
 bash cli.sh -i input.txt --language en_US
 ```
 
-The CLI uses `ENABLE_MULTI_VOICE` from `.env`. If it is `true`, pass `--multi-voice false` for single-voice generation.
+The CLI uses `ENABLE_MULTI_VOICE` from `.env`. If it is `true`, pass `--multi-voice false` for single-voice generation. `--prosody` also applies to multi-character output.
 
 ### Multi-character voice
 
@@ -216,7 +220,7 @@ The API is intended for local use and has no authentication. Do not expose it di
 
 ### 1. Upload
 
-`file`, `path`, `output_path`, and `language` are query parameters; the file itself is multipart form data.
+`file`, `path`, `output_path`, and `language` are query parameters; the file itself is multipart form data. `output_path` is the output root; the source filename is appended as a subdirectory.
 
 ```bash
 # Upload a file
@@ -258,15 +262,16 @@ curl -X POST "http://localhost:8000/generate" \
     "task_id": "<id>",
     "chapter_indexes": [1, 2, 5],
     "rate": 1.2,
+    "prosody_mode": "prosody",
     "enable_llm": false
   }'
 ```
 
-`chapter_indexes` must be a non-empty list of existing chapter numbers when supplied. Omit it to generate all chapters. `enable_llm` defaults to `ENABLE_LLM` from `.env`; `rate` must be between `0.5` and `2.0`.
+`chapter_indexes` must be a non-empty list of existing chapter numbers when supplied. Omit it to generate all chapters. `enable_llm` defaults to `ENABLE_LLM` from `.env`; `rate` must be between `0.5` and `2.0`. `prosody_mode` is `off` (default), `pause`, or `prosody`; omit it to use `TTS_PROSODY_MODE` from `.env`.
 
 The API supports single-voice generation only. Use the CLI for multi-character voice generation.
 
-### 4. Status, pause, resume, delete
+### 4. Status, pause, resume, clear
 
 ```bash
 # Task progress and per-chapter status
@@ -281,27 +286,34 @@ curl -X POST "http://localhost:8000/task/<id>/resume"
 # Download a chapter
 curl "http://localhost:8000/task/<id>/chapter/1" --output chapter_1.mp3
 
-# Delete a chapter's audio and companion text files
+# Clear the whole task: parsed chapters, all audio, and the task record
+curl -X DELETE "http://localhost:8000/task/<id>"
+
+# Optional: delete only one chapter's audio and companion text files
 curl -X DELETE "http://localhost:8000/task/<id>/chapter/1"
 
 # API defaults and health
 curl "http://localhost:8000/api/status"
 ```
 
-Pausing finishes the current chapter first. Remaining chapters in the selected scope are marked `paused`; resuming treats them as pending. Task options and the selected chapter scope are persisted, so a paused task can be resumed after a service restart.
+Pausing finishes the current chapter first. Remaining chapters in the selected scope are marked `paused`; resuming treats them as pending. Task options and the selected chapter scope are persisted, so a paused task can be resumed after a service restart. Clearing a task removes its parsed chapter list, all generated audio, and the task record; the uploaded source file is kept.
 
 ### Output layout
 
-With the default `OUTPUT_STRATEGY=by_role`:
+Each source file gets its own directory under the output root, using the source filename without its extension. With the default `OUTPUT_STRATEGY=by_role`:
 
 ```text
 output/
-└── default/
+└── 示例书名/
     ├── 001-第一章.mp3
     ├── 001-第一章.txt
     ├── 002-第二章.mp3
     └── ...
 ```
+
+A custom output root still gets the source directory appended: `abc` becomes `abc/示例书名/`. Multi-character output uses `abc/示例书名/multi/`.
+
+Front-matter titles matching `OUTPUT_FRONT_MATTER_MARKERS` (default `导读,前言`) are written with a `000` prefix and a `<marker>篇` label. Later chapter numbers are not renumbered.
 
 ---
 
@@ -318,7 +330,10 @@ Copy `.env.example` to `.env`. The most useful settings:
 | `TTS_RATE` | `1.0` | Default speech rate |
 | `TTS_CHUNK_MAX_CHARS` | `2000` | Split long chapters into chunks at sentence boundaries |
 | `TTS_CHUNK_TIMEOUT` | `180` | Timeout per TTS chunk in seconds |
-| `OUTPUT_BASE_PATH` | `./output` | Output root |
+| `TTS_PROSODY_MODE` | `off` | `off`, `pause`, or `prosody` |
+| `TTS_PROSODY_MAX_UNIT_CHARS` | `120` | Maximum characters per pause unit; smaller means more requests |
+| `OUTPUT_BASE_PATH` | `./output` | Output root; source filename is appended as a subdirectory |
+| `OUTPUT_FRONT_MATTER_MARKERS` | `导读,前言` | Comma-separated front-matter title prefixes; empty disables 000 handling |
 | `OUTPUT_DUPLICATE_HANDLING` | `rename` | `skip`, `rename`, or `overwrite` |
 | `OUTPUT_STRATEGY` | `by_role` | `by_role`, `by_model`, `by_date`, or flat |
 | `CHAPTER_NORMALIZE_ENABLED` | `true` | Normalize Markdown/bold chapter headings |
@@ -326,6 +341,8 @@ Copy `.env.example` to `.env`. The most useful settings:
 | `API_UPLOAD_DIR` | `./uploads` | Upload storage directory |
 | `TASK_CACHE_DIR` | `./cache/tasks` | Persisted task records |
 | `TASK_RESULT_TTL` | `86400` | Stale record retention in seconds (`0` = never expire) |
+
+`TTS_PROSODY_MAX_UNIT_CHARS=120` matches the preview samples. For long books, raise it to `200`-`300` to reduce the number of TTS requests, at the cost of fewer internal pauses.
 
 `OUTPUT_FORMAT` and `OUTPUT_BITRATE` currently control the MP3 export settings; see `config/__init__.py` for the full list.
 

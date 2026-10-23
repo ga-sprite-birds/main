@@ -19,26 +19,26 @@ class CharacterListParser:
 
         Supported formats:
         1. Simple format: one character name per line
-            陈洪德
-            老爸
-            爷爷
+            角色A
+            角色B
+            角色C
 
         2. Gender format: <character_name> <gender>
-            陈洪德 male
-            老爸 male
-            王婶 female
+            角色A male
+            角色B male
+            角色D female
 
         3. Comments supported: lines starting with #
            # 主要角色
-            陈洪德 male
+            角色A male
             # 配角
-            老爸 male
+            角色B male
 
         Args:
             file_path: path to the character list file
 
         Returns:
-            character list: [{"name": "陈洪德", "gender": "male"}, ...]
+            character list: [{"name": "角色A", "gender": "male"}, ...]
         """
         file_path = Path(file_path)
         
@@ -130,13 +130,13 @@ class CharacterListParser:
 # 性别可省略，默认为 unknown
 
 # 主要角色
-陈洪德 male
-老爸 male
-爷爷 male
+角色A male
+角色B male
+角色C male
 
 # 配角
-王婶 female
-二叔 male
+角色D female
+角色E male
 
 # 特殊角色
 旁白 narrator

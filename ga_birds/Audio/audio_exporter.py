@@ -6,6 +6,7 @@ Version: v1.0
 Dev team: Tiger
 """
 
+import re
 from pathlib import Path
 from typing import Optional
 from datetime import datetime
@@ -38,7 +39,8 @@ class AudioExporter:
         index: int,
         title: str,
         role: Optional[str] = None,
-        custom_base_path: Optional[str] = None
+        custom_base_path: Optional[str] = None,
+        source_name: Optional[str] = None
     ) -> Path:
         """
         Get the output file path
@@ -48,6 +50,8 @@ class AudioExporter:
             title: chapter title
             role: character name
             custom_base_path: custom base path (overridden by API parameter)
+            source_name: uploaded or specified source filename; its stem becomes
+                         a subdirectory under the output base
 
         Returns:
             output file path
@@ -55,9 +59,16 @@ class AudioExporter:
         # Use custom path or default path
         base = Path(custom_base_path) if custom_base_path else self.base_path
 
-        # Determine subdirectory based on strategy
+        # Keep each book in its own directory, even when the user supplies a
+        # custom output base such as "abc".
+        source_stem = self.get_source_stem(source_name)
+        if source_stem:
+            base = base / source_stem
+
+        # Determine subdirectory based on strategy. Single-voice output does
+        # not need the redundant "default" directory.
         if self.strategy == "by_role":
-            subdir = base / (role or "default")
+            subdir = base / role if role and role != "default" else base
         elif self.strategy == "by_model":
             subdir = base / "edge-tts"
         elif self.strategy == "by_date":
@@ -69,10 +80,12 @@ class AudioExporter:
         # Ensure subdirectory exists
         subdir.mkdir(parents=True, exist_ok=True)
 
-        # Generate filename
+        # Generate filename. Front matter uses 000, but later chapter numbers
+        # keep their existing sequence.
+        filename_index, filename_title = self.get_filename_parts(index, title)
         filename = self.filename_template.format(
-            index=index,
-            title=self._sanitize_filename(title),
+            index=filename_index,
+            title=self._sanitize_filename(filename_title),
             role=role or "default",
             date=datetime.now().strftime("%Y%m%d"),
             format=self.format
@@ -82,6 +95,36 @@ class AudioExporter:
         logger.debug(t("audio.output_path_generated", path=output_path))
 
         return output_path
+
+    @classmethod
+    def get_filename_parts(cls, index: int, title: str):
+        """Return the numeric prefix and title used in the output filename."""
+        clean = re.sub(
+            r"^第[0-9零一二三四五六七八九十百千]+章[\s:：、,，.．-]*",
+            "",
+            title.strip(),
+        )
+        for marker in config.OUTPUT_FRONT_MATTER_MARKERS:
+            if clean.startswith(marker):
+                canonical = marker if marker.endswith("篇") else f"{marker}篇"
+                return 0, canonical
+        return index, title
+
+    @staticmethod
+    def get_source_stem(source_name: Optional[str]) -> Optional[str]:
+        """Return a safe book directory name from a source filename."""
+        if not source_name:
+            return None
+
+        name = Path(str(source_name).replace("\\", "/")).name
+        # Uploaded files are stored as "<uuid-hex>_<original name>".
+        name = re.sub(r"^[0-9a-fA-F]{32}_", "", name)
+        stem = Path(name).stem.strip().rstrip(". ")
+        if not stem or stem in {".", ".."}:
+            return None
+
+        stem = AudioExporter._sanitize_filename(stem).strip().rstrip(". ")
+        return stem or None
 
     @staticmethod
     def _sanitize_filename(filename: str) -> str:

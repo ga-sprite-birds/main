@@ -51,6 +51,10 @@ _common_module = importlib.import_module(f'{_core_module_name}.Common')
 load_chapters = _common_module.load_chapters
 generate_single_voice_chapter = _audio_module.generate_single_voice_chapter
 resolve_output_path = _audio_module.resolve_output_path
+generate_with_prosody = _audio_module.generate_with_prosody
+normalize_prosody_mode = _audio_module.normalize_prosody_mode
+pause_after_text = _audio_module.pause_after_text
+PROSODY_MODES = _audio_module.PROSODY_MODES
 LLMManager = _llm_module.LLMManager
 TTSManager = _audio_module.TTSManager
 AudioExporter = _audio_module.AudioExporter
@@ -73,6 +77,7 @@ async def generate_from_file(
     output_dir: Optional[str] = None,
     voice: Optional[str] = None,
     rate: Optional[float] = None,
+    prosody_mode: Optional[str] = None,
     enable_llm: Optional[bool] = None,
     start_chapter: int = 1,
     end_chapter: Optional[int] = None,
@@ -90,6 +95,7 @@ async def generate_from_file(
         output_dir: Output directory (optional)
         voice: Voice timbre (optional)
         rate: Speech rate (optional, 0.5-2.0)
+        prosody_mode: Punctuation pause/tone mode (None=use config file)
         enable_llm: Whether to enable LLM colloquialization (None=use config file)
         start_chapter: Starting chapter (1-based)
         end_chapter: Ending chapter (optional, None means to the end)
@@ -108,6 +114,9 @@ async def generate_from_file(
     # ========== Parameter merging: CLI/API arguments > config file ==========
     enable_llm = ParamManager.merge_enable_llm(enable_llm)
     multi_voice = ParamManager.merge_multi_voice(multi_voice)
+    prosody_mode = normalize_prosody_mode(
+        ParamManager.merge_param("prosody_mode", prosody_mode)
+    )
 
     if rate is not None and not 0.5 <= rate <= 2.0:
         logger.error(t("cli.invalid_rate"))
@@ -118,6 +127,7 @@ async def generate_from_file(
     logger.info(t("cli.tts_engine", engine=config.TTS_ENGINE))
     logger.info(t("cli.llm_enabled", enabled=enable_llm))
     logger.info(t("cli.multi_voice", enabled=multi_voice))
+    logger.info(t("cli.prosody_mode", mode=prosody_mode))
     logger.info("")
 
     # Read, preprocess, normalize, and split chapters through the shared loader.
@@ -548,7 +558,8 @@ async def generate_from_file(
                     index=chapter.index,
                     title=chapter.title,
                     role="multi",
-                    custom_base_path=output_dir
+                    custom_base_path=output_dir,
+                    source_name=input_path.name,
                 )
                 audio_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -598,21 +609,47 @@ async def generate_from_file(
                     else:
                         logger.debug(t("cli.segment_debug", i=i+1, total=len(segments), speaker=speaker, voice=segment_voice, length=len(segment_text)))
 
-                    await tts_manager.generate_audio(
-                        text=tts_text,
-                        output_path=str(temp_audio_path),
-                        voice=segment_voice,
-                        rate=tts_params.get("rate"),
-                        volume=tts_params.get("volume"),
-                        pitch=tts_params.get("pitch"),
-                    )
+                    if prosody_mode == "off":
+                        await tts_manager.generate_audio(
+                            text=tts_text,
+                            output_path=str(temp_audio_path),
+                            voice=segment_voice,
+                            rate=tts_params.get("rate"),
+                            volume=tts_params.get("volume"),
+                            pitch=tts_params.get("pitch"),
+                        )
+                    else:
+                        await generate_with_prosody(
+                            tts_manager=tts_manager,
+                            text=tts_text,
+                            output_path=str(temp_audio_path),
+                            voice=segment_voice,
+                            rate=tts_params.get("rate"),
+                            volume=tts_params.get("volume"),
+                            pitch=tts_params.get("pitch"),
+                            mode=prosody_mode,
+                        )
 
                     temp_audio_files.append(str(temp_audio_path))
 
                 # 3. Merge audio
                 logger.info(t("cli.merging_audio", count=len(temp_audio_files)))
                 audio_merger = AudioMerger()
-                if audio_merger.merge_audio_files(temp_audio_files, str(audio_path)):
+                if prosody_mode == "off":
+                    merged = audio_merger.merge_audio_files(
+                        temp_audio_files, str(audio_path)
+                    )
+                else:
+                    pauses = [
+                        pause_after_text(segment["text"])
+                        for segment in segments
+                    ]
+                    if pauses:
+                        pauses[-1] = 0
+                    merged = audio_merger.merge_audio_files_with_pauses(
+                        temp_audio_files, str(audio_path), pauses
+                    )
+                if merged:
                     logger.info(t("cli.merge_complete"))
                     # Clean up temporary files
                     audio_merger.cleanup_temp_files(temp_audio_files)
@@ -634,6 +671,8 @@ async def generate_from_file(
                     llm_manager=llm_manager,
                     tts_manager=tts_manager,
                     audio_exporter=audio_exporter,
+                    prosody_mode=prosody_mode,
+                    source_name=input_path.name,
                 )
 
             logger.info("")
@@ -668,6 +707,8 @@ def main():
   {t('cli.examples.output')}
 
   {t('cli.examples.voice')}
+
+  {t('cli.examples.prosody')}
 
   {t('cli.examples.no_llm')}
 
@@ -706,6 +747,12 @@ def main():
         "--rate",
         type=float,
         help=t('cli.help.rate')
+    )
+
+    parser.add_argument(
+        "--prosody",
+        choices=list(PROSODY_MODES),
+        help=t('cli.help.prosody')
     )
 
     parser.add_argument(
@@ -822,6 +869,7 @@ def main():
         output_dir=args.output,
         voice=args.voice,
         rate=args.rate,
+        prosody_mode=args.prosody,
         enable_llm=enable_llm_arg,
         start_chapter=args.start,
         end_chapter=args.end,

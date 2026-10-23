@@ -4,6 +4,7 @@ Shared by the CLI and the API so both apply the same LLM fallback, intro/outro,
 text-saving, duplicate-file handling, and TTS flow.
 """
 
+import asyncio
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -15,6 +16,7 @@ from ga_birds.Common.chapter_processor import ChapterProcessor
 from ga_birds.Common.i18n import t
 from ga_birds.Common.text_saver import ChapterTextSaver
 from ga_birds.Utils.file_utils import get_unique_filename
+from .prosody import generate_with_prosody
 
 
 @dataclass
@@ -65,12 +67,16 @@ async def generate_single_voice_chapter(
     llm_manager,
     tts_manager,
     audio_exporter,
+    prosody_mode: Optional[str] = None,
+    source_name: Optional[str] = None,
 ) -> ChapterAudioResult:
     """
     Generate one chapter with a single voice.
 
     The function handles LLM colloquialization (with fallback), intro/outro,
     chapter-text saving, duplicate-file policy, and the actual TTS call.
+    ``prosody_mode`` selects off, pause-only, or pause plus light tone.
+    ``source_name`` is used as the per-book output subdirectory.
     """
     original_content = content
     llm_content = None
@@ -78,7 +84,10 @@ async def generate_single_voice_chapter(
     if enable_llm and llm_manager:
         logger.info(t("api.chapter_llm_start", index=chapter_index))
         try:
-            llm_content = llm_manager.colloquialize_text(content)
+            # LLM clients are synchronous; keep the API event loop responsive.
+            llm_content = await asyncio.to_thread(
+                llm_manager.colloquialize_text, content
+            )
             if llm_content:
                 content = llm_content
         except Exception as error:
@@ -97,7 +106,8 @@ async def generate_single_voice_chapter(
         index=chapter_index,
         title=chapter_title,
         role="default",
-        custom_base_path=output_dir
+        custom_base_path=output_dir,
+        source_name=source_name,
     )
     audio_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -118,10 +128,11 @@ async def generate_single_voice_chapter(
         "text": final_content,
         "output_path": str(resolved_path),
         "voice": voice,
+        "mode": prosody_mode,
     }
     if rate is not None:
         tts_kwargs["rate"] = rate
 
-    await tts_manager.generate_audio(**tts_kwargs)
+    await generate_with_prosody(tts_manager=tts_manager, **tts_kwargs)
     logger.info(t("api.chapter_complete", index=chapter_index, path=str(resolved_path)))
     return ChapterAudioResult(audio_path=resolved_path)

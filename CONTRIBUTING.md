@@ -218,6 +218,7 @@ The character voice template used internally follows this structure:
 |----------|-------------|
 | `TTS_VOICE` | Default / fallback voice (e.g. `zh-CN-YunxiNeural`) |
 | `TTS_ENGINE` | TTS engine to use (currently `edge`) |
+| `TTS_PROSODY_MODE` | `off`, `pause`, or `prosody` |
 | `TTS_VOICE_CATALOG_CACHE` | Path to cached TTS voice catalog |
 
 ## 8. Pull Request Guidelines

@@ -12,6 +12,13 @@ from .chapter_generator import (
     generate_single_voice_chapter,
     resolve_output_path,
 )
+from .prosody import (
+    PROSODY_MODES,
+    generate_with_prosody,
+    normalize_prosody_mode,
+    pause_after_text,
+    split_units,
+)
 
 __all__ = [
     "TTSManager",
@@ -21,5 +28,10 @@ __all__ = [
     "ChapterAudioResult",
     "generate_single_voice_chapter",
     "resolve_output_path",
+    "PROSODY_MODES",
+    "generate_with_prosody",
+    "normalize_prosody_mode",
+    "pause_after_text",
+    "split_units",
 ]
 

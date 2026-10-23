@@ -152,7 +152,8 @@ content = preprocess_text(content, remove_extra_newlines=True)
 |--------|------|----------------|
 | TTSManager | `tts_manager.py` | TTS engine management (Edge TTS in this release) |
 | AudioExporter | `audio_exporter.py` | Audio export path management |
-| AudioMerger | `audio_merger.py` | Audio merging (multi-voice mode) |
+| AudioMerger | `audio_merger.py` | Audio merging and silence insertion |
+| prosody | `prosody.py` | Punctuation-based splitting, pauses, and light tone changes |
 | chapter_generator | `chapter_generator.py` | Shared single-voice chapter pipeline (LLM, intro/outro, text, TTS, duplicates) |
 | Engines | `engines/` | TTS engine implementations |
 
@@ -405,6 +406,8 @@ TTS_VOICE=zh-CN-XiaoxiaoNeural  # Default voice
 TTS_RATE=1.0                    # Speech rate
 TTS_CHUNK_MAX_CHARS=2000        # Long-text chunk size (sentence boundaries)
 TTS_CHUNK_TIMEOUT=180           # Timeout per chunk (seconds)
+TTS_PROSODY_MODE=off            # off / pause / prosody
+TTS_PROSODY_MAX_UNIT_CHARS=120  # Maximum characters per pause unit
 OUTPUT_BITRATE=192              # Output bitrate
 
 # ===== LLM configuration =====

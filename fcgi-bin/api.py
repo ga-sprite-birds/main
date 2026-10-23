@@ -41,6 +41,8 @@ generate_single_voice_chapter = _audio_module.generate_single_voice_chapter
 LLMManager = _llm_module.LLMManager
 TTSManager = _audio_module.TTSManager
 AudioExporter = _audio_module.AudioExporter
+PROSODY_MODES = _audio_module.PROSODY_MODES
+normalize_prosody_mode = _audio_module.normalize_prosody_mode
 TaskManager = _task_module.TaskManager
 TaskStatus = _task_module.TaskStatus
 ChapterProgress = _task_module.ChapterProgress
@@ -84,9 +86,10 @@ class GenerateRequest(BaseModel):
     """Generate request"""
     task_id: str  # Task ID
     voice: Optional[str] = None  # Voice timbre (overrides config)
-    output_path: Optional[str] = None  # Output path (overrides config)
+    output_path: Optional[str] = None  # Output root (source filename is appended)
     enable_llm: Optional[bool] = None  # None uses ENABLE_LLM from config
     rate: Optional[float] = None  # Speech rate (0.5-2.0)
+    prosody_mode: Optional[str] = None  # off / pause / prosody
     language: Optional[str] = None  # UI language (en_US, zh_CN)
     chapter_indexes: Optional[List[int]] = None  # Generate only these chapters; None means all
 
@@ -119,6 +122,7 @@ async def api_status():
             "voice": config.TTS_VOICE,
             "rate": config.TTS_RATE,
             "enable_llm": config.ENABLE_LLM,
+            "prosody_mode": normalize_prosody_mode(),
             "language": config.LANGUAGE,
         },
     }
@@ -171,7 +175,7 @@ async def upload_file(
     Args:
         file: The uploaded file object
         path: Local file path (takes priority)
-        output_path: Custom output path
+        output_path: Custom output root; the source filename is appended
         language: UI language (en_US, zh_CN)
 
     Returns:
@@ -190,11 +194,13 @@ async def upload_file(
                     detail=t("api.file_not_found", path=path)
                 )
             _validate_input_file(file_path)
+            source_name = file_path.name
         elif file:
             # Never trust the client-provided name for the on-disk path.
             original_name = os.path.basename((file.filename or "").replace("\\", "/"))
             if not original_name:
                 raise HTTPException(status_code=400, detail=t("api.file_name_required"))
+            source_name = original_name
 
             upload_dir = Path(config.API_UPLOAD_DIR)
             upload_dir.mkdir(parents=True, exist_ok=True)
@@ -238,7 +244,8 @@ async def upload_file(
             metadata={
                 "file_path": str(file_path),
                 "output_path": output_path,
-                "filename": file_path.name
+                "filename": file_path.name,
+                "source_name": source_name,
             }
         )
 
@@ -347,6 +354,7 @@ def _launch_generation(
     output_path: Optional[str],
     enable_llm: bool,
     rate: Optional[float],
+    prosody_mode: Optional[str],
     chapter_indexes: Optional[List[int]]
 ) -> None:
     """Start a managed background generation job for a task."""
@@ -359,6 +367,7 @@ def _launch_generation(
             output_path=output_path,
             enable_llm=enable_llm,
             rate=rate,
+            prosody_mode=prosody_mode,
             chapter_indexes=chapter_indexes,
         )
     )
@@ -409,6 +418,15 @@ async def generate_audio(request: GenerateRequest):
     if request.rate is not None and not 0.5 <= request.rate <= 2.0:
         raise HTTPException(status_code=400, detail=t("api.invalid_rate"))
 
+    if request.prosody_mode is not None:
+        requested_mode = request.prosody_mode.strip().lower()
+        if requested_mode not in PROSODY_MODES:
+            raise HTTPException(
+                status_code=400,
+                detail=t("api.invalid_prosody_mode", modes=", ".join(PROSODY_MODES))
+            )
+    prosody_mode = normalize_prosody_mode(request.prosody_mode)
+
     enable_llm = config.ENABLE_LLM if request.enable_llm is None else request.enable_llm
 
     # Remember the options so resume can reuse the same scope and parameters.
@@ -417,6 +435,7 @@ async def generate_audio(request: GenerateRequest):
         "output_path": request.output_path,
         "enable_llm": enable_llm,
         "rate": request.rate,
+        "prosody_mode": prosody_mode,
         "chapter_indexes": request.chapter_indexes,
     }
 
@@ -426,6 +445,7 @@ async def generate_audio(request: GenerateRequest):
         output_path=request.output_path,
         enable_llm=enable_llm,
         rate=request.rate,
+        prosody_mode=prosody_mode,
         chapter_indexes=request.chapter_indexes,
     )
 
@@ -469,9 +489,32 @@ async def resume_generation(task_id: str):
         output_path=options.get("output_path"),
         enable_llm=options.get("enable_llm", config.ENABLE_LLM),
         rate=options.get("rate"),
+        prosody_mode=normalize_prosody_mode(options.get("prosody_mode")),
         chapter_indexes=options.get("chapter_indexes"),
     )
     return TaskResponse(task_id=task_id, status="generating", message=t("api.resume_started"))
+
+
+@app.delete("/task/{task_id}", response_model=TaskResponse)
+async def delete_task(task_id: str):
+    """Clear a task, its parsed chapters, generated audio, and record."""
+    task = task_manager.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail=t("api.task_not_found", task_id=task_id))
+
+    if task_manager.is_running(task_id) or task.status == TaskStatus.GENERATING:
+        raise HTTPException(status_code=409, detail=t("api.task_generating_no_delete"))
+    if task.status == TaskStatus.PARSING:
+        raise HTTPException(status_code=409, detail=t("api.task_already_parsing"))
+
+    if not task_manager.delete_task(task_id):
+        raise HTTPException(status_code=404, detail=t("api.task_not_found", task_id=task_id))
+
+    return TaskResponse(
+        task_id=task_id,
+        status="deleted",
+        message=t("api.task_deleted", task_id=task_id),
+    )
 
 
 @app.delete("/task/{task_id}/chapter/{chapter_index}")
@@ -563,6 +606,7 @@ async def _generate_audio_task(
     output_path: Optional[str] = None,
     enable_llm: bool = True,
     rate: Optional[float] = None,
+    prosody_mode: Optional[str] = None,
     chapter_indexes: Optional[List[int]] = None
 ):
     """
@@ -571,9 +615,10 @@ async def _generate_audio_task(
     Args:
         task_id: Task ID
         voice: Voice timbre
-        output_path: Output path
+        output_path: Output root (source filename is appended)
         enable_llm: Whether to enable LLM
         rate: Speech rate (0.5-2.0)
+        prosody_mode: Punctuation pause/tone mode (off/pause/prosody)
         chapter_indexes: Generate only these chapters; None means all chapters
     """
     paused = False
@@ -593,6 +638,8 @@ async def _generate_audio_task(
 
         tts_manager = TTSManager()
         audio_exporter = AudioExporter()
+        source_name = task.metadata.get("source_name") or task.metadata.get("filename")
+        output_path = output_path or task.metadata.get("output_path")
 
         chapters_data = task.metadata.get("chapters", [])
         if chapter_indexes is not None:
@@ -638,6 +685,8 @@ async def _generate_audio_task(
                     llm_manager=llm_manager,
                     tts_manager=tts_manager,
                     audio_exporter=audio_exporter,
+                    prosody_mode=prosody_mode,
+                    source_name=source_name,
                 )
                 task_manager.update_chapter_status(
                     task_id,

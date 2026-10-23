@@ -19,10 +19,10 @@ BODY = "这是一段用于测试章节拆分的正文内容。" * 10
 @pytest.mark.unit
 def test_normalize_markdown_bold_heading():
     """Bold Markdown headings become canonical headings"""
-    text = f"**第一章** **世界新秩序**\n\n{BODY}\n\n**第二章** **关键人物**\n\n{BODY}"
+    text = f"**第一章** **示例标题**\n\n{BODY}\n\n**第二章** **示例标题二**\n\n{BODY}"
     result = normalize_chapter_headings(text)
-    assert result.startswith("第一章 世界新秩序")
-    assert "第二章 关键人物" in result
+    assert result.startswith("第一章 示例标题")
+    assert "第二章 示例标题二" in result
     assert "**" not in result
 
 
@@ -45,16 +45,16 @@ def test_normalize_keeps_plain_heading():
 
 @pytest.mark.unit
 def test_normalize_ignores_body_text():
-    """Body text like '第三回合谈判' is not treated as a chapter heading"""
-    text = f"第三回合谈判在1972年进行。\n\n{BODY}"
+    """Body text like '第三回合的比赛' is not treated as a chapter heading"""
+    text = f"第三回合的比赛开始了。\n\n{BODY}"
     assert normalize_chapter_headings(text) == text
 
 
 @pytest.mark.unit
 def test_normalize_removes_title_separator():
     """A separator between marker and title is normalized to a single space"""
-    text = f"## 第一章：世界新秩序\n\n{BODY}"
-    assert normalize_chapter_headings(text).startswith("第一章 世界新秩序")
+    text = f"## 第一章：示例标题\n\n{BODY}"
+    assert normalize_chapter_headings(text).startswith("第一章 示例标题")
 
 
 @pytest.mark.unit
@@ -68,9 +68,9 @@ def test_normalize_is_idempotent():
 @pytest.mark.unit
 def test_normalized_text_is_parsable():
     """Normalized text is recognized by the generic chapter parser"""
-    text = f"**第一章** **世界新秩序**\n\n{BODY}\n\n**第二章** **关键人物**\n\n{BODY}"
+    text = f"**第一章** **示例标题**\n\n{BODY}\n\n**第二章** **示例标题二**\n\n{BODY}"
     parser = ChapterParser(min_length=100)
     chapters = parser.parse(normalize_chapter_headings(text))
     assert len(chapters) == 2
-    assert chapters[0].title == "第一章 世界新秩序"
-    assert chapters[1].title == "第二章 关键人物"
+    assert chapters[0].title == "第一章 示例标题"
+    assert chapters[1].title == "第二章 示例标题二"

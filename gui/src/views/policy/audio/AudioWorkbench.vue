@@ -64,10 +64,21 @@
               />
             </el-select>
           </el-form-item>
+          <el-form-item :label="$t('audio.prosodyMode')">
+            <el-select v-model="prosodyMode">
+              <el-option
+                v-for="item in prosodyModeOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
+          </el-form-item>
           <el-form-item>
             <el-checkbox v-model="enableLlm">{{ $t("audio.enableLlm") }}</el-checkbox>
           </el-form-item>
         </el-form>
+        <p class="form-hint">{{ $t("audio.prosodyHint") }}</p>
 
         <div class="action-row">
           <el-button
@@ -84,7 +95,7 @@
       <div class="panel status-panel">
         <div class="panel-header">
           <h2>{{ $t("audio.progress") }}</h2>
-          <el-button :icon="Refresh" circle :disabled="!taskId || busyAction" @click="refreshStatus()" />
+          <el-button :icon="Refresh" circle :disabled="!taskId || busyAction" @click="manualRefresh" />
         </div>
 
         <div class="progress-ring">
@@ -160,10 +171,10 @@
           type="danger"
           plain
           :icon="Delete"
-          :disabled="!canDeleteSelected || busy"
-          @click="deleteSelectedChapters"
+          :disabled="!canClearTask || busy"
+          @click="clearTask"
         >
-          {{ $t("audio.deleteAction") }}
+          {{ $t("audio.clearTaskAction") }}
         </el-button>
         <el-button :disabled="chapters.length === 0" @click="invertSelection">
           {{ $t("audio.invertSelection") }}
@@ -238,7 +249,7 @@ import {
   VideoPlay,
 } from "@element-plus/icons-vue"
 import {
-  deleteChapterAudio,
+  clearAudioTask,
   generateAudio,
   getApiStatus,
   getChapterAudioUrl,
@@ -262,6 +273,7 @@ const uploadQueue = []
 const uploading = ref(false)
 const outputPath = ref("")
 const voice = ref("zh-CN-YunxiNeural")
+const prosodyMode = ref("off")
 const enableLlm = ref(true)
 const taskId = ref("")
 const statusData = ref(null)
@@ -285,6 +297,12 @@ const voiceOptions = [
   { label: "Guy - English", value: "en-US-GuyNeural" },
 ]
 
+const prosodyModeOptions = computed(() => [
+  { label: t("audio.prosodyModeOff"), value: "off" },
+  { label: t("audio.prosodyModePause"), value: "pause" },
+  { label: t("audio.prosodyModeProsody"), value: "prosody" },
+])
+
 const busy = computed(() => Boolean(busyAction.value))
 const isGenerating = computed(() => statusData.value?.status === "generating")
 const isPaused = computed(() => statusData.value?.status === "paused")
@@ -306,8 +324,8 @@ const canStart = computed(() => {
   return Boolean(taskId.value) && chapters.value.length > 0 && !isGenerating.value && !busy.value
 })
 const canStartSelected = computed(() => canStart.value && selectedIndexes.value.length > 0)
-const canDeleteSelected = computed(() => {
-  return Boolean(taskId.value) && selectedIndexes.value.length > 0 && !isGenerating.value && !busy.value
+const canClearTask = computed(() => {
+  return Boolean(taskId.value) && !isGenerating.value && !busy.value
 })
 const progressPercent = computed(() => Math.round((statusData.value?.progress || 0) * 100))
 const serviceReady = computed(() => apiOnline.value)
@@ -376,9 +394,7 @@ function fetchOutputPathSuggestions(_queryString, callback) {
 async function uploadFile(file) {
   rememberOutputPath()
   busyAction.value = "upload"
-  taskId.value = ""
-  statusData.value = null
-  localStorage.removeItem(AUDIO_TASK_STORAGE_KEY)
+  resetTaskView()
   try {
     const response = await uploadAudioSource({
       file,
@@ -436,6 +452,7 @@ async function startChapters(indexes) {
     await generateAudio(taskId.value, {
       voice: voice.value,
       outputPath: outputPath.value.trim(),
+      prosodyMode: prosodyMode.value,
       enableLlm: enableLlm.value,
       language: locale.value,
       chapterIndexes: indexes,
@@ -508,32 +525,51 @@ function invertSelection() {
   })
 }
 
-async function deleteSelectedChapters() {
-  const indexes = [...selectedIndexes.value]
-  if (indexes.length === 0) return
+function resetTaskView() {
+  stopPolling()
+  statusRequestId += 1
+  taskId.value = ""
+  statusData.value = null
+  selectedIndexes.value = []
+  selectionInitializedFor.value = ""
+  chapterTableRef.value?.clearSelection()
+  localStorage.removeItem(AUDIO_TASK_STORAGE_KEY)
+}
+
+async function clearTask() {
+  if (!taskId.value) return
 
   try {
     await ElMessageBox.confirm(
-      t("audio.deleteConfirm", { count: indexes.length }),
-      t("audio.deleteTitle"),
+      t("audio.clearTaskConfirm"),
+      t("audio.clearTaskTitle"),
       { type: "warning" }
     )
   } catch (error) {
     return
   }
 
-  busyAction.value = "delete"
-  // Ignore status responses that were requested before the deletion started.
+  busyAction.value = "clear"
+  // Ignore any status response that was requested before the clear started.
   stopPolling()
   statusRequestId += 1
   try {
-    for (const index of indexes) {
-      await deleteChapterAudio(taskId.value, index)
+    try {
+      await clearAudioTask(taskId.value)
+    } catch (error) {
+      // A missing task is already clear; anything else should stay visible.
+      if (error?.response?.status === 404) {
+        resetTaskView()
+        ElMessage.info(t("audio.taskExpired"))
+        return
+      }
+      ElMessage.error(
+        error?.response?.data?.detail || t("audio.clearTaskFailed")
+      )
+      return
     }
-    chapterTableRef.value?.clearSelection()
-    selectedIndexes.value = []
-    await fetchTaskStatus()
-    ElMessage.success(t("audio.deleted"))
+    resetTaskView()
+    ElMessage.success(t("audio.taskCleared"))
   } finally {
     busyAction.value = ""
   }
@@ -545,6 +581,7 @@ async function loadDefaults() {
     apiOnline.value = true
     const defaults = status?.defaults || {}
     if (defaults.voice) voice.value = defaults.voice
+    if (defaults.prosody_mode) prosodyMode.value = defaults.prosody_mode
     if (typeof defaults.enable_llm === "boolean") enableLlm.value = defaults.enable_llm
   } catch (error) {
     apiOnline.value = false
@@ -582,10 +619,10 @@ async function fetchTaskStatus({ silent = false } = {}) {
     return data
   } catch (error) {
     if (requestId !== statusRequestId || taskId.value !== id) return null
-    stopPolling()
-    // Keep the task id for transient network errors; only forget a task
-    // that the backend explicitly reports as missing.
+    // A transient status timeout must not leave the UI permanently stale.
+    // Keep polling; only a missing task ends the loop.
     if (error?.response?.status === 404) {
+      stopPolling()
       taskId.value = ""
       statusData.value = null
       localStorage.removeItem(AUDIO_TASK_STORAGE_KEY)
@@ -606,13 +643,22 @@ async function loadTask(id) {
   localStorage.setItem(AUDIO_TASK_STORAGE_KEY, id)
 
   const data = await fetchTaskStatus()
-  if (data?.status === "generating") {
+  // If the first request timed out, keep trying instead of freezing on an
+  // empty/old task view.
+  if (taskId.value && (!data || !TERMINAL_STATUSES.has(data.status))) {
     startPolling()
   }
 }
 
 async function refreshStatus({ silent = false } = {}) {
   await fetchTaskStatus({ silent })
+}
+
+async function manualRefresh() {
+  const data = await fetchTaskStatus()
+  if (taskId.value && (!data || !TERMINAL_STATUSES.has(data.status))) {
+    startPolling()
+  }
 }
 
 async function pollStatus() {
@@ -715,7 +761,7 @@ onBeforeUnmount(stopPolling)
 
 .option-form {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 260px 160px;
+  grid-template-columns: minmax(0, 1fr) 260px 220px 160px;
   gap: 14px;
   align-items: end;
   margin-top: 16px;
@@ -729,6 +775,13 @@ onBeforeUnmount(stopPolling)
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+
+.form-hint {
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+  margin: 6px 0 0;
 }
 
 .voice-preview {
