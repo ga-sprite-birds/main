@@ -17,22 +17,24 @@ ga-sprite-birds/
 │   ├── api.py              # FastAPI HTTP service entry point
 │   └── cli.py              # CLI command-line entry point
 ├── ga_birds/               # Core business module (CORE_DIR)
-│   ├── Common/             # Common infrastructure module
+│   ├── Common/             # Shared infrastructure (chapter loader, i18n, text saver)
 │   ├── Utils/              # General-purpose utilities module
 │   ├── Parser/             # Parser module
 │   ├── LLM/                # LLM invocation module
-│   ├── Audio/              # Audio processing module
+│   ├── Audio/              # Audio processing module (chapter generator, TTS, exporter)
 │   ├── character_analyzer/ # Character analysis module (multi-voice only)
-│   ├── Task/               # Task management module (API only)
-│   └── Sprite/             # Sprite management module (API only)
+│   └── Task/               # Task management and JSON persistence
+├── gui/                    # Vue 3 + Element Plus frontend source
 ├── cache/                  # Cache directory
 │   ├── audio_temp/         # Temporary audio files
 │   ├── dialogue/           # Dialogue parsing cache
-│   └── role/               # Character template cache
+│   ├── role/               # Character template cache
+│   └── tasks/              # Persisted task records (deleted on completion)
 ├── output/                 # Output directory
+├── uploads/                # Uploaded source files (API)
 ├── models/                 # AI model files
 ├── logs/                   # Log directory
-├── tests/                  # Unit tests
+├── tests/                  # Unit and integration tests
 ├── help/                   # Development documentation
 ├── .env                    # Environment configuration file
 └── requirements.txt        # Python dependencies
@@ -56,6 +58,7 @@ ga-sprite-birds/
 | ParamManager | `param_manager.py` | Parameter merging and validation | CLI/API parameter handling |
 | ChapterProcessor | `chapter_processor.py` | Intro/outro handling | Common to single-voice/multi-voice |
 | ChapterTextSaver | `text_saver.py` | Text saving | Common to single-voice/multi-voice |
+| chapter_loader | `chapter_loader.py` | Read, preprocess, normalize, and parse chapters | CLI and API |
 
 **Design principles**:
 - ✅ Only contains cross-business shared infrastructure
@@ -147,9 +150,10 @@ content = preprocess_text(content, remove_extra_newlines=True)
 
 | Module | File | Responsibility |
 |--------|------|----------------|
-| TTSManager | `tts_manager.py` | TTS engine management (Edge TTS / local TTS) |
+| TTSManager | `tts_manager.py` | TTS engine management (Edge TTS in this release) |
 | AudioExporter | `audio_exporter.py` | Audio export path management |
 | AudioMerger | `audio_merger.py` | Audio merging (multi-voice mode) |
+| chapter_generator | `chapter_generator.py` | Shared single-voice chapter pipeline (LLM, intro/outro, text, TTS, duplicates) |
 | Engines | `engines/` | TTS engine implementations |
 
 ---
@@ -180,15 +184,22 @@ DialogueParser.add_intro_outro_to_segments(segments, intro, outro)
 
 **Location**: `ga_birds/Task/`
 
-**Responsibility**: Task queue management for API mode
+**Responsibility**: In-memory task state, background generation control, and optional JSON persistence for the API.
 
----
+**Lifecycle**:
 
-#### Sprite
+| Status | Meaning |
+|--------|---------|
+| `pending` | Uploaded, not parsed |
+| `parsing` | Chapter parsing in progress |
+| `parsed` | Chapters ready; some may still be pending |
+| `generating` | Generation job is running |
+| `paused` | Stopped between chapters |
+| `completed` | Every chapter has audio; the task record is deleted |
+| `failed` | A chapter or the job failed |
+| `cancelled` | The job was cancelled |
 
-**Location**: `ga_birds/Sprite/`
-
-**Responsibility**: Sprite resource management for API mode
+Task records are written atomically to `TASK_CACHE_DIR` as readable JSON. A generation job saves its options and `chapter_indexes` scope so `/resume` uses the same scope. On startup, `generating` tasks are restored as `paused`, and an interrupted chapter is reset to `pending`. Records older than `TASK_RESULT_TTL` are removed on startup.
 
 ---
 
@@ -216,8 +227,14 @@ bash cli.sh -i <file> [parameters]
 
 **How to launch**:
 ```bash
-uvicorn fcgi-bin.api:app --host 0.0.0.0 --port 8000
+# Recommended: auto-selects a free port and opens the GUI
+bash api.sh
+
+# Direct launch (requires PYTHONPATH)
+PYTHONPATH=. python fcgi-bin/api.py
 ```
+
+`api.sh` reads `API_PORT` (default `8000`) and increments until it finds a free port. The API is local-only and has no authentication.
 
 **Characteristics**:
 - FastAPI HTTP service
@@ -317,12 +334,15 @@ raise NonRetryableError("Invalid parameter")  # raised directly, not retried
 **Flow**:
 ```
 Text file
-  → Chapter splitting (ChapterParser)
-  → [Optional] LLM colloquialization (LLMManager)
-  → Add intro/outro (ChapterProcessor)
-  → TTS audio generation (TTSManager)
-  → Save text (ChapterTextSaver)
+  → load_chapters() (read, preprocess, normalize, ChapterParser)
+  → generate_single_voice_chapter()
+      → [Optional] LLM colloquialization (LLMManager, falls back to original)
+      → Add intro/outro (ChapterProcessor)
+      → Save text (ChapterTextSaver)
+      → TTS audio generation (TTSManager, duplicate policy applied)
 ```
+
+Both the CLI and the API call `load_chapters()` and `generate_single_voice_chapter()`; do not duplicate this flow in an entry point.
 
 **Characteristics**:
 - An entire chapter is generated at once
@@ -377,12 +397,14 @@ load_dotenv()
 CORE_DIR=ga_birds
 
 # ===== Multilingual configuration =====
-LANGUAGE=en_US                  # System language: en_US(English), zh_CN(Simplified Chinese), ja_JP(Japanese)
+LANGUAGE=en_US                  # System language: en_US(English), zh_CN(Simplified Chinese)
 
 # ===== TTS configuration =====
-TTS_MODE=api                    # api (Edge TTS) / local (local TTS)
+TTS_ENGINE=edge                 # Edge TTS (the only implemented engine)
 TTS_VOICE=zh-CN-XiaoxiaoNeural  # Default voice
 TTS_RATE=1.0                    # Speech rate
+TTS_CHUNK_MAX_CHARS=2000        # Long-text chunk size (sentence boundaries)
+TTS_CHUNK_TIMEOUT=180           # Timeout per chunk (seconds)
 OUTPUT_BITRATE=192              # Output bitrate
 
 # ===== LLM configuration =====
@@ -397,9 +419,10 @@ DIALOGUE_CHUNK_SIZE=3000        # Dialogue parsing chunk size
 DIALOGUE_CHUNK_OVERLAP=200      # Chunk overlap
 
 # ===== Chapter configuration =====
-CHAPTER_REGEX_PATTERNS=["^第[0-9一二三四五六七八九十百千]+[章回节].*$"]
+CHAPTER_REGEX_PATTERNS=^第[零一二三四五六七八九十百千万0-9]+[章回卷节](?![\u4e00-\u9fff]),^第[零一二三四五六七八九十百千万0-9]+卷(?![\u4e00-\u9fff])
 CHAPTER_MIN_LENGTH=100
-CHAPTER_KEEP_TITLE=false
+CHAPTER_KEEP_TITLE=true
+CHAPTER_NORMALIZE_ENABLED=true  # Normalize Markdown/bold headings before parsing
 CHAPTER_INTRO_OUTRO_ENABLED=true
 CHAPTER_INTRO_TEMPLATE=Chapter {index} begins
 CHAPTER_OUTRO_TEMPLATE=This chapter has finished
@@ -407,7 +430,14 @@ CHAPTER_OUTRO_TEMPLATE=This chapter has finished
 # ===== Output configuration =====
 OUTPUT_BASE_PATH=./output
 OUTPUT_FORMAT=mp3
+OUTPUT_STRATEGY=by_role         # by_role / by_model / by_date / flat
 OUTPUT_DUPLICATE_HANDLING=rename  # skip / rename / overwrite
+
+# ===== API and task configuration =====
+API_MAX_UPLOAD_SIZE=100         # MB; 0 disables the limit
+API_UPLOAD_DIR=./uploads
+TASK_CACHE_DIR=./cache/tasks
+TASK_RESULT_TTL=86400           # seconds; 0 keeps records forever
 ```
 
 ### 6.2 Configuration Access
@@ -594,9 +624,9 @@ async def generate_audio(request: GenerateRequest):
     if request.language:
         _i18n_module.set_locale(request.language)
 
-    # 2. Merge parameters (API parameters > config file)
-    voice = request.voice or config.TTS_VOICE
-    output_path = request.output_path or config.OUTPUT_BASE_PATH
+    # 2. Resolve defaults (API parameter > config file)
+    enable_llm = config.ENABLE_LLM if request.enable_llm is None else request.enable_llm
+    # voice=None means "use TTS_VOICE"; output_path=None means "use OUTPUT_BASE_PATH".
 ```
 
 ### 7.5 Import Conventions
@@ -946,36 +976,25 @@ async def generate_audio(request: GenerateRequest):
 ### 9.1 Single-voice Narration Flow
 
 ```python
-# 1. Read the file
-content = read_file(input_file)
+from ga_birds.Audio import generate_single_voice_chapter
+from ga_birds.Common import load_chapters
 
-# 2. Split into chapters
-parser = ChapterParser()
-chapters = parser.parse(content)
+# 1-2. Read, preprocess, normalize, and split chapters
+chapters = load_chapters(input_file)
 
-# 3. Process each chapter
+# 3. Process each chapter through the shared pipeline
 for chapter in chapters:
-    # 3.1 LLM colloquialization (optional)
-    if enable_llm:
-        content = llm_manager.colloquialize_text(chapter.content)
-
-    # 3.2 Add intro/outro
-    intro, outro = ChapterProcessor.prepare_intro_outro(
-        chapter.index, chapter.title
-    )
-    final_content = ChapterProcessor.combine_content_with_intro_outro(
-        content, intro, outro
-    )
-
-    # 3.3 TTS generation
-    await tts_manager.generate_audio(
-        text=final_content,
-        output_path=audio_path
-    )
-
-    # 3.4 Save text
-    ChapterTextSaver.save_single_voice_text(
-        audio_path, final_content
+    await generate_single_voice_chapter(
+        chapter_index=chapter.index,
+        chapter_title=chapter.title,
+        content=chapter.content,
+        output_dir=output_dir,
+        voice=voice,
+        rate=rate,
+        enable_llm=enable_llm,
+        llm_manager=llm_manager,
+        tts_manager=tts_manager,
+        audio_exporter=audio_exporter,
     )
 ```
 
@@ -1037,6 +1056,14 @@ tests/
 │   ├── test_upload.py       # Test upload endpoint
 │   ├── test_parse.py        # Test parse endpoint
 │   ├── test_generate.py     # Test generate endpoint
+│   ├── test_api_validation.py # Upload/parse/generate validation guards
+│   ├── test_generation_control.py # Pause, resume, and run control
+│   ├── test_shared_pipeline.py # Shared chapter loader and duplicate handling
+│   ├── test_task_persistence.py # JSON persistence and TTL
+│   ├── test_character_metadata.py # Character metadata
+│   ├── test_dialogue_parser_metadata.py # Dialogue metadata
+│   ├── test_text_normalizer.py # Chapter heading normalization
+│   ├── test_voice_assigner.py # Voice assignment
 │   └── test_task_status.py  # Test task status
 │
 ├── integration/             # Integration tests (httpx)
@@ -1063,11 +1090,20 @@ tests/
 **Example**:
 ```python
 # tests/unit/test_upload.py
+import importlib.util
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
-from fcgi-bin.api import app
 
-client = TestClient(app)
+project_root = Path(__file__).parent.parent.parent
+spec = importlib.util.spec_from_file_location(
+    "api", project_root / "fcgi-bin" / "api.py"
+)
+api_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(api_module)
+
+client = TestClient(api_module.app)
 
 @pytest.mark.unit
 def test_upload_with_file(sample_text_file):
@@ -1138,9 +1174,10 @@ async def test_complete_workflow(api_base_url, sample_text_file):
 **Run integration tests**:
 ```bash
 # Step 1: Start the API server (new terminal)
-uvicorn fcgi-bin.api:app --host 0.0.0.0 --port 8000
+bash api.sh
 
 # Step 2: Run integration tests (another terminal)
+# The tests default to http://localhost:8000.
 pytest tests/integration -v
 ```
 
@@ -1240,14 +1277,13 @@ bash cli.sh -i debug/test.txt --multi-voice true \
 
 ## 13. References
 
-- [Project General Development Conventions](../.augment/rules/imported/python.md)
 - [Installation Guide](./INSTALL.md)
 - [README](../README.md)
 
 ---
 
 **Original draft**: 2025-01-27
-**Last updated**: 2025-12-01
+**Last updated**: 2026-10-23
 **Maintainer**: GA Sprite Birds Development Team
 
 ---
@@ -1255,4 +1291,4 @@ bash cli.sh -i debug/test.txt --multi-voice true \
 **Author:** adam
 **Email:** dev@ebf.hk
 **Website:** http://ebf.cc
-**Source:** https://github.com/tiger-sprite/ga-sprite-birds
+**Source:** https://github.com/ga-sprite-birds/main

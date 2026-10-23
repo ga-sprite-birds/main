@@ -10,9 +10,10 @@ import os
 import asyncio
 import importlib
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional, List
+from uuid import uuid4
 
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Response
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -28,23 +29,18 @@ _i18n_module.set_locale(config.LANGUAGE)
 
 # Dynamically import core modules (based on config.CORE_DIR)
 _utils_module = importlib.import_module(f'{_core_module_name}.Utils')
-_parser_module = importlib.import_module(f'{_core_module_name}.Parser')
 _llm_module = importlib.import_module(f'{_core_module_name}.LLM')
 _audio_module = importlib.import_module(f'{_core_module_name}.Audio')
-_sprite_module = importlib.import_module(f'{_core_module_name}.Sprite')
+_common_module = importlib.import_module(f'{_core_module_name}.Common')
 _task_module = importlib.import_module(f'{_core_module_name}.Task')
 
 # Import required classes and functions
-read_text_file = _utils_module.read_text_file
-extract_pdf_text = _utils_module.extract_pdf_text
-preprocess_text = _utils_module.preprocess_text
-normalize_chapter_headings = _utils_module.normalize_chapter_headings
-get_unique_filename = _utils_module.get_unique_filename
-ChapterParser = _parser_module.ChapterParser
+SUPPORTED_INPUT_EXTENSIONS = _utils_module.SUPPORTED_INPUT_EXTENSIONS
+load_chapters = _common_module.load_chapters
+generate_single_voice_chapter = _audio_module.generate_single_voice_chapter
 LLMManager = _llm_module.LLMManager
 TTSManager = _audio_module.TTSManager
 AudioExporter = _audio_module.AudioExporter
-SpriteManager = _sprite_module.SpriteManager
 TaskManager = _task_module.TaskManager
 TaskStatus = _task_module.TaskStatus
 ChapterProgress = _task_module.ChapterProgress
@@ -52,8 +48,8 @@ ChapterProgress = _task_module.ChapterProgress
 
 # Initialize the FastAPI application
 app = FastAPI(
-    title="音频朗读系统 API",
-    description="将文本转换为音频的 API 服务",
+    title=t("api.title"),
+    description=t("api.description"),
     version="1.0.0",
     debug=config.API_DEBUG
 )
@@ -63,26 +59,20 @@ if config.API_CORS_ENABLED:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=config.API_CORS_ORIGINS,
-        allow_credentials=True,
+        # The API has no cookie/session auth, and "*" is not valid with
+        # credentialed CORS requests.
+        allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
 # Initialize managers
 task_manager = TaskManager()
-sprite_manager = SpriteManager()
 
 
 # ============================================
 # Request/Response models
 # ============================================
-
-class UploadRequest(BaseModel):
-    """Upload request"""
-    path: Optional[str] = None  # Local file path
-    output_path: Optional[str] = None  # Custom output path
-    language: Optional[str] = None  # UI language (en_US, zh_CN)
-
 
 class ParseRequest(BaseModel):
     """Parse request"""
@@ -95,7 +85,8 @@ class GenerateRequest(BaseModel):
     task_id: str  # Task ID
     voice: Optional[str] = None  # Voice timbre (overrides config)
     output_path: Optional[str] = None  # Output path (overrides config)
-    enable_llm: bool = True  # Whether to enable LLM colloquialization
+    enable_llm: Optional[bool] = None  # None uses ENABLE_LLM from config
+    rate: Optional[float] = None  # Speech rate (0.5-2.0)
     language: Optional[str] = None  # UI language (en_US, zh_CN)
     chapter_indexes: Optional[List[int]] = None  # Generate only these chapters; None means all
 
@@ -121,9 +112,15 @@ async def root():
 async def api_status():
     """API health status"""
     return {
-        "name": "音频朗读系统 API",
+        "name": t("api.service_name"),
         "version": "1.0.0",
-        "status": "running"
+        "status": "running",
+        "defaults": {
+            "voice": config.TTS_VOICE,
+            "rate": config.TTS_RATE,
+            "enable_llm": config.ENABLE_LLM,
+            "language": config.LANGUAGE,
+        },
     }
 
 
@@ -143,12 +140,22 @@ def _get_gui_index_response():
     """Build the GUI index file response"""
     index_path = Path(__file__).resolve().parents[1] / "index.html"
     if not index_path.exists():
-        raise HTTPException(status_code=404, detail="GUI 文件不存在，请先在 gui 目录执行 npm run build")
+        raise HTTPException(status_code=404, detail=t("api.gui_not_built"))
     return FileResponse(
         index_path,
         media_type="text/html",
         headers={"Cache-Control": "no-cache"}
     )
+
+
+def _validate_input_file(file_path: Path) -> None:
+    """Reject files that the chapter loader cannot read."""
+    suffix = file_path.suffix.lower()
+    if suffix not in SUPPORTED_INPUT_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=t("api.unsupported_file_format", suffix=suffix)
+        )
 
 
 @app.post("/upload", response_model=TaskResponse)
@@ -159,7 +166,7 @@ async def upload_file(
     language: Optional[str] = None
 ):
     """
-    Upload a text file or specify a local path
+    Upload a text file or specify a local path.
 
     Args:
         file: The uploaded file object
@@ -170,47 +177,78 @@ async def upload_file(
     Returns:
         Task information
     """
-    # Set language
     if language:
         _i18n_module.set_locale(language)
 
     try:
         # Prefer the local path
         if path:
-            file_path = path
-            if not os.path.exists(file_path):
-                raise HTTPException(status_code=404, detail=f"文件不存在: {file_path}")
+            file_path = Path(path)
+            if not file_path.is_file():
+                raise HTTPException(
+                    status_code=404,
+                    detail=t("api.file_not_found", path=path)
+                )
+            _validate_input_file(file_path)
         elif file:
-            # Save the uploaded file (using the configured upload directory)
+            # Never trust the client-provided name for the on-disk path.
+            original_name = os.path.basename((file.filename or "").replace("\\", "/"))
+            if not original_name:
+                raise HTTPException(status_code=400, detail=t("api.file_name_required"))
+
             upload_dir = Path(config.API_UPLOAD_DIR)
             upload_dir.mkdir(parents=True, exist_ok=True)
+            # A unique prefix prevents two uploads from overwriting each other.
+            file_path = upload_dir / f"{uuid4().hex}_{original_name}"
+            _validate_input_file(file_path)
 
-            file_path = upload_dir / file.filename
-            with open(file_path, "wb") as f:
-                content = await file.read()
-                f.write(content)
+            max_bytes = config.API_MAX_UPLOAD_SIZE * 1024 * 1024
+            written = 0
+            try:
+                with open(file_path, "wb") as handle:
+                    while True:
+                        chunk = await file.read(1024 * 1024)
+                        if not chunk:
+                            break
+                        written += len(chunk)
+                        if max_bytes > 0 and written > max_bytes:
+                            raise HTTPException(
+                                status_code=413,
+                                detail=t(
+                                    "api.file_too_large",
+                                    limit=config.API_MAX_UPLOAD_SIZE
+                                )
+                            )
+                        handle.write(chunk)
+            except HTTPException:
+                file_path.unlink(missing_ok=True)
+                raise
+            except Exception as error:
+                file_path.unlink(missing_ok=True)
+                raise HTTPException(
+                    status_code=500,
+                    detail=t("api.file_upload_failed", error=error)
+                )
 
             logger.info(t("api.file_upload_success", path=str(file_path)))
         else:
-            raise HTTPException(status_code=400, detail="必须提供文件或路径")
-        
-        # Create the task
+            raise HTTPException(status_code=400, detail=t("api.file_or_path_required"))
+
         task_id = task_manager.create_task(
             metadata={
                 "file_path": str(file_path),
                 "output_path": output_path,
-                "filename": os.path.basename(file_path)
+                "filename": file_path.name
             }
         )
-        
+
         return TaskResponse(
             task_id=task_id,
             status="pending",
-            message=f"文件上传成功，任务 ID: {task_id}"
+            message=t("api.upload_task_created", task_id=task_id)
         )
-    
+
     except HTTPException:
-        # Re-raise HTTPException, preserving the original status code
         raise
     except Exception as e:
         logger.error(t("api.file_upload_failed", error=e))
@@ -232,55 +270,52 @@ async def parse_text(request: ParseRequest):
     if request.language:
         _i18n_module.set_locale(request.language)
 
-    try:
-        task = task_manager.get_task(request.task_id)
-        if not task:
-            raise HTTPException(status_code=404, detail=f"任务不存在: {request.task_id}")
-        
-        # Update task status
-        task_manager.update_task_status(request.task_id, TaskStatus.PARSING)
-        
-        # Read the file
-        file_path = task.metadata.get("file_path")
-        if not file_path:
-            raise HTTPException(status_code=400, detail="任务中未找到文件路径")
-        
-        # Read content based on file type
-        file_ext = Path(file_path).suffix.lower()
-        if file_ext == ".pdf":
-            text = extract_pdf_text(file_path)
-        else:
-            text = read_text_file(file_path)
-        
-        # Text preprocessing
-        if config.TEXT_PREPROCESSING_ENABLED:
-            text = preprocess_text(
-                text,
-                remove_extra_newlines=True,
-                remove_headers_footers=True,
-                fix_pdf_linebreaks=True
-            )
-
-        # Normalize irregular chapter headings (Markdown bold/heading, etc.)
-        if config.CHAPTER_NORMALIZE_ENABLED:
-            text = normalize_chapter_headings(text)
-
-        # Chapter splitting
-        parser = ChapterParser(
-            regex_patterns=config.CHAPTER_REGEX_PATTERNS,
-            min_length=config.CHAPTER_MIN_LENGTH,
-            keep_title=config.CHAPTER_KEEP_TITLE
+    task = task_manager.get_task(request.task_id)
+    if not task:
+        raise HTTPException(
+            status_code=404,
+            detail=t("api.task_not_found", task_id=request.task_id)
         )
-        chapters = parser.parse(text)
-        
-        # Update task chapter information
+
+    # Re-parsing while a job is running, or after audio has been produced,
+    # would silently reset chapter progress and orphan existing files.
+    if task_manager.is_running(request.task_id) or task.status == TaskStatus.GENERATING:
+        raise HTTPException(status_code=409, detail=t("api.task_generating_no_parse"))
+    if task.status == TaskStatus.PARSING:
+        raise HTTPException(status_code=409, detail=t("api.task_already_parsing"))
+    if any(chapter.audio_path for chapter in task.chapters):
+        raise HTTPException(status_code=409, detail=t("api.task_has_audio_no_parse"))
+
+    file_path = task.metadata.get("file_path")
+    if not file_path:
+        raise HTTPException(status_code=400, detail=t("api.task_no_file_path"))
+
+    file_path_obj = Path(file_path)
+    if not file_path_obj.is_file():
+        raise HTTPException(
+            status_code=404,
+            detail=t("api.file_not_found", path=file_path)
+        )
+    _validate_input_file(file_path_obj)
+
+    # Drop the previous parse result so a failed re-parse cannot leave stale
+    # chapters behind.
+    task.total_chapters = 0
+    task.completed_chapters = 0
+    task.chapters = []
+    task.error = None
+    task.metadata.pop("chapters", None)
+    task.metadata.pop("generation", None)
+    task_manager.update_task_status(request.task_id, TaskStatus.PARSING)
+
+    try:
+        chapters = load_chapters(str(file_path_obj))
+
         task.total_chapters = len(chapters)
         task.chapters = [
             ChapterProgress(index=ch.index, title=ch.title)
             for ch in chapters
         ]
-        
-        # Save chapter data to task metadata
         task.metadata["chapters"] = [
             {
                 "index": ch.index,
@@ -290,24 +325,20 @@ async def parse_text(request: ParseRequest):
             for ch in chapters
         ]
 
-        # Update task status to parsed
         task_manager.update_task_status(request.task_id, TaskStatus.PARSED)
-
         logger.info(t("api.parse_complete", task_id=request.task_id, count=len(chapters)))
 
         return TaskResponse(
             task_id=request.task_id,
             status="parsed",
-            message=f"解析完成，共 {len(chapters)} 章"
+            message=t("api.parse_complete", task_id=request.task_id, count=len(chapters))
         )
-    
-    except HTTPException:
-        # Re-raise HTTPException, preserving the original status code
-        raise
     except Exception as e:
         logger.error(t("api.parse_failed", error=e))
+        task.error = str(e)
         task_manager.update_task_status(request.task_id, TaskStatus.FAILED)
-        raise HTTPException(status_code=500, detail=str(e))
+        status_code = 404 if isinstance(e, FileNotFoundError) else 400 if isinstance(e, ValueError) else 500
+        raise HTTPException(status_code=status_code, detail=str(e))
 
 
 def _launch_generation(
@@ -315,16 +346,11 @@ def _launch_generation(
     voice: Optional[str],
     output_path: Optional[str],
     enable_llm: bool,
+    rate: Optional[float],
     chapter_indexes: Optional[List[int]]
 ) -> None:
     """Start a managed background generation job for a task."""
     task.pause_requested = False
-
-    # Stop any job that is still winding down so it cannot clobber the new one
-    existing = task_manager.running_tasks.get(task.task_id)
-    if existing and not existing.done():
-        existing.cancel()
-
     task_manager.update_task_status(task.task_id, TaskStatus.GENERATING)
     job = asyncio.create_task(
         _generate_audio_task(
@@ -332,6 +358,7 @@ def _launch_generation(
             voice=voice,
             output_path=output_path,
             enable_llm=enable_llm,
+            rate=rate,
             chapter_indexes=chapter_indexes,
         )
     )
@@ -349,49 +376,64 @@ async def generate_audio(request: GenerateRequest):
     Returns:
         Task information
     """
-    # Set language
     if request.language:
         _i18n_module.set_locale(request.language)
 
-    try:
-        task = task_manager.get_task(request.task_id)
-        if not task:
-            raise HTTPException(status_code=404, detail=f"任务不存在: {request.task_id}")
-
-        if task.status == TaskStatus.GENERATING:
-            raise HTTPException(status_code=409, detail=t("api.task_already_generating"))
-
-        # Check whether the task has been parsed
-        if not task.metadata.get("chapters"):
-            raise HTTPException(status_code=400, detail="任务尚未解析，请先调用 /parse")
-
-        # Remember the options so resume can reuse them
-        task.metadata["generation"] = {
-            "voice": request.voice,
-            "output_path": request.output_path,
-            "enable_llm": request.enable_llm,
-        }
-
-        _launch_generation(
-            task=task,
-            voice=request.voice,
-            output_path=request.output_path,
-            enable_llm=request.enable_llm,
-            chapter_indexes=request.chapter_indexes,
+    task = task_manager.get_task(request.task_id)
+    if not task:
+        raise HTTPException(
+            status_code=404,
+            detail=t("api.task_not_found", task_id=request.task_id)
         )
 
-        return TaskResponse(
-            task_id=request.task_id,
-            status="generating",
-            message="音频生成已开始，请通过 /task/{id}/status 查询进度"
-        )
-    
-    except HTTPException:
-        # Re-raise HTTPException, preserving the original status code
-        raise
-    except Exception as e:
-        logger.error(t("api.generate_failed", error=e))
-        raise HTTPException(status_code=500, detail=str(e))
+    if task_manager.is_running(request.task_id) or task.status == TaskStatus.GENERATING:
+        raise HTTPException(status_code=409, detail=t("api.task_already_generating"))
+    if task.status == TaskStatus.PARSING:
+        raise HTTPException(status_code=409, detail=t("api.task_already_parsing"))
+
+    chapters = task.metadata.get("chapters") or []
+    if not chapters:
+        raise HTTPException(status_code=400, detail=t("api.task_no_chapters"))
+
+    if request.chapter_indexes is not None:
+        if not request.chapter_indexes:
+            raise HTTPException(status_code=400, detail=t("api.chapter_indexes_empty"))
+        available = {item["index"] for item in chapters}
+        invalid = sorted({index for index in request.chapter_indexes if index not in available})
+        if invalid:
+            raise HTTPException(
+                status_code=400,
+                detail=t("api.chapter_indexes_invalid", indexes=invalid)
+            )
+
+    if request.rate is not None and not 0.5 <= request.rate <= 2.0:
+        raise HTTPException(status_code=400, detail=t("api.invalid_rate"))
+
+    enable_llm = config.ENABLE_LLM if request.enable_llm is None else request.enable_llm
+
+    # Remember the options so resume can reuse the same scope and parameters.
+    task.metadata["generation"] = {
+        "voice": request.voice,
+        "output_path": request.output_path,
+        "enable_llm": enable_llm,
+        "rate": request.rate,
+        "chapter_indexes": request.chapter_indexes,
+    }
+
+    _launch_generation(
+        task=task,
+        voice=request.voice,
+        output_path=request.output_path,
+        enable_llm=enable_llm,
+        rate=request.rate,
+        chapter_indexes=request.chapter_indexes,
+    )
+
+    return TaskResponse(
+        task_id=request.task_id,
+        status="generating",
+        message=t("api.generate_started")
+    )
 
 
 @app.post("/task/{task_id}/pause", response_model=TaskResponse)
@@ -417,14 +459,17 @@ async def resume_generation(task_id: str):
 
     if task.status != TaskStatus.PAUSED:
         raise HTTPException(status_code=409, detail=t("api.task_not_paused"))
+    if task_manager.is_running(task_id):
+        raise HTTPException(status_code=409, detail=t("api.task_already_generating"))
 
     options = task.metadata.get("generation", {})
     _launch_generation(
         task=task,
         voice=options.get("voice"),
         output_path=options.get("output_path"),
-        enable_llm=options.get("enable_llm", True),
-        chapter_indexes=None,
+        enable_llm=options.get("enable_llm", config.ENABLE_LLM),
+        rate=options.get("rate"),
+        chapter_indexes=options.get("chapter_indexes"),
     )
     return TaskResponse(task_id=task_id, status="generating", message=t("api.resume_started"))
 
@@ -436,17 +481,20 @@ async def delete_chapter_audio(task_id: str, chapter_index: int):
     if not task:
         raise HTTPException(status_code=404, detail=t("api.task_not_found", task_id=task_id))
 
-    if task.status == TaskStatus.GENERATING:
+    if task_manager.is_running(task_id) or task.status == TaskStatus.GENERATING:
         raise HTTPException(status_code=409, detail=t("api.task_generating_no_delete"))
 
     if not task_manager.delete_chapter_audio(task_id, chapter_index):
-        raise HTTPException(status_code=404, detail=f"章节不存在: {chapter_index}")
+        raise HTTPException(
+            status_code=404,
+            detail=t("api.chapter_not_found", chapter_index=chapter_index)
+        )
 
     return {"task_id": task_id, "chapter_index": chapter_index, "status": "pending"}
 
 
 @app.get("/task/{task_id}/status")
-async def get_task_status(task_id: str):
+async def get_task_status(task_id: str, response: Response):
     """
     Query task status
 
@@ -458,8 +506,14 @@ async def get_task_status(task_id: str):
     """
     progress = task_manager.get_task_progress(task_id)
     if not progress:
-        raise HTTPException(status_code=404, detail=f"任务不存在: {task_id}")
-    
+        raise HTTPException(
+            status_code=404,
+            detail=t("api.task_not_found", task_id=task_id)
+        )
+
+    # Progress changes after every chapter; never let a stale cached response
+    # restore a list that the user just deleted.
+    response.headers["Cache-Control"] = "no-store"
     return progress
 
 
@@ -477,10 +531,16 @@ async def get_chapter_audio(task_id: str, chapter_index: int):
     """
     audio_path = task_manager.get_chapter_audio(task_id, chapter_index)
     if not audio_path:
-        raise HTTPException(status_code=404, detail=f"章节音频不存在: {chapter_index}")
-    
+        raise HTTPException(
+            status_code=404,
+            detail=t("api.audio_not_found", chapter_index=chapter_index)
+        )
+
     if not os.path.exists(audio_path):
-        raise HTTPException(status_code=404, detail=f"音频文件不存在: {audio_path}")
+        raise HTTPException(
+            status_code=404,
+            detail=t("api.audio_path_not_found", path=audio_path)
+        )
 
     if os.path.getsize(audio_path) == 0:
         raise HTTPException(status_code=409, detail=t("api.audio_file_empty", path=audio_path))
@@ -502,46 +562,51 @@ async def _generate_audio_task(
     voice: Optional[str] = None,
     output_path: Optional[str] = None,
     enable_llm: bool = True,
+    rate: Optional[float] = None,
     chapter_indexes: Optional[List[int]] = None
 ):
     """
-    Background audio generation task
+    Background audio generation task.
 
     Args:
         task_id: Task ID
         voice: Voice timbre
         output_path: Output path
         enable_llm: Whether to enable LLM
+        rate: Speech rate (0.5-2.0)
         chapter_indexes: Generate only these chapters; None means all chapters
     """
     paused = False
+    failed_in_run = False
     try:
         task = task_manager.get_task(task_id)
         if not task:
             logger.error(t("api.task_not_found", task_id=task_id))
             return
-        
-        # Initialize managers (no need to pass settings; managers use config internally)
-        llm_manager = LLMManager() if enable_llm else None
+
+        llm_manager = None
+        if enable_llm:
+            try:
+                llm_manager = LLMManager()
+            except Exception as error:
+                logger.error(t("api.llm_init_failed", error=error))
+
         tts_manager = TTSManager()
         audio_exporter = AudioExporter()
-        
-        # Get chapter data
+
         chapters_data = task.metadata.get("chapters", [])
-        if chapter_indexes:
+        if chapter_indexes is not None:
             wanted = set(chapter_indexes)
             chapters_data = [
                 item for item in chapters_data if item["index"] in wanted
             ]
-        
-        # Generate audio chapter by chapter
+
         for chapter_data in chapters_data:
-            # Stop when the task was removed while generating
             if task_manager.get_task(task_id) is None:
                 logger.warning(t("api.task_not_found", task_id=task_id))
                 return
 
-            # Between-chapter pause: stop before starting the next chapter
+            # Between-chapter pause: stop before starting the next chapter.
             if task.pause_requested:
                 paused = True
                 break
@@ -550,74 +615,40 @@ async def _generate_audio_task(
             chapter_title = chapter_data["title"]
             chapter_content = chapter_data["content"]
 
-            # Skip chapters that already have audio
             if task_manager.get_chapter_status(task_id, chapter_index) == TaskStatus.COMPLETED:
                 logger.info(t("api.chapter_skip_completed", index=chapter_index))
                 continue
 
             logger.info(t("api.generating_chapter", index=chapter_index, title=chapter_title))
-            
-            # Update chapter status
             task_manager.update_chapter_status(
                 task_id,
                 chapter_index,
                 TaskStatus.GENERATING
             )
-            
+
             try:
-                # LLM colloquialization (optional)
-                if enable_llm and llm_manager:
-                    logger.info(t("api.chapter_llm_start", index=chapter_index))
-                    try:
-                        chapter_content = llm_manager.colloquialize_text(chapter_content)
-                    except Exception as llm_error:
-                        logger.error(t("api.chapter_llm_failed", index=chapter_index, error=llm_error))
-                        logger.warning(t("api.chapter_llm_fallback", index=chapter_index))
-                
-                # Generate the audio file path
-                audio_path = audio_exporter.get_output_path(
-                    index=chapter_index,
-                    title=chapter_title,
-                    role="default",
-                    custom_base_path=output_path
+                result = await generate_single_voice_chapter(
+                    chapter_index=chapter_index,
+                    chapter_title=chapter_title,
+                    content=chapter_content,
+                    output_dir=output_path,
+                    voice=voice,
+                    rate=rate,
+                    enable_llm=enable_llm,
+                    llm_manager=llm_manager,
+                    tts_manager=tts_manager,
+                    audio_exporter=audio_exporter,
                 )
-
-                if audio_path.exists():
-                    if config.OUTPUT_DUPLICATE_HANDLING == "skip" and audio_path.stat().st_size > 0:
-                        logger.info(t("api.file_exists_skip", path=audio_path))
-                        task_manager.update_chapter_status(
-                            task_id,
-                            chapter_index,
-                            TaskStatus.COMPLETED,
-                            audio_path=str(audio_path)
-                        )
-                        continue
-                    if config.OUTPUT_DUPLICATE_HANDLING == "rename":
-                        audio_path = get_unique_filename(audio_path)
-                        logger.info(t("api.file_exists_rename", path=audio_path))
-                    elif audio_path.stat().st_size == 0:
-                        audio_path.unlink()
-                        logger.info(t("api.empty_file_removed", path=audio_path))
-
-                # TTS generate audio
-                logger.info(t("api.chapter_tts_start", index=chapter_index))
-                await tts_manager.generate_audio(
-                    text=chapter_content,
-                    output_path=str(audio_path),
-                    voice=voice
-                )
-                
-                # Update chapter status to completed
                 task_manager.update_chapter_status(
                     task_id,
                     chapter_index,
                     TaskStatus.COMPLETED,
-                    audio_path=str(audio_path)
+                    audio_path=str(result.audio_path)
                 )
-                
-                logger.info(t("api.chapter_complete", index=chapter_index, path=str(audio_path)))
-            
+                if result.skipped:
+                    logger.info(t("api.chapter_skip_completed", index=chapter_index))
             except Exception as e:
+                failed_in_run = True
                 logger.error(t("api.chapter_failed", index=chapter_index, error=e))
                 task_manager.update_chapter_status(
                     task_id,
@@ -636,32 +667,37 @@ async def _generate_audio_task(
             chapter for chapter in task.chapters
             if chapter.status == TaskStatus.COMPLETED
         ]
-        failed_chapters = [
-            chapter for chapter in task.chapters
-            if chapter.status == TaskStatus.FAILED
-        ]
 
         if len(completed_chapters) == task.total_chapters:
             task_manager.update_task_status(task_id, TaskStatus.COMPLETED)
             logger.info(t("api.task_all_complete", task_id=task_id))
-        elif failed_chapters:
+        elif failed_in_run:
             task.error = t("api.task_partial_failed", task_id=task_id)
             task_manager.update_task_status(task_id, TaskStatus.FAILED)
             logger.error(task.error)
         else:
-            # Some chapters are still pending; return to the parsed state
+            # Some chapters are still pending; return to the parsed state.
             task_manager.update_task_status(task_id, TaskStatus.PARSED)
             logger.info(t("api.task_partial_complete", task_id=task_id))
 
     except asyncio.CancelledError:
         logger.info(t("api.task_job_cancelled", task_id=task_id))
-        task_manager.update_task_status(task_id, TaskStatus.CANCELLED)
+        # Do not let an old, cancelled job overwrite the state of a newer one.
+        task = task_manager.get_task(task_id)
+        if (
+            task
+            and task.status == TaskStatus.GENERATING
+            and task_manager.running_tasks.get(task_id) is asyncio.current_task()
+        ):
+            task_manager.update_task_status(task_id, TaskStatus.CANCELLED)
         raise
     except Exception as e:
         logger.error(t("api.task_failed", task_id=task_id, error=e))
+        task = task_manager.get_task(task_id)
+        if task:
+            task.error = str(e)
         task_manager.update_task_status(task_id, TaskStatus.FAILED)
     finally:
-        # Only clear the registration if it still points at this job
         if task_manager.running_tasks.get(task_id) is asyncio.current_task():
             task_manager.running_tasks.pop(task_id, None)
 

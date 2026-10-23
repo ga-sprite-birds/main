@@ -15,7 +15,6 @@
     "file_not_found": "Input file does not exist: {path}",
     "input_file": "Input file: {path}",
     "llm_mode": "LLM mode: {mode}",
-    "tts_mode": "TTS mode: {mode}",
     "llm_enabled": "LLM enabled: {enabled}",
     "multi_voice": "Multi-character voice: {enabled}",
     "reading_file": "Reading file...",
@@ -58,7 +57,7 @@
     "assigning_voices": "Assigning voices to characters...",
     "template_saved": "Character template saved: {path}",
     "character_stats": "Character statistics",
-    "total_count": "Total characters: {count}",
+    "total_count": "Total: {count} chapter(s)",
     "char_summary": "{i}. {name}: {voice} (appeared {count} times)",
     "more_characters": "... {count} more character(s)",
     "narrator_voice": "Narrator voice: {voice}",
@@ -119,7 +118,36 @@
     "all_done": "Generation complete",
     "success_count": "Succeeded: {count} chapter(s)",
     "failed_count": "Failed: {count} chapter(s)",
-    "total_count": "Total: {count} chapter(s)"
+    "invalid_rate": "Rate must be between 0.5 and 2.0",
+    "description": "Convert text into chapter audio",
+    "help": {
+      "input": "Input file path (.txt/.md/.pdf)",
+      "output": "Output directory (defaults to config)",
+      "voice": "Edge TTS voice (defaults to config)",
+      "rate": "Speech rate, 0.5-2.0 (defaults to config)",
+      "no_llm": "Disable LLM colloquialization",
+      "start": "First chapter (1-based)",
+      "end": "Last chapter (inclusive)",
+      "log_level": "Log level",
+      "language": "Interface language",
+      "analyze_characters": "Analyze characters and build a voice template",
+      "multi_voice": "Enable multi-character voice; true/false is optional",
+      "character_template": "Character template JSON path",
+      "character_list": "Character list JSON path",
+      "analysis_mode": "Character analysis mode"
+    },
+    "examples": {
+      "title": "Examples:",
+      "basic": "  bash cli.sh -i input.txt",
+      "output": "  bash cli.sh -i input.txt -o output",
+      "voice": "  bash cli.sh -i input.txt --voice zh-CN-YunxiNeural --rate 1.2",
+      "no_llm": "  bash cli.sh -i input.txt --no-llm",
+      "chapters": "  bash cli.sh -i input.txt --start 2 --end 5",
+      "analyze_auto": "  bash cli.sh -i input.txt --analyze-characters",
+      "analyze_hybrid": "  bash cli.sh -i input.txt --analyze-characters --analysis-mode hybrid --character-list characters.json",
+      "analyze_force": "  bash cli.sh -i input.txt --analyze-characters --character-list characters.json"
+    },
+    "tts_engine": "TTS engine: {engine}"
   },
   "api": {
     "file_upload_success": "File uploaded successfully: {path}",
@@ -152,7 +180,30 @@
     "chapter_skip_completed": "Chapter {index} already generated; skipped",
     "task_paused": "Task {task_id} paused",
     "task_partial_complete": "Task {task_id} partially complete; some chapters are still pending",
-    "task_job_cancelled": "Task {task_id} generation cancelled"
+    "task_job_cancelled": "Task {task_id} generation cancelled",
+    "file_not_found": "File not found: {path}",
+    "file_name_required": "File name is required",
+    "file_or_path_required": "A file or path is required",
+    "unsupported_file_format": "Unsupported file format: {suffix}",
+    "file_too_large": "File is too large (maximum {limit} MB)",
+    "upload_task_created": "File uploaded, task ID: {task_id}",
+    "task_no_file_path": "The task has no file path",
+    "task_no_chapters": "The task has not been parsed yet; call /parse first",
+    "task_generating_no_parse": "The task is generating; re-parsing is not allowed",
+    "task_already_parsing": "The task is already being parsed",
+    "task_has_audio_no_parse": "The task already has generated audio; delete it before re-parsing",
+    "chapter_indexes_empty": "chapter_indexes must not be empty",
+    "chapter_indexes_invalid": "Unknown chapter indexes: {indexes}",
+    "invalid_rate": "Rate must be between 0.5 and 2.0",
+    "chapter_not_found": "Chapter not found: {chapter_index}",
+    "audio_not_found": "Chapter audio not found: {chapter_index}",
+    "audio_path_not_found": "Audio file not found: {path}",
+    "gui_not_built": "GUI file not found; run npm run build in the gui directory first",
+    "service_name": "GA Sprite Birds API",
+    "llm_init_failed": "LLM initialization failed; generating from the original text: {error}",
+    "generate_started": "Audio generation started; poll /task/{id}/status for progress",
+    "title": "GA Sprite Birds API",
+    "description": "Local API for converting text into chapter audio"
   },
   "llm": {
     "mode_local": "LLM mode: local (Ollama), model: {model}",
@@ -226,13 +277,9 @@
     "model_unavailable": "Model {model} is unavailable",
     "llm_setup_valid": "Local LLM setup validated successfully",
     "llm_validate_failed": "Local LLM setup validation failed; please check the configuration and model",
-    "validating_tts_setup": "Validating local TTS setup...",
-    "tts_model_path_missing": "TTS model path does not exist: {path}",
     "first_run_auto_download": "Model will be downloaded automatically on first run",
     "gpu_required_but_cpu": "Configuration requires CUDA, but no GPU detected; falling back to CPU",
-    "cpu_may_be_slower": "This may cause performance degradation",
-    "tts_device_ready": "TTS device: {desc}",
-    "tts_setup_valid": "Local TTS setup validated successfully"
+    "cpu_may_be_slower": "This may cause performance degradation"
   },
   "token": {
     "tiktoken_not_installed": "tiktoken is not installed; using character-count estimation (less accurate)",
@@ -281,7 +328,7 @@
     "merger_initialized": "Audio merger initialized"
   },
   "tts": {
-    "manager_initialized": "TTS manager initialized; mode: {mode}, engine: {engine}",
+    "manager_initialized": "TTS manager initialized; engine: {engine}",
     "edge_engine_initialized": "Edge TTS engine initialized; default voice: {voice}",
     "base_engine_initialized": "Initializing TTS engine: {name}",
     "generation_start": "Generating audio: {path}, voice: {voice}, rate: {rate}, text length: {length} chars",
@@ -307,7 +354,7 @@
     "parse_complete": "Chapter parsing complete; {count} chapter(s)"
   },
   "task": {
-    "manager_initialized": "Task manager initialized; max concurrent tasks: {count}",
+    "manager_initialized": "Task manager initialized",
     "task_created": "Task created: {task_id}, chapters: {count}",
     "task_status_updated": "Task {task_id} status updated: {status}",
     "chapter_completed": "Task {task_id}, chapter {index} completed: {title}",
@@ -318,7 +365,8 @@
     "record_restored": "Restored task record: {task_id}",
     "record_load_failed": "Failed to load task record: {path}, error: {error}",
     "record_save_failed": "Failed to save task record: {task_id}, error: {error}",
-    "record_delete_failed": "Failed to delete task record: {task_id}, error: {error}"
+    "record_delete_failed": "Failed to delete task record: {task_id}, error: {error}",
+    "record_expired": "Expired task record removed: {task_id}"
   },
   "sprite": {
     "manager_initialized": "Sprite manager initialized",
@@ -409,7 +457,8 @@
     "intro_outro_disabled": "Intro/outro not enabled",
     "intro_text": "Intro: {text}",
     "outro_text": "Outro: {text}",
-    "warning_chapter_short": "Chapter '{title}' is too short ({length} characters); skipping"
+    "warning_chapter_short": "Chapter '{title}' is too short ({length} characters); skipping",
+    "loaded": "Chapters loaded: {count}"
   },
   "video": {
     "processing": "Processing: {path}",

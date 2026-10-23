@@ -14,7 +14,7 @@ import importlib
 from enum import Enum
 from dataclasses import dataclass, field
 from typing import Optional, Dict, List, Any
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from loguru import logger
@@ -75,14 +75,13 @@ class TaskManager:
     def __init__(self, persist: bool = True):
         """Initialize the task manager"""
         self.tasks: Dict[str, Task] = {}
-        self.max_concurrent_tasks = config.TASK_MAX_CONCURRENT
         self.running_tasks: Dict[str, asyncio.Task] = {}
         self.persist = persist
         self.record_dir = Path(config.TASK_CACHE_DIR)
 
-        logger.info(t("task.manager_initialized", count=self.max_concurrent_tasks))
+        logger.info(t("task.manager_initialized"))
         self._load_records()
-    
+
     def create_task(
         self,
         chapters: Optional[List[Chapter]] = None,
@@ -108,20 +107,20 @@ class TaskManager:
                     index=chapter.index,
                     title=chapter.title
                 ))
-        
+
         task = Task(
             task_id=task_id,
             total_chapters=len(chapter_progress),
             chapters=chapter_progress,
             metadata=metadata or {}
         )
-        
+
         self.tasks[task_id] = task
         logger.info(t("task.task_created", task_id=task_id, count=task.total_chapters))
         self._save_record(task_id)
-        
+
         return task_id
-    
+
     def get_task(self, task_id: str) -> Optional[Task]:
         """
         Get a task
@@ -145,15 +144,19 @@ class TaskManager:
         task = self.get_task(task_id)
         if task:
             task.status = status
-            
-            if status == TaskStatus.GENERATING and task.started_at is None:
-                task.started_at = datetime.now()
+
+            if status == TaskStatus.GENERATING:
+                if task.started_at is None:
+                    task.started_at = datetime.now()
+                # A new run starts cleanly even after a failure or cancellation.
+                task.completed_at = None
+                task.error = None
             elif status in [TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED]:
                 task.completed_at = datetime.now()
-            
+
             logger.info(t("task.task_status_updated", task_id=task_id, status=status.value))
             self._save_record(task_id)
-    
+
     def update_chapter_status(
         self,
         task_id: str,
@@ -180,17 +183,17 @@ class TaskManager:
         for chapter in task.chapters:
             if chapter.index == chapter_index:
                 chapter.status = status
-                
+
                 if status == TaskStatus.GENERATING and chapter.started_at is None:
                     chapter.started_at = datetime.now()
                 elif status in [TaskStatus.COMPLETED, TaskStatus.FAILED]:
                     chapter.completed_at = datetime.now()
-                
+
                 if audio_path:
                     chapter.audio_path = audio_path
-                
-                if error:
-                    chapter.error = error
+
+                # A retried chapter starts clean; only FAILED keeps an error.
+                chapter.error = error if status == TaskStatus.FAILED else None
 
                 # Recompute the completed chapter count so repeated generation
                 # or deletion never makes the counter drift
@@ -204,7 +207,7 @@ class TaskManager:
 
                 self._save_record(task_id)
                 break
-    
+
     def get_chapter_audio(self, task_id: str, chapter_index: int) -> Optional[str]:
         """
         Get the chapter audio path
@@ -219,21 +222,12 @@ class TaskManager:
         task = self.get_task(task_id)
         if not task:
             return None
-        
+
         for chapter in task.chapters:
             if chapter.index == chapter_index:
                 return chapter.audio_path
-        
-        return None
-    
-    def list_tasks(self) -> List[Task]:
-        """
-        List all tasks
 
-        Returns:
-            task list
-        """
-        return list(self.tasks.values())
+        return None
 
     def get_chapter_status(self, task_id: str, chapter_index: int) -> Optional[TaskStatus]:
         """Return a chapter's status, or None when it does not exist."""
@@ -276,7 +270,7 @@ class TaskManager:
         task = self.get_task(task_id)
         if not task:
             return
-        wanted = set(chapter_indexes) if chapter_indexes else None
+        wanted = set(chapter_indexes) if chapter_indexes is not None else None
         for chapter in task.chapters:
             if wanted is not None and chapter.index not in wanted:
                 continue
@@ -311,11 +305,8 @@ class TaskManager:
                 continue
 
             path = chapter.audio_path
-            if delete_file and path and os.path.exists(path):
-                try:
-                    os.remove(path)
-                except OSError as error:
-                    logger.warning(t("task.audio_delete_failed", path=path, error=error))
+            if delete_file and path:
+                self._remove_chapter_files(path)
 
             chapter.audio_path = None
             chapter.status = TaskStatus.PENDING
@@ -325,6 +316,11 @@ class TaskManager:
             task.completed_chapters = sum(
                 1 for item in task.chapters if item.status == TaskStatus.COMPLETED
             )
+            # A completed task no longer has a disk record. Reopen it so the
+            # deletion survives a restart and the chapter can be regenerated.
+            if task.status == TaskStatus.COMPLETED:
+                task.status = TaskStatus.PARSED
+                task.completed_at = None
 
             logger.info(t("task.chapter_audio_deleted", task_id=task_id, index=chapter_index))
             self._save_record(task_id)
@@ -332,33 +328,24 @@ class TaskManager:
 
         return False
 
-    def cancel_task(self, task_id: str) -> bool:
-        """
-        Cancel a task
-
-        Args:
-            task_id: task ID
-
-        Returns:
-            whether cancellation succeeded
-        """
-        task = self.get_task(task_id)
-        if not task:
-            return False
-
-        # Cancel the running async task
-        if task_id in self.running_tasks:
-            self.running_tasks[task_id].cancel()
-            del self.running_tasks[task_id]
-        
-        self.update_task_status(task_id, TaskStatus.CANCELLED)
-        logger.info(t("task.task_cancelled", task_id=task_id))
-        
-        return True
-
-    def save_task(self, task_id: str) -> None:
-        """Persist the current task state after external changes."""
-        self._save_record(task_id)
+    @staticmethod
+    def _remove_chapter_files(audio_path: str) -> None:
+        """Remove the audio file and its sibling text exports."""
+        path = Path(audio_path)
+        candidates = [
+            path,
+            path.with_suffix(".txt"),
+            path.with_name(path.stem + "-raw.txt"),
+            path.with_name(path.stem + "-原文.txt"),
+            path.with_name(path.stem + "-LLM.txt"),
+        ]
+        for candidate in candidates:
+            try:
+                candidate.unlink(missing_ok=True)
+            except OSError as error:
+                logger.warning(
+                    t("task.audio_delete_failed", path=candidate, error=error)
+                )
 
     def _record_path(self, task_id: str) -> Path:
         return self.record_dir / f"{task_id}.json"
@@ -433,6 +420,10 @@ class TaskManager:
         if not self.persist or not self.record_dir.is_dir():
             return
 
+        cutoff = None
+        if config.TASK_RESULT_TTL > 0:
+            cutoff = datetime.now() - timedelta(seconds=config.TASK_RESULT_TTL)
+
         for path in sorted(self.record_dir.glob("*.json")):
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
@@ -443,6 +434,11 @@ class TaskManager:
 
             if task.status == TaskStatus.COMPLETED:
                 path.unlink(missing_ok=True)
+                continue
+
+            if cutoff and task.created_at < cutoff:
+                path.unlink(missing_ok=True)
+                logger.info(t("task.record_expired", task_id=task.task_id))
                 continue
 
             # A restart kills running jobs; resume from the last finished chapter
@@ -525,7 +521,7 @@ class TaskManager:
                 "started_at": chapter.started_at.isoformat() if chapter.started_at else None,
                 "completed_at": chapter.completed_at.isoformat() if chapter.completed_at else None,
             }
-        
+
         return {
             "task_id": task.task_id,
             "status": task.status,

@@ -84,7 +84,7 @@ def main():
         print("✅ 没有发现失败的章节！")
         return
     
-    print(f"📊 分析完成:")
+    print("📊 分析完成:")
     print(f"   - 失败章节总数: {len(failed_chapters)}")
     print(f"   - 章节范围: {failed_chapters[0]} - {failed_chapters[-1]}")
     

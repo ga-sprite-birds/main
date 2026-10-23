@@ -13,7 +13,6 @@ from tenacity import (
     retry_if_exception,
     retry_if_exception_type,
     before_sleep_log,
-    RetryError
 )
 import logging
 from typing import Type, Tuple

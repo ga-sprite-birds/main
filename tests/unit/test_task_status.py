@@ -36,6 +36,7 @@ def test_get_task_status_success(sample_text_file):
     status_response = client.get(f"/task/{task_id}/status")
     
     assert status_response.status_code == 200
+    assert status_response.headers["cache-control"] == "no-store"
     data = status_response.json()
     
     # Verify the response contains the necessary fields

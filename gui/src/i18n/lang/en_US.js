@@ -8,8 +8,8 @@ export default {
     },
     audio: {
         title: "Convert text into chapter audio",
-        apiOnline: "Task connected",
-        apiPending: "Waiting",
+        apiOnline: "Service connected",
+        apiPending: "Service offline",
         source: "Source and Options",
         refresh: "Refresh",
         dropText: "Drop or click to choose txt / md / pdf; multiple files are supported and upload automatically",
@@ -31,6 +31,7 @@ export default {
         deleteConfirm: "Delete the {count} selected chapter audio(s)? The files will also be removed from disk.",
         deleted: "Chapter audio deleted",
         pauseRequested: "Pause requested; it stops after the current chapter",
+        taskExpired: "Task expired; upload the file again",
         progress: "Progress",
         taskId: "Task ID",
         createdAt: "Created",

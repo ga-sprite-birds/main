@@ -13,6 +13,14 @@ tests/
 │   ├── test_upload.py       # 测试上传接口
 │   ├── test_parse.py        # 测试解析接口
 │   ├── test_generate.py     # 测试生成接口
+│   ├── test_api_validation.py       # 上传/解析/生成校验
+│   ├── test_generation_control.py   # 暂停、继续与任务控制
+│   ├── test_shared_pipeline.py      # 共享章节加载与重名处理
+│   ├── test_task_persistence.py     # 任务 JSON 持久化
+│   ├── test_character_metadata.py   # 角色元数据
+│   ├── test_dialogue_parser_metadata.py # 对话解析元数据
+│   ├── test_text_normalizer.py      # 章节标题规范化
+│   ├── test_voice_assigner.py       # 音色分配
 │   └── test_task_status.py  # 测试任务状态查询
 │
 ├── integration/             # 集成测试（需要启动服务）
@@ -52,10 +60,11 @@ pytest tests/unit/test_upload.py::test_upload_with_file -v
 
 ```bash
 # 步骤 1: 启动 API 服务器（新终端）
-uvicorn fcgi-bin.api:app --host 0.0.0.0 --port 8000
+bash api.sh
 
 # 步骤 2: 运行集成测试（另一个终端）
-pytest tests/integration -v
+# 默认连接 http://localhost:8000；可用 API_BASE_URL 覆盖
+API_BASE_URL=http://127.0.0.1:8000 pytest tests/integration -v
 ```
 
 ### **3. 运行所有测试**
@@ -100,6 +109,14 @@ pytest -m "unit and not slow"
 | `test_upload.py` | 文件上传、路径上传、多语言 | 7 |
 | `test_parse.py` | 文本解析、错误处理 | 4 |
 | `test_generate.py` | 音频生成、参数配置 | 6 |
+| `test_api_validation.py` | 上传、章节范围、语速、重复解析校验 | 7 |
+| `test_generation_control.py` | 暂停、继续、任务状态与控制 | 9 |
+| `test_shared_pipeline.py` | 共享章节加载、重名策略、0 字节文件 | 4 |
+| `test_task_persistence.py` | JSON 持久化、恢复与 TTL | 4 |
+| `test_character_metadata.py` | 角色元数据解析 | 2 |
+| `test_dialogue_parser_metadata.py` | 对话解析元数据 | 1 |
+| `test_text_normalizer.py` | Markdown/加粗标题规范化 | 7 |
+| `test_voice_assigner.py` | 音色分配与语言回退 | 7 |
 | `test_task_status.py` | 任务状态查询 | 3 |
 
 ### **集成测试（integration/）**
@@ -147,7 +164,7 @@ pytest --cov=ga_birds --cov=fcgi-bin --cov-report=html
 **解决**：
 ```bash
 # 启动 API 服务器
-uvicorn fcgi-bin.api:app --host 0.0.0.0 --port 8000
+bash api.sh
 ```
 
 ### **Q2: 测试超时**
@@ -180,11 +197,20 @@ pytest -m "not integration"
 3. 使用 `TestClient` 进行测试
 
 ```python
+import importlib.util
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
-from fcgi-bin.api import app
 
-client = TestClient(app)
+project_root = Path(__file__).parent.parent.parent
+spec = importlib.util.spec_from_file_location(
+    "api", project_root / "fcgi-bin" / "api.py"
+)
+api_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(api_module)
+
+client = TestClient(api_module.app)
 
 @pytest.mark.unit
 def test_my_feature():
@@ -231,5 +257,5 @@ async def test_my_integration(api_base_url):
 ---
 
 **版本**: 1.0.0  
-**更新时间**: 2025-12-01
+**更新时间**: 2026-10-23
 

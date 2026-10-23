@@ -5,7 +5,6 @@ Command executor - directly executes retry commands
 """
 
 import subprocess
-import sys
 from typing import List, Tuple
 from pathlib import Path
 
@@ -30,7 +29,7 @@ class CommandExecutor:
         print("\n" + "=" * 60)
         print("⚠️  直接执行模式")
         print("=" * 60)
-        print(f"\n📊 即将执行:")
+        print("\n📊 即将执行:")
         print(f"   - 批次总数: {len(self.batches)}")
         print(f"   - 输入文件: {self.input_file}")
         print("\n📋 批次列表:")

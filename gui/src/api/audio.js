@@ -18,6 +18,8 @@ export function uploadAudioSource({ file, path, outputPath, language }) {
     headers: {
       "Content-Type": "multipart/form-data",
     },
+    // Large books can take far longer than the default 30s to upload.
+    timeout: 0,
   })
 }
 
@@ -41,6 +43,7 @@ export function generateAudio(taskId, options = {}) {
       voice: options.voice || undefined,
       output_path: options.outputPath || undefined,
       enable_llm: options.enableLlm,
+      rate: options.rate,
       language: options.language,
       chapter_indexes: options.chapterIndexes || undefined,
     },
@@ -68,10 +71,21 @@ export function deleteChapterAudio(taskId, chapterIndex) {
   })
 }
 
-export function getTaskStatus(taskId) {
+export function getTaskStatus(taskId, options = {}) {
   return request({
     url: `/task/${taskId}/status`,
     method: "get",
+    // Bypass any HTTP cache so a deleted chapter cannot reappear.
+    params: { _: Date.now() },
+    silent: options.silent,
+  })
+}
+
+export function getApiStatus(options = {}) {
+  return request({
+    url: "/api/status",
+    method: "get",
+    silent: options.silent,
   })
 }
 

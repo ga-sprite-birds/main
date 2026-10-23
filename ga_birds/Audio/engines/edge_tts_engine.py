@@ -29,7 +29,7 @@ class EdgeTTSEngine(BaseTTSEngine):
         self.default_rate = config.TTS_RATE
         self.default_volume = config.TTS_VOLUME
         self.default_pitch = config.TTS_PITCH
-        
+
         logger.info(t("tts.edge_engine_initialized", voice=self.default_voice))
 
     async def generate(
@@ -200,6 +200,7 @@ class EdgeTTSEngine(BaseTTSEngine):
             list of text chunks
         """
         text = text.strip()
+        max_chars = max(1, int(max_chars))
         if len(text) <= max_chars:
             return [text]
 

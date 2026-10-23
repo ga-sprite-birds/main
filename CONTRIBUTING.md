@@ -7,7 +7,7 @@ Thank you for your interest in `GA Sprite Birds`. This document explains how to 
 - Author: `adam`
 - Email: `dev@ebf.hk`
 - Website: <http://ebf.cc>
-- GitHub Source: <https://github.com/tiger-sprite/ga-sprite-birds>
+- GitHub Source: <https://github.com/ga-sprite-birds/main>
 
 ## 1. How to Contribute
 
@@ -238,7 +238,7 @@ When filing an issue, please provide as much of the following as possible:
 
 - Runtime environment (OS, Python version)
 - Startup method (CLI / API)
-- Input type (txt / pdf)
+- Input type (txt / md / pdf)
 - Error logs or stack traces
 - Minimal reproduction steps
 - Expected vs. actual results
@@ -280,8 +280,8 @@ Please maintain professional, respectful, and constructive communication. When d
 **Author**: `adam`  
 **Email**: `dev@ebf.hk`  
 **Website**: <http://ebf.cc>  
-**GitHub Source**: <https://github.com/tiger-sprite/ga-sprite-birds>  
-**Last updated**: 2026-07-10
+**GitHub Source**: <https://github.com/ga-sprite-birds/main>  
+**Last updated**: 2026-10-23
 
 ---
 

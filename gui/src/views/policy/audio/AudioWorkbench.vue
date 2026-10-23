@@ -84,7 +84,7 @@
       <div class="panel status-panel">
         <div class="panel-header">
           <h2>{{ $t("audio.progress") }}</h2>
-          <el-button :icon="Refresh" circle :disabled="!taskId || busyAction" @click="refreshStatus" />
+          <el-button :icon="Refresh" circle :disabled="!taskId || busyAction" @click="refreshStatus()" />
         </div>
 
         <div class="progress-ring">
@@ -240,6 +240,7 @@ import {
 import {
   deleteChapterAudio,
   generateAudio,
+  getApiStatus,
   getChapterAudioUrl,
   getTaskStatus,
   parseAudioSource,
@@ -264,12 +265,16 @@ const voice = ref("zh-CN-YunxiNeural")
 const enableLlm = ref(true)
 const taskId = ref("")
 const statusData = ref(null)
+const apiOnline = ref(false)
 const busyAction = ref("")
 const pollTimer = ref(null)
 const chapterTableRef = ref(null)
 const selectedIndexes = ref([])
 const statusFilter = ref("")
 const selectionInitializedFor = ref("")
+const TERMINAL_STATUSES = new Set(["parsed", "completed", "failed", "cancelled", "paused"])
+let statusRequestId = 0
+let pollInFlight = false
 
 const voiceOptions = [
   { label: "云希 - 中文男声", value: "zh-CN-YunxiNeural" },
@@ -305,7 +310,7 @@ const canDeleteSelected = computed(() => {
   return Boolean(taskId.value) && selectedIndexes.value.length > 0 && !isGenerating.value && !busy.value
 })
 const progressPercent = computed(() => Math.round((statusData.value?.progress || 0) * 100))
-const serviceReady = computed(() => Boolean(taskId.value || statusData.value))
+const serviceReady = computed(() => apiOnline.value)
 const progressStatus = computed(() => {
   if (statusData.value?.status === "failed") return "exception"
   if (statusData.value?.status === "completed") return "success"
@@ -373,6 +378,7 @@ async function uploadFile(file) {
   busyAction.value = "upload"
   taskId.value = ""
   statusData.value = null
+  localStorage.removeItem(AUDIO_TASK_STORAGE_KEY)
   try {
     const response = await uploadAudioSource({
       file,
@@ -380,6 +386,7 @@ async function uploadFile(file) {
       language: locale.value,
     })
     taskId.value = response.task_id
+    apiOnline.value = true
     localStorage.setItem(AUDIO_TASK_STORAGE_KEY, response.task_id)
     statusData.value = {
       task_id: response.task_id,
@@ -399,11 +406,21 @@ async function parseSource() {
   busyAction.value = "parse"
   try {
     const response = await parseAudioSource(taskId.value, locale.value)
-    await refreshStatus()
+    // A re-parse replaces the chapter list, so let the table select the new
+    // chapters by default.
+    selectionInitializedFor.value = ""
+    selectedIndexes.value = []
+    chapterTableRef.value?.clearSelection()
     statusData.value = {
       ...(statusData.value || {}),
       status: response.status || "parsed",
+      total_chapters: 0,
+      completed_chapters: 0,
+      progress: 0,
+      chapters: [],
+      error: null,
     }
+    await refreshStatus()
     ElMessage.success(t("audio.parsed"))
   } finally {
     busyAction.value = ""
@@ -423,8 +440,9 @@ async function startChapters(indexes) {
       language: locale.value,
       chapterIndexes: indexes,
     })
-    await refreshStatus()
+    // Poll immediately; a failed status refresh must not stop progress updates.
     startPolling()
+    await refreshStatus()
     ElMessage.success(t("audio.generating"))
   } finally {
     busyAction.value = ""
@@ -468,8 +486,8 @@ async function resumeGeneration() {
   busyAction.value = "resume"
   try {
     await resumeAudio(taskId.value)
-    await refreshStatus()
     startPolling()
+    await refreshStatus()
     ElMessage.success(t("audio.generating"))
   } finally {
     busyAction.value = ""
@@ -505,16 +523,77 @@ async function deleteSelectedChapters() {
   }
 
   busyAction.value = "delete"
+  // Ignore status responses that were requested before the deletion started.
+  stopPolling()
+  statusRequestId += 1
   try {
     for (const index of indexes) {
       await deleteChapterAudio(taskId.value, index)
     }
     chapterTableRef.value?.clearSelection()
     selectedIndexes.value = []
-    await refreshStatus()
+    await fetchTaskStatus()
     ElMessage.success(t("audio.deleted"))
   } finally {
     busyAction.value = ""
+  }
+}
+
+async function loadDefaults() {
+  try {
+    const status = await getApiStatus({ silent: true })
+    apiOnline.value = true
+    const defaults = status?.defaults || {}
+    if (defaults.voice) voice.value = defaults.voice
+    if (typeof defaults.enable_llm === "boolean") enableLlm.value = defaults.enable_llm
+  } catch (error) {
+    apiOnline.value = false
+  }
+}
+
+function normalizeTaskStatus(data) {
+  // Older backends could keep "completed" after a chapter was deleted. Treat
+  // that impossible combination as parsed so the UI cannot show stale results.
+  if (
+    data?.status === "completed" &&
+    Number(data.total_chapters) > 0 &&
+    Number(data.completed_chapters) < Number(data.total_chapters)
+  ) {
+    return { ...data, status: "parsed" }
+  }
+  return data
+}
+
+async function fetchTaskStatus({ silent = false } = {}) {
+  const id = taskId.value
+  if (!id) return null
+
+  // Only the newest request may update the UI. Without this, a slow polling
+  // response can overwrite a newer delete/generate result.
+  const requestId = ++statusRequestId
+  try {
+    const data = normalizeTaskStatus(await getTaskStatus(id, { silent }))
+    if (requestId !== statusRequestId || taskId.value !== id) return null
+
+    statusData.value = data
+    apiOnline.value = true
+    await selectAllByDefault()
+    if (TERMINAL_STATUSES.has(data?.status)) stopPolling()
+    return data
+  } catch (error) {
+    if (requestId !== statusRequestId || taskId.value !== id) return null
+    stopPolling()
+    // Keep the task id for transient network errors; only forget a task
+    // that the backend explicitly reports as missing.
+    if (error?.response?.status === 404) {
+      taskId.value = ""
+      statusData.value = null
+      localStorage.removeItem(AUDIO_TASK_STORAGE_KEY)
+      ElMessage.warning(t("audio.taskExpired"))
+    } else {
+      apiOnline.value = false
+    }
+    return null
   }
 }
 
@@ -526,31 +605,29 @@ async function loadTask(id) {
   selectionInitializedFor.value = ""
   localStorage.setItem(AUDIO_TASK_STORAGE_KEY, id)
 
-  try {
-    statusData.value = await getTaskStatus(id)
-    await selectAllByDefault()
-    if (statusData.value?.status === "generating") {
-      startPolling()
-    }
-  } catch (error) {
-    taskId.value = ""
-    statusData.value = null
-    localStorage.removeItem(AUDIO_TASK_STORAGE_KEY)
+  const data = await fetchTaskStatus()
+  if (data?.status === "generating") {
+    startPolling()
   }
 }
 
-async function refreshStatus() {
-  if (!taskId.value) return
-  statusData.value = await getTaskStatus(taskId.value)
-  await selectAllByDefault()
-  if (["completed", "failed", "cancelled", "paused"].includes(statusData.value?.status)) {
-    stopPolling()
+async function refreshStatus({ silent = false } = {}) {
+  await fetchTaskStatus({ silent })
+}
+
+async function pollStatus() {
+  if (pollInFlight) return
+  pollInFlight = true
+  try {
+    await refreshStatus({ silent: true })
+  } finally {
+    pollInFlight = false
   }
 }
 
 function startPolling() {
   stopPolling()
-  pollTimer.value = window.setInterval(refreshStatus, 2500)
+  pollTimer.value = window.setInterval(pollStatus, 2500)
 }
 
 function stopPolling() {
@@ -561,6 +638,7 @@ function stopPolling() {
 }
 
 onMounted(() => {
+  loadDefaults()
   const savedTaskId = localStorage.getItem(AUDIO_TASK_STORAGE_KEY)
   if (savedTaskId) loadTask(savedTaskId)
 })

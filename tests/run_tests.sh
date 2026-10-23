@@ -14,10 +14,15 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
+PYTHON_BIN="${PYTHON_BIN:-python}"
+if ! command -v "${PYTHON_BIN}" >/dev/null 2>&1; then
+    PYTHON_BIN="python3"
+fi
+
 # 检查 pytest 是否安装
-if ! python -c "import pytest" &> /dev/null; then
+if ! "${PYTHON_BIN}" -c "import pytest" &> /dev/null; then
     echo -e "${RED}错误: pytest 未安装${NC}"
-    echo "请运行: python -m pip install pytest pytest-asyncio"
+    echo "请运行: ${PYTHON_BIN} -m pip install pytest pytest-asyncio"
     exit 1
 fi
 
@@ -29,7 +34,7 @@ case $TEST_TYPE in
         echo -e "${GREEN}运行单元测试...${NC}"
         echo "（不需要启动服务器）"
         echo ""
-        python -m pytest tests/unit -v -m unit
+        "${PYTHON_BIN}" -m pytest tests/unit -v -m unit
         ;;
 
     integration)
@@ -37,10 +42,10 @@ case $TEST_TYPE in
         echo "（需要先启动 API 服务器）"
         echo ""
         echo "请确保已在另一个终端运行："
-        echo "  uvicorn fcgi-bin.api:app --host 0.0.0.0 --port 8000"
+        echo "  bash api.sh"
         echo ""
         read -p "按 Enter 继续，或 Ctrl+C 取消..."
-        python -m pytest tests/integration -v -m integration
+        "${PYTHON_BIN}" -m pytest tests/integration -v -m integration
         ;;
 
     all)
@@ -49,15 +54,15 @@ case $TEST_TYPE in
 
         # 先运行单元测试
         echo -e "${GREEN}1. 单元测试${NC}"
-        python -m pytest tests/unit -v -m unit
+        "${PYTHON_BIN}" -m pytest tests/unit -v -m unit
 
         echo ""
         echo -e "${YELLOW}2. 集成测试${NC}"
         echo "请确保已在另一个终端运行："
-        echo "  uvicorn fcgi-bin.api:app --host 0.0.0.0 --port 8000"
+        echo "  bash api.sh"
         echo ""
         read -p "按 Enter 继续，或 Ctrl+C 取消..."
-        python -m pytest tests/integration -v -m integration
+        "${PYTHON_BIN}" -m pytest tests/integration -v -m integration
         ;;
 
     report)
@@ -65,12 +70,12 @@ case $TEST_TYPE in
         echo ""
 
         # 检查 pytest-html 是否安装
-        if ! python -c "import pytest_html" &> /dev/null; then
+        if ! "${PYTHON_BIN}" -c "import pytest_html" &> /dev/null; then
             echo -e "${YELLOW}安装 pytest-html...${NC}"
-            python -m pip install pytest-html
+            "${PYTHON_BIN}" -m pip install pytest-html
         fi
 
-        python -m pytest tests/unit -v --html=report.html --self-contained-html
+        "${PYTHON_BIN}" -m pytest tests/unit -v --html=report.html --self-contained-html
         echo ""
         echo -e "${GREEN}✓ 报告已生成: report.html${NC}"
         ;;
@@ -80,12 +85,12 @@ case $TEST_TYPE in
         echo ""
 
         # 检查 pytest-cov 是否安装
-        if ! python -c "import pytest_cov" &> /dev/null; then
+        if ! "${PYTHON_BIN}" -c "import pytest_cov" &> /dev/null; then
             echo -e "${YELLOW}安装 pytest-cov...${NC}"
-            python -m pip install pytest-cov
+            "${PYTHON_BIN}" -m pip install pytest-cov
         fi
 
-        python -m pytest tests/unit --cov=ga_birds --cov=fcgi-bin --cov-report=html
+        "${PYTHON_BIN}" -m pytest tests/unit --cov=ga_birds --cov=fcgi-bin --cov-report=html
         echo ""
         echo -e "${GREEN}✓ 覆盖率报告已生成: htmlcov/index.html${NC}"
         ;;

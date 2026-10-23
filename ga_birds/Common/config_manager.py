@@ -109,11 +109,6 @@ class ConfigManager:
     # ========== TTS configuration ==========
 
     @staticmethod
-    def get_tts_mode() -> str:
-        """Get the TTS mode"""
-        return config.TTS_MODE
-
-    @staticmethod
     def get_tts_engine() -> str:
         """Get the TTS engine"""
         return config.TTS_ENGINE

@@ -1,430 +1,369 @@
-# GA Sprite Birds - 使用指南
+# GA Sprite Birds
 
-> 将文本转换为高质量音频，支持单角色/多角色配音、LLM 口语化、章节拆分
+> 将书籍或长文本按章节转换为语音，支持 Edge TTS、可选的 LLM 口语化，以及本地 Web 界面。
 
----
-
-## 📋 功能列表
-
-| 功能 | 说明 | CLI | API |
-|------|------|:---:|:---:|
-| **单角色配音** | 整章统一音色，快速生成 | ✅ | ✅ |
-| **多角色配音** | 智能识别对话，为每个角色分配不同音色 | ✅ | ✅ |
-| **角色分析** | 自动提取小说角色，生成配音模板 | ✅ | ✅ |
-| **LLM 口语化** | 将书面语转换为自然口语 | ✅ | ✅ |
-| **章节拆分** | 自动识别章节标题，独立生成 | ✅ | ✅ |
-| **多语言界面** | 支持中文/英文界面切换 | ✅ | ✅ |
-| **TTS 试听工具** | 快速试听 Edge TTS 所有音色 | ✅ | ✅ |
-
-**支持格式**：
-- 📄 输入：`.txt`, `.pdf`
-- 🎵 输出：`.mp3`
-- 🌐 TTS：Edge TTS（免费，550+ 音色）
-- 🤖 LLM：Ollama（本地）/ OpenAI API（云端）
+GA Sprite Birds 会把文本拆分为章节，可选地把书面语改写为自然口语，然后为每一章生成一个 MP3。项目提供 Web 界面、CLI 和本地 FastAPI 服务。单角色配音支持界面、CLI 和 API；多角色配音目前仅支持 CLI。
 
 ---
 
-## 1️⃣ 单角色配音
+## 功能
 
-最简单的使用方式，整本书使用同一个音色。
+| 功能 | 说明 | 界面 | CLI | API |
+|------|------|:---:|:---:|:---:|
+| **单角色配音** | 整本书使用同一个音色 | ✅ | ✅ | ✅ |
+| **多角色配音** | 识别对话并为不同角色分配音色 | ❌ | ✅ | ❌ |
+| **角色分析** | 提取角色并生成配音模板 | ❌ | ✅ | ❌ |
+| **LLM 口语化** | 将书面语改写为自然口语 | ✅ | ✅ | ✅ |
+| **章节拆分** | 自动识别章节标题并逐章生成 | ✅ | ✅ | ✅ |
+| **章节选择** | 只生成勾选的章节 | ✅ | ✅ | ✅ |
+| **暂停 / 继续** | 当前章节完成后暂停，之后继续剩余章节 | ✅ | ❌ | ✅ |
+| **任务持久化** | 服务重启后恢复暂停或中断的任务 | ✅ | — | ✅ |
+| **多语言界面** | 中文 / English | ✅ | ✅ | ✅ |
+| **TTS 试听工具** | 浏览并试听 Edge TTS 音色 | ❌ | ✅ | ❌ |
 
-### CLI 使用
+**输入格式：** `.txt`、`.md`、`.pdf`  
+**输出格式：** `.mp3`  
+**TTS 引擎：** Edge TTS（免费、无需 API Key，但需要联网）  
+**LLM 后端：** Ollama（本地）或任意 OpenAI 兼容接口
+
+---
+
+## 快速开始
+
+### 1. 安装
+
+需要 Python 3.10+ 和 FFmpeg。
 
 ```bash
-# 基本使用（使用配置文件的默认音色）
-python fcgi-bin/cli.py -i input.txt
+git clone https://github.com/ga-sprite-birds/main.git
+cd main
 
-# 指定音色
-python fcgi-bin/cli.py -i input.txt --voice zh-CN-YunxiNeural
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
 
-# 禁用 LLM 处理（更快，但不口语化）
-python fcgi-bin/cli.py -i input.txt --no-llm
+# Debian/Ubuntu 示例
+sudo apt install ffmpeg
+```
+
+也可以使用 Conda：
+
+```bash
+conda env create -f environment.yml
+conda activate ga-sprite-birds
+```
+
+### 2. 配置
+
+```bash
+cp .env.example .env
+```
+
+默认使用 Edge TTS 并启用 LLM。使用本地模型：
+
+```env
+LLM_MODE=local
+LLM_LOCAL_HOST=http://localhost:11434
+LLM_LOCAL_MODEL=deepseek-r1:7b
+```
+
+使用 OpenAI 兼容接口：
+
+```env
+LLM_MODE=api
+LLM_API_TYPE=openai
+LLM_API_ENDPOINT=https://api.deepseek.com/v1
+LLM_API_KEY=your_api_key_here
+LLM_API_MODEL=deepseek-chat
+```
+
+更多选项见[配置说明](#配置)。
+
+### 3. 启动
+
+**Web 界面 + 本地 API**
+
+```bash
+bash api.sh
+```
+
+脚本会启动 FastAPI，从 `API_PORT`（默认 `8000`）开始寻找空闲端口，并打开 `http://127.0.0.1:<端口>/`。接口文档位于 `/docs`。
+
+**CLI**
+
+```bash
+bash cli.sh -i input.txt
+```
+
+**界面源码开发**
+
+仓库根目录已包含构建好的界面。修改界面源码：
+
+```bash
+cd gui
+npm install
+npm run dev      # Vite 开发服务器 :5173
+npm run build    # 生成 ../index.html
+```
+
+---
+
+## 界面使用流程
+
+1. 将 `.txt`、`.md` 或 `.pdf` 文件拖入上传区域，可一次添加多个文件。
+2. 设置输出目录和音色，点击 **解析**。
+3. 勾选要生成的章节（默认全选），点击 **开始**。
+4. **暂停**会等当前章节完成后停止；**继续**会生成剩余选中的章节。
+5. 已完成的章节可以直接试听或下载。**删除**会在确认后同时删除磁盘上的音频和章节文本文件。
+
+浏览器只保留最近一个任务。任务记录保存在 `cache/tasks/`，任务完成后自动删除。
+
+---
+
+## CLI 使用
+
+### 单角色
+
+```bash
+# 基础用法
+bash cli.sh -i input.txt
+
+# 指定音色和语速（0.5-2.0）
+bash cli.sh -i input.txt --voice zh-CN-YunxiNeural --rate 1.2
+
+# 关闭 LLM 口语化（更快）
+bash cli.sh -i input.txt --no-llm
 
 # 只生成第 1-5 章
-python fcgi-bin/cli.py -i input.txt --start 1 --end 5
+bash cli.sh -i input.txt --start 1 --end 5
 
 # 指定输出目录
-python fcgi-bin/cli.py -i input.txt -o ./my_output
+bash cli.sh -i input.txt -o ./my_output
+
+# 英文界面
+bash cli.sh -i input.txt --language en_US
 ```
 
-### API 使用
+CLI 会读取 `.env` 中的 `ENABLE_MULTI_VOICE`。如果它为 `true`，单角色生成需要显式传入 `--multi-voice false`。
+
+### 多角色
+
+多角色是仅 CLI 支持的两步流程。
+
+**第一步：角色分析**
 
 ```bash
-# 1. 启动服务
-uvicorn fcgi-bin.api:app --host 0.0.0.0 --port 8000
+bash cli.sh -i novel.txt --analyze-characters
 
-# 2. 上传文件
-curl -X POST "http://localhost:8000/upload" \
-  -F "file=@input.txt"
-# 返回: {"task_id": "abc123", "status": "pending"}
-
-# 3. 解析章节
-curl -X POST "http://localhost:8000/parse" \
-  -H "Content-Type: application/json" \
-  -d '{"task_id": "abc123"}'
-
-# 4. 生成音频
-curl -X POST "http://localhost:8000/generate" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task_id": "abc123",
-    "voice": "zh-CN-YunxiNeural",
-    "enable_llm": true
-  }'
-
-# 5. 查询进度
-curl "http://localhost:8000/task/abc123/status"
-
-# 6. 下载音频
-curl "http://localhost:8000/task/abc123/chapter/1" --output chapter_1.mp3
-```
-
-**输出**：
-```
-output/input/
-├── 001-第一章.mp3
-├── 002-第二章.mp3
-└── ...
-```
-
----
-
-## 2️⃣ 多角色配音
-
-为小说中的每个角色分配不同音色，让对话更生动。需要两步：**角色分析** → **多角色生成**。
-
-### 步骤 1：角色分析
-
-#### CLI 使用
-
-```bash
-# 智能模式：自动分析角色并合并重复角色
-python fcgi-bin/cli.py -i novel.txt --analyze-characters
-
-# 混合模式：使用用户提供的角色列表
-python fcgi-bin/cli.py -i novel.txt --analyze-characters \
+# 使用自定义角色列表的混合模式
+bash cli.sh -i novel.txt --analyze-characters \
   --analysis-mode hybrid \
   --character-list characters.txt
 ```
 
-**角色列表文件格式** (`characters.txt`)：
-```
+`characters.txt` 示例：
+
+```text
 张三 male
 李四 female
 王五
 ```
 
-#### API 使用
+分析结果会写入类似 `cache/role/novel_characters.json` 的模板文件。
 
-> 注意：角色分析（character analysis）当前版本仅通过 CLI 提供（`--analyze-characters`，见上方「CLI 使用」）。分析完成后会生成角色模板文件 `cache/role/novel_characters.json`，该模板可在下方的「多角色生成」API 中通过 `character_template` 参数引用。
-
-**输出**：生成角色模板文件 `cache/role/novel_characters.json`
-
-```json
-{
-  "张三": {
-    "gender": "male",
-    "voice": "zh-CN-YunxiNeural"
-  },
-  "李四": {
-    "gender": "female",
-    "voice": "zh-CN-XiaoxiaoNeural"
-  }
-}
-```
-
-### 步骤 2：多角色生成
-
-#### CLI 使用
+**第二步：生成**
 
 ```bash
-# 使用自动生成的角色模板
-python fcgi-bin/cli.py -i novel.txt --multi-voice true
+# 使用自动生成的模板
+bash cli.sh -i novel.txt --multi-voice true
 
-# 使用指定的角色模板
-python fcgi-bin/cli.py -i novel.txt --multi-voice true \
-  --character-template cache/role/custom_characters.json
-
-# 只生成第 1-3 章（测试用）
-python fcgi-bin/cli.py -i novel.txt --multi-voice true \
+# 指定模板并只生成第 1-3 章
+bash cli.sh -i novel.txt --multi-voice true \
+  --character-template cache/role/custom_characters.json \
   --start 1 --end 3
 ```
 
-#### API 使用
+多角色输出会在每个 MP3 旁生成一个 `.txt`，记录对白和音色分配。
+
+### TTS 试听
 
 ```bash
-curl -X POST "http://localhost:8000/generate" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task_id": "abc123",
-    "multi_voice": true,
-    "character_template": "cache/role/novel_characters.json",
-    "enable_llm": true
-  }'
-```
-
-**输出**：
-```
-output/novel/
-├── 001-第一章.mp3
-├── 001-第一章.txt  # 包含角色对话标注
-├── 002-第二章.mp3
-└── ...
-```
-
----
-
-## 3️⃣ TTS 试听工具
-
-快速试听 Edge TTS 的 550+ 音色，找到最适合的声音。
-
-如果你想先直接在浏览器里试听，也可以使用 Edge TTS 官网：
-[https://edge-tts.com](https://edge-tts.com)
-
-### CLI 使用
-
-```bash
-# 列出所有中文音色
+# 列出中文音色
 python utils/try_tts/cli.py list --lang zh-CN
 
-# 列出中文男声
-python utils/try_tts/cli.py list --lang zh-CN --gender male
-
-# 列出中文女声
-python utils/try_tts/cli.py list --lang zh-CN --gender female
-
-# 生成所有中文音色的试听音频
+# 为所有中文音色生成试听
 python utils/try_tts/cli.py generate --lang zh-CN
 
-# 生成指定音色的试听音频
-python utils/try_tts/cli.py generate --voice zh-CN-XiaoxiaoNeural
-
-# 自定义试听文本
-python utils/try_tts/cli.py generate --lang zh-CN \
-  --text "这是我的试听文本"
-
-# 导出音色列表为文档
-python utils/try_tts/cli.py list --lang zh-CN --save-doc voices.md
-
-# 英文界面
-python utils/try_tts/cli.py list --lang en-US --language en_US
-```
-
-### API 使用
-
-TTS 试听工具是独立的 CLI 工具，不提供 API 接口。
-
-**输出**：
-```
-output/tts_samples/
-├── zh-CN-XiaoxiaoNeural.mp3
-├── zh-CN-YunxiNeural.mp3
-└── ...
-```
-
----
-
-## 4️⃣ 多语言界面
-
-支持中文/英文界面切换，包括帮助文本、日志消息、API 响应等。
-
-### CLI 使用
-
-```bash
-# 英文界面
-python fcgi-bin/cli.py --help --language en_US
-
-# 中文界面
-python fcgi-bin/cli.py --help --language zh_CN
-
-# 使用英文界面生成音频
-python fcgi-bin/cli.py -i input.txt --language en_US
-```
-
-### API 使用
-
-```bash
-# 使用中文界面
-curl -X POST "http://localhost:8000/upload" \
-  -F "file=@input.txt" \
-  -F "language=zh_CN"
-
-# 使用英文界面
-curl -X POST "http://localhost:8000/generate" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task_id": "abc123",
-    "language": "en_US"
-  }'
-```
-
-### 配置文件（全局默认）
-
-```env
-# .env 文件
-LANGUAGE=en_US  # 或 zh_CN
-```
-
-**优先级**：CLI/API 参数 > 配置文件 > 默认值（en_US）
-
----
-
-## 5️⃣ LLM 口语化
-
-将书面语转换为自然口语，让朗读更流畅。支持本地（Ollama）和云端（OpenAI API）两种模式。
-
-### CLI 使用
-
-```bash
-# 启用 LLM（默认）
-python fcgi-bin/cli.py -i input.txt
-
-# 禁用 LLM（更快，但不口语化）
-python fcgi-bin/cli.py -i input.txt --no-llm
-```
-
-### API 使用
-
-```bash
-curl -X POST "http://localhost:8000/generate" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task_id": "abc123",
-    "enable_llm": true
-  }'
-```
-
-### 配置 LLM 引擎
-
-```env
-# .env 文件
-
-# 本地模式（Ollama）
-LLM_MODE=local
-LLM_LOCAL_HOST=http://localhost:11434
-LLM_LOCAL_MODEL=deepseek-r1:7b
-
-# API 模式（OpenAI）
-LLM_MODE=api
-LLM_API_KEY=your_api_key
-LLM_API_MODEL=deepseek-chat
-LLM_API_ENDPOINT=https://api.deepseek.com/v1
-```
-
----
-
-## 6️⃣ 章节范围控制
-
-只生成指定章节，节省时间和资源。
-
-### CLI 使用
-
-```bash
-# 只生成第 1 章
-python fcgi-bin/cli.py -i input.txt --start 1 --end 1
-
-# 生成第 1-5 章
-python fcgi-bin/cli.py -i input.txt --start 1 --end 5
-
-# 从第 10 章开始生成到最后
-python fcgi-bin/cli.py -i input.txt --start 10
-```
-
-### API 使用
-
-```bash
-curl -X POST "http://localhost:8000/generate" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task_id": "abc123",
-    "start_chapter": 1,
-    "end_chapter": 5
-  }'
-```
-
----
-
-## 7️⃣ 音色和语速
-
-自定义音色和语速，打造个性化朗读体验。
-
-### CLI 使用
-
-```bash
-# 指定音色
-python fcgi-bin/cli.py -i input.txt --voice zh-CN-YunxiNeural
-
-# 指定语速（0.5-2.0，1.0 为正常）
-python fcgi-bin/cli.py -i input.txt --rate 1.2
-
-# 同时指定音色和语速
-python fcgi-bin/cli.py -i input.txt \
+# 用自定义文本试听一个音色
+python utils/try_tts/cli.py generate \
   --voice zh-CN-XiaoxiaoNeural \
-  --rate 1.1
+  --text "这是我的试听文本"
 ```
 
-### API 使用
+试听文件输出到 `output/tts_samples/`。
+
+---
+
+## API 使用
+
+使用 `bash api.sh` 启动，或直接运行：
 
 ```bash
+PYTHONPATH=. python fcgi-bin/api.py
+```
+
+API 仅面向本地使用，没有鉴权。不要直接暴露到公网。以下示例使用 `8000` 端口；如果 `api.sh` 自动切换了端口，请替换为实际端口。
+
+### 1. 上传
+
+`file`、`path`、`output_path`、`language` 都是查询参数；文件本身使用 multipart 表单上传。
+
+```bash
+# 上传文件
+curl -X POST "http://localhost:8000/upload?output_path=./my_output" \
+  -F "file=@input.txt"
+
+# 或指定服务器上已有的文件
+curl -X POST "http://localhost:8000/upload?path=/absolute/path/input.txt"
+```
+
+返回：
+
+```json
+{"task_id":"<id>","status":"pending","message":"文件上传成功，任务 ID: <id>"}
+```
+
+上传大小受 `API_MAX_UPLOAD_SIZE` 限制（单位 MB，默认 `100`）。文件保存在 `API_UPLOAD_DIR`，并自动添加唯一前缀。
+
+### 2. 解析
+
+```bash
+curl -X POST "http://localhost:8000/parse" \
+  -H "Content-Type: application/json" \
+  -d '{"task_id":"<id>","language":"zh_CN"}'
+```
+
+### 3. 生成
+
+```bash
+# 生成全部章节
+curl -X POST "http://localhost:8000/generate" \
+  -H "Content-Type: application/json" \
+  -d '{"task_id":"<id>","voice":"zh-CN-YunxiNeural","enable_llm":true}'
+
+# 只生成指定章节，并设置语速
 curl -X POST "http://localhost:8000/generate" \
   -H "Content-Type: application/json" \
   -d '{
-    "task_id": "abc123",
-    "voice": "zh-CN-YunxiNeural",
-    "rate": 1.2
+    "task_id": "<id>",
+    "chapter_indexes": [1, 2, 5],
+    "rate": 1.2,
+    "enable_llm": false
   }'
 ```
 
-### 配置文件（全局默认）
+传入 `chapter_indexes` 时，必须是非空且存在的章节序号列表；省略表示全部章节。`enable_llm` 默认读取 `.env` 中的 `ENABLE_LLM`；`rate` 必须在 `0.5` 到 `2.0` 之间。
 
-```env
-# .env 文件
-TTS_VOICE=zh-CN-XiaoxiaoNeural
-TTS_RATE=1.0
-```
+API 只支持单角色配音。多角色配音请使用 CLI。
 
----
-
-## 8️⃣ 输出路径
-
-自定义输出目录和文件格式。
-
-### CLI 使用
+### 4. 状态、暂停、继续、删除
 
 ```bash
-# 指定输出目录
-python fcgi-bin/cli.py -i input.txt -o ./my_output
+# 任务进度和每章状态
+curl "http://localhost:8000/task/<id>/status"
 
-# 输出到绝对路径
-python fcgi-bin/cli.py -i input.txt -o /path/to/output
+# 当前章节完成后暂停
+curl -X POST "http://localhost:8000/task/<id>/pause"
+
+# 继续生成剩余章节（沿用保存的章节范围）
+curl -X POST "http://localhost:8000/task/<id>/resume"
+
+# 下载某一章
+curl "http://localhost:8000/task/<id>/chapter/1" --output chapter_1.mp3
+
+# 删除某一章的音频和章节文本
+curl -X DELETE "http://localhost:8000/task/<id>/chapter/1"
+
+# API 默认配置和健康状态
+curl "http://localhost:8000/api/status"
 ```
 
-### API 使用
+暂停会先完成当前章节。选中范围内尚未生成的章节会标记为 `paused`，继续时按待生成处理。任务参数和章节范围都会持久化，因此服务重启后仍可继续暂停的任务。
 
-```bash
-curl -X POST "http://localhost:8000/upload" \
-  -F "file=@input.txt" \
-  -F "output_path=./my_output"
-```
+### 输出目录
 
-### 配置文件（全局默认）
+默认 `OUTPUT_STRATEGY=by_role`：
 
-```env
-# .env 文件
-OUTPUT_BASE_PATH=./output
-OUTPUT_FORMAT=mp3
-OUTPUT_BITRATE=192
+```text
+output/
+└── default/
+    ├── 001-第一章.mp3
+    ├── 001-第一章.txt
+    ├── 002-第二章.mp3
+    └── ...
 ```
 
 ---
 
-## 📚 参考文档
+## 配置
 
-- [开发规范](./development-guide.zh.md) - 开发者必读
-- [安装指南](./INSTALL.zh.md) - 环境安装说明
+复制 `.env.example` 为 `.env`。常用配置：
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `LANGUAGE` | `en_US` | 默认界面/API 语言（`en_US` 或 `zh_CN`） |
+| `ENABLE_LLM` | `true` | 是否默认启用 LLM 口语化 |
+| `LLM_MODE` | `local` | `local`（Ollama）或 `api`（OpenAI 兼容） |
+| `TTS_VOICE` | `zh-CN-YunxiNeural` | 默认 Edge TTS 音色 |
+| `TTS_RATE` | `1.0` | 默认语速 |
+| `TTS_CHUNK_MAX_CHARS` | `2000` | 长章节按句子边界切块 |
+| `TTS_CHUNK_TIMEOUT` | `180` | 单个 TTS 分块超时（秒） |
+| `OUTPUT_BASE_PATH` | `./output` | 输出根目录 |
+| `OUTPUT_DUPLICATE_HANDLING` | `rename` | `skip`、`rename` 或 `overwrite` |
+| `OUTPUT_STRATEGY` | `by_role` | `by_role`、`by_model`、`by_date` 或平铺 |
+| `CHAPTER_NORMALIZE_ENABLED` | `true` | 规范化 Markdown/加粗章节标题 |
+| `API_MAX_UPLOAD_SIZE` | `100` | 上传大小限制（MB，`0` 表示不限制） |
+| `API_UPLOAD_DIR` | `./uploads` | 上传文件目录 |
+| `TASK_CACHE_DIR` | `./cache/tasks` | 任务记录目录 |
+| `TASK_RESULT_TTL` | `86400` | 非完成任务记录保留时间（秒，`0` 表示永不过期） |
+
+`OUTPUT_FORMAT` 和 `OUTPUT_BITRATE` 控制 MP3 导出参数；完整配置见 `config/__init__.py`。
 
 ---
 
-**更新时间**：2025-12-01
-**维护者**：GA Sprite Birds 开发团队
+## 项目结构
 
+```text
+fcgi-bin/            CLI 和 FastAPI 入口
+ga_birds/
+  Audio/             TTS 引擎、章节生成器、导出与合并
+  Common/            配置、i18n、章节加载、文本保存
+  LLM/               Ollama / OpenAI 客户端
+  Parser/            章节解析器
+  character_analyzer/ 多角色与对话分析
+  Task/              任务管理与 JSON 持久化
+  Utils/             文件、文本、重试、Token 工具
+gui/                 Vue 3 + Element Plus 前端
+help/                安装与开发文档
+output/              生成的音频（已被 git 忽略）
+uploads/             上传的源文件（已被 git 忽略）
+cache/tasks/         任务记录（已被 git 忽略）
+```
+
+---
+
+## 参考文档
+
+- [开发指南](./help/development-guide.md)
+- [安装指南](./help/INSTALL.md)
+- [English README](../README.md)
+
+---
+
+**最后更新：** 2026-10-23  
+**维护者：** GA Sprite Birds Development Team
+
+**作者：** adam  
+**邮箱：** dev@ebf.hk  
+**网站：** http://ebf.cc  
+**源码：** https://github.com/ga-sprite-birds/main

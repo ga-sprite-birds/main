@@ -15,7 +15,6 @@
     "file_not_found": "输入文件不存在: {path}",
     "input_file": "输入文件: {path}",
     "llm_mode": "LLM 模式: {mode}",
-    "tts_mode": "TTS 模式: {mode}",
     "llm_enabled": "启用 LLM: {enabled}",
     "multi_voice": "多角色配音: {enabled}",
     "reading_file": "正在读取文件...",
@@ -58,7 +57,7 @@
     "assigning_voices": "正在为角色分配音色...",
     "template_saved": "角色配音模板已保存: {path}",
     "character_stats": "角色统计",
-    "total_count": "共 {count} 个角色",
+    "total_count": "共 {count} 章",
     "char_summary": "{i}. {name}: {voice}（出现 {count} 次）",
     "more_characters": "... 还有 {count} 个角色",
     "narrator_voice": "旁白音色: {voice}",
@@ -119,7 +118,36 @@
     "all_done": "全部生成完成",
     "success_count": "成功: {count} 章",
     "failed_count": "失败: {count} 章",
-    "total_count": "共 {count} 章"
+    "invalid_rate": "语速必须在 0.5 到 2.0 之间",
+    "description": "将文本按章节转换为语音",
+    "help": {
+      "input": "输入文件路径（.txt/.md/.pdf）",
+      "output": "输出目录（默认使用配置）",
+      "voice": "Edge TTS 音色（默认使用配置）",
+      "rate": "语速，0.5-2.0（默认使用配置）",
+      "no_llm": "禁用 LLM 口语化",
+      "start": "起始章节（从 1 开始）",
+      "end": "结束章节（包含）",
+      "log_level": "日志级别",
+      "language": "界面语言",
+      "analyze_characters": "分析角色并生成配音模板",
+      "multi_voice": "启用多角色配音；可显式传 true/false",
+      "character_template": "角色模板 JSON 路径",
+      "character_list": "角色列表 JSON 路径",
+      "analysis_mode": "角色分析模式"
+    },
+    "examples": {
+      "title": "示例：",
+      "basic": "  bash cli.sh -i input.txt",
+      "output": "  bash cli.sh -i input.txt -o output",
+      "voice": "  bash cli.sh -i input.txt --voice zh-CN-YunxiNeural --rate 1.2",
+      "no_llm": "  bash cli.sh -i input.txt --no-llm",
+      "chapters": "  bash cli.sh -i input.txt --start 2 --end 5",
+      "analyze_auto": "  bash cli.sh -i input.txt --analyze-characters",
+      "analyze_hybrid": "  bash cli.sh -i input.txt --analyze-characters --analysis-mode hybrid --character-list characters.json",
+      "analyze_force": "  bash cli.sh -i input.txt --analyze-characters --character-list characters.json"
+    },
+    "tts_engine": "TTS 引擎: {engine}"
   },
   "api": {
     "file_upload_success": "文件上传成功: {path}",
@@ -152,7 +180,30 @@
     "chapter_skip_completed": "第 {index} 章已生成，跳过",
     "task_paused": "任务 {task_id} 已暂停",
     "task_partial_complete": "任务 {task_id} 部分章节完成，仍有待生成章节",
-    "task_job_cancelled": "任务 {task_id} 生成任务已取消"
+    "task_job_cancelled": "任务 {task_id} 生成任务已取消",
+    "file_not_found": "文件不存在: {path}",
+    "file_name_required": "文件名不能为空",
+    "file_or_path_required": "必须提供文件或路径",
+    "unsupported_file_format": "不支持的文件格式: {suffix}",
+    "file_too_large": "文件超过大小限制（最大 {limit} MB）",
+    "upload_task_created": "文件上传成功，任务 ID: {task_id}",
+    "task_no_file_path": "任务中未找到文件路径",
+    "task_no_chapters": "任务尚未解析，请先调用 /parse",
+    "task_generating_no_parse": "任务正在生成中，暂不能重新解析",
+    "task_already_parsing": "任务正在解析中，请稍候",
+    "task_has_audio_no_parse": "任务已有生成音频，请先删除章节音频再重新解析",
+    "chapter_indexes_empty": "chapter_indexes 不能为空",
+    "chapter_indexes_invalid": "章节序号不存在: {indexes}",
+    "invalid_rate": "语速必须在 0.5 到 2.0 之间",
+    "chapter_not_found": "章节不存在: {chapter_index}",
+    "audio_not_found": "章节音频不存在: {chapter_index}",
+    "audio_path_not_found": "音频文件不存在: {path}",
+    "gui_not_built": "GUI 文件不存在，请先在 gui 目录执行 npm run build",
+    "service_name": "GA Sprite Birds API",
+    "llm_init_failed": "LLM 初始化失败，将使用原文生成: {error}",
+    "generate_started": "音频生成已开始，请通过 /task/{id}/status 查询进度",
+    "title": "音频朗读系统 API",
+    "description": "将文本转换为音频的本地 API 服务"
   },
   "llm": {
     "mode_local": "LLM 模式: 本地 (Ollama), 模型: {model}",
@@ -226,13 +277,9 @@
     "model_unavailable": "模型 {model} 不可用",
     "llm_setup_valid": "本地 LLM 设置验证通过",
     "llm_validate_failed": "本地 LLM 设置验证失败，请检查配置和模型",
-    "validating_tts_setup": "正在验证本地 TTS 设置...",
-    "tts_model_path_missing": "TTS 模型路径不存在: {path}",
     "first_run_auto_download": "首次运行时会自动下载模型",
     "gpu_required_but_cpu": "配置要求使用 CUDA，但未检测到 GPU，将使用 CPU",
-    "cpu_may_be_slower": "这可能会导致性能下降",
-    "tts_device_ready": "TTS 设备: {desc}",
-    "tts_setup_valid": "本地 TTS 设置验证通过"
+    "cpu_may_be_slower": "这可能会导致性能下降"
   },
   "token": {
     "tiktoken_not_installed": "tiktoken 未安装，将使用字符数估算 token（不够精确）",
@@ -281,7 +328,7 @@
     "merger_initialized": "音频合并器初始化完成"
   },
   "tts": {
-    "manager_initialized": "TTS 管理器初始化完成，模式: {mode}, 引擎: {engine}",
+    "manager_initialized": "TTS 管理器初始化完成，引擎: {engine}",
     "edge_engine_initialized": "Edge TTS 引擎初始化完成，默认音色: {voice}",
     "base_engine_initialized": "初始化 TTS 引擎: {name}",
     "generation_start": "开始生成音频: {path}, 音色: {voice}, 语速: {rate}, 文本长度: {length} 字符",
@@ -307,7 +354,7 @@
     "parse_complete": "章节解析完成，共 {count} 章"
   },
   "task": {
-    "manager_initialized": "任务管理器初始化完成，最大并发任务数: {count}",
+    "manager_initialized": "任务管理器初始化完成",
     "task_created": "创建任务: {task_id}, 章节数: {count}",
     "task_status_updated": "任务 {task_id} 状态更新: {status}",
     "chapter_completed": "任务 {task_id} 章节 {index} 完成: {title}",
@@ -318,7 +365,8 @@
     "record_restored": "已恢复任务记录: {task_id}",
     "record_load_failed": "任务记录加载失败: {path}, 错误: {error}",
     "record_save_failed": "任务记录保存失败: {task_id}, 错误: {error}",
-    "record_delete_failed": "任务记录删除失败: {task_id}, 错误: {error}"
+    "record_delete_failed": "任务记录删除失败: {task_id}, 错误: {error}",
+    "record_expired": "任务记录已过期并清理: {task_id}"
   },
   "sprite": {
     "manager_initialized": "角色管理器初始化完成",
@@ -409,7 +457,8 @@
     "intro_outro_disabled": "片头片尾未启用",
     "intro_text": "片头: {text}",
     "outro_text": "片尾: {text}",
-    "warning_chapter_short": "章节 '{title}' 长度过短 ({length} 字符)，跳过"
+    "warning_chapter_short": "章节 '{title}' 长度过短 ({length} 字符)，跳过",
+    "loaded": "章节加载完成，共 {count} 章"
   },
   "video": {
     "processing": "处理: {path}",

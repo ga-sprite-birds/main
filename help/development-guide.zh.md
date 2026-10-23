@@ -17,22 +17,24 @@ ga-sprite-birds/
 │   ├── api.py              # FastAPI HTTP 服务入口
 │   └── cli.py              # CLI 命令行入口
 ├── ga_birds/               # 核心业务模块（CORE_DIR）
-│   ├── Common/             # 公共基础模块
+│   ├── Common/             # 公共基础模块（章节加载、i18n、文本保存）
 │   ├── Utils/              # 通用工具模块
 │   ├── Parser/             # 解析器模块
 │   ├── LLM/                # LLM 调用模块
-│   ├── Audio/              # 音频处理模块
+│   ├── Audio/              # 音频处理模块（章节生成器、TTS、导出）
 │   ├── character_analyzer/ # 角色分析模块（多角色专用）
-│   ├── Task/               # 任务管理模块（API 专用）
-│   └── Sprite/             # 精灵管理模块（API 专用）
+│   └── Task/               # 任务管理与 JSON 持久化
+├── gui/                    # Vue 3 + Element Plus 前端源码
 ├── cache/                  # 缓存目录
 │   ├── audio_temp/         # 临时音频文件
 │   ├── dialogue/           # 对话解析缓存
-│   └── role/               # 角色模板缓存
+│   ├── role/               # 角色模板缓存
+│   └── tasks/              # 任务记录（完成后自动删除）
 ├── output/                 # 输出目录
+├── uploads/                # API 上传的源文件
 ├── models/                 # AI 模型文件
 ├── logs/                   # 日志目录
-├── tests/                  # 单元测试
+├── tests/                  # 单元测试与集成测试
 ├── help/                   # 开发文档
 ├── .env                    # 环境配置文件
 └── requirements.txt        # Python 依赖
@@ -56,6 +58,7 @@ ga-sprite-birds/
 | ParamManager | `param_manager.py` | 参数合并与验证 | CLI/API 参数处理 |
 | ChapterProcessor | `chapter_processor.py` | 片头片尾处理 | 单角色/多角色通用 |
 | ChapterTextSaver | `text_saver.py` | 文本保存 | 单角色/多角色通用 |
+| chapter_loader | `chapter_loader.py` | 读取、预处理、规范化并解析章节 | CLI 和 API 共用 |
 
 **设计原则**：
 - ✅ 只包含跨业务共享的基础设施
@@ -147,9 +150,10 @@ content = preprocess_text(content, remove_extra_newlines=True)
 
 | 模块 | 文件 | 职责 |
 |------|------|------|
-| TTSManager | `tts_manager.py` | TTS 引擎管理（Edge TTS / 本地 TTS） |
+| TTSManager | `tts_manager.py` | TTS 引擎管理（当前版本使用 Edge TTS） |
 | AudioExporter | `audio_exporter.py` | 音频导出路径管理 |
 | AudioMerger | `audio_merger.py` | 音频合并（多角色模式） |
+| chapter_generator | `chapter_generator.py` | 单角色章节共享流程（LLM、片头片尾、文本、TTS、重名处理） |
 | Engines | `engines/` | TTS 引擎实现 |
 
 ---
@@ -180,15 +184,22 @@ DialogueParser.add_intro_outro_to_segments(segments, intro, outro)
 
 **位置**：`ga_birds/Task/`
 
-**职责**：API 模式的任务队列管理
+**职责**：内存任务状态、后台生成控制和 API 任务 JSON 持久化。
 
----
+**任务状态**：
 
-#### Sprite（精灵管理）
+| 状态 | 含义 |
+|------|------|
+| `pending` | 已上传，尚未解析 |
+| `parsing` | 正在解析章节 |
+| `parsed` | 章节已就绪，可能有章节待生成 |
+| `generating` | 正在生成音频 |
+| `paused` | 章节之间暂停 |
+| `completed` | 所有章节都有音频；任务记录被删除 |
+| `failed` | 章节或任务失败 |
+| `cancelled` | 任务已取消 |
 
-**位置**：`ga_birds/Sprite/`
-
-**职责**：API 模式的精灵资源管理
+任务记录以可读 JSON 原子写入 `TASK_CACHE_DIR`。生成任务会保存参数和 `chapter_indexes` 范围，`/resume` 沿用同一范围。服务启动时，`generating` 任务恢复为 `paused`，被中断的章节重置为 `pending`。超过 `TASK_RESULT_TTL` 的记录会在启动时清理。
 
 ---
 
@@ -216,8 +227,14 @@ bash cli.sh -i <文件> [参数]
 
 **启动方式**：
 ```bash
-uvicorn fcgi-bin.api:app --host 0.0.0.0 --port 8000
+# 推荐：自动选择空闲端口并打开界面
+bash api.sh
+
+# 直接启动（需要 PYTHONPATH）
+PYTHONPATH=. python fcgi-bin/api.py
 ```
+
+`api.sh` 从 `API_PORT`（默认 `8000`）开始寻找空闲端口。API 仅面向本地使用，没有鉴权。
 
 **特点**：
 - FastAPI HTTP 服务
@@ -316,13 +333,16 @@ raise NonRetryableError("Invalid parameter")  # 直接抛出，不重试
 
 **流程**：
 ```
-文本文件 
-  → 章节拆分（ChapterParser）
-  → [可选] LLM 口语化（LLMManager）
-  → 添加片头片尾（ChapterProcessor）
-  → TTS 生成音频（TTSManager）
-  → 保存文本（ChapterTextSaver）
+文本文件
+  → load_chapters()（读取、预处理、规范化、ChapterParser）
+  → generate_single_voice_chapter()
+      → [可选] LLM 口语化（LLMManager，失败时回退原文）
+      → 添加片头片尾（ChapterProcessor）
+      → 保存文本（ChapterTextSaver）
+      → TTS 生成音频（TTSManager，应用重名策略）
 ```
+
+CLI 和 API 都必须调用 `load_chapters()` 和 `generate_single_voice_chapter()`，不要在入口中重复实现流程。
 
 **特点**：
 - 整章内容一次性生成
@@ -378,9 +398,11 @@ CORE_DIR=ga_birds
 LANGUAGE=en_US                  # 系统语言：en_US(英语), zh_CN(简体中文)
 
 # ===== TTS 配置 =====
-TTS_MODE=api                    # api（Edge TTS）/ local（本地 TTS）
+TTS_ENGINE=edge                 # Edge TTS（当前唯一实现的引擎）
 TTS_VOICE=zh-CN-XiaoxiaoNeural  # 默认音色
 TTS_RATE=1.0                    # 语速
+TTS_CHUNK_MAX_CHARS=2000        # 长文本分块大小（按句子边界）
+TTS_CHUNK_TIMEOUT=180           # 单个分块超时（秒）
 OUTPUT_BITRATE=192              # 输出比特率
 
 # ===== LLM 配置 =====
@@ -395,9 +417,10 @@ DIALOGUE_CHUNK_SIZE=3000        # 对话解析分块大小
 DIALOGUE_CHUNK_OVERLAP=200      # 分块重叠
 
 # ===== 章节配置 =====
-CHAPTER_REGEX_PATTERNS=["^第[0-9一二三四五六七八九十百千]+[章回节].*$"]
+CHAPTER_REGEX_PATTERNS=^第[零一二三四五六七八九十百千万0-9]+[章回卷节](?![\u4e00-\u9fff]),^第[零一二三四五六七八九十百千万0-9]+卷(?![\u4e00-\u9fff])
 CHAPTER_MIN_LENGTH=100
-CHAPTER_KEEP_TITLE=false
+CHAPTER_KEEP_TITLE=true
+CHAPTER_NORMALIZE_ENABLED=true  # 解析前规范化 Markdown/加粗标题
 CHAPTER_INTRO_OUTRO_ENABLED=true
 CHAPTER_INTRO_TEMPLATE=第{index}章开始
 CHAPTER_OUTRO_TEMPLATE=本章播讲完毕
@@ -405,7 +428,14 @@ CHAPTER_OUTRO_TEMPLATE=本章播讲完毕
 # ===== 输出配置 =====
 OUTPUT_BASE_PATH=./output
 OUTPUT_FORMAT=mp3
+OUTPUT_STRATEGY=by_role         # by_role / by_model / by_date / flat
 OUTPUT_DUPLICATE_HANDLING=rename  # skip / rename / overwrite
+
+# ===== API 与任务配置 =====
+API_MAX_UPLOAD_SIZE=100         # MB；0 表示不限制
+API_UPLOAD_DIR=./uploads
+TASK_CACHE_DIR=./cache/tasks
+TASK_RESULT_TTL=86400           # 秒；0 表示永不过期
 ```
 
 ### 6.2 配置访问
@@ -944,36 +974,25 @@ async def generate_audio(request: GenerateRequest):
 ### 9.1 单角色配音流程
 
 ```python
-# 1. 读取文件
-content = read_file(input_file)
+from ga_birds.Audio import generate_single_voice_chapter
+from ga_birds.Common import load_chapters
 
-# 2. 章节拆分
-parser = ChapterParser()
-chapters = parser.parse(content)
+# 1-2. 读取、预处理、规范化并拆分章节
+chapters = load_chapters(input_file)
 
-# 3. 处理每章
+# 3. 通过共享流程处理每章
 for chapter in chapters:
-    # 3.1 LLM 口语化（可选）
-    if enable_llm:
-        content = llm_manager.colloquialize_text(chapter.content)
-
-    # 3.2 添加片头片尾
-    intro, outro = ChapterProcessor.prepare_intro_outro(
-        chapter.index, chapter.title
-    )
-    final_content = ChapterProcessor.combine_content_with_intro_outro(
-        content, intro, outro
-    )
-
-    # 3.3 TTS 生成
-    await tts_manager.generate_audio(
-        text=final_content,
-        output_path=audio_path
-    )
-
-    # 3.4 保存文本
-    ChapterTextSaver.save_single_voice_text(
-        audio_path, final_content
+    await generate_single_voice_chapter(
+        chapter_index=chapter.index,
+        chapter_title=chapter.title,
+        content=chapter.content,
+        output_dir=output_dir,
+        voice=voice,
+        rate=rate,
+        enable_llm=enable_llm,
+        llm_manager=llm_manager,
+        tts_manager=tts_manager,
+        audio_exporter=audio_exporter,
     )
 ```
 
@@ -1035,6 +1054,14 @@ tests/
 │   ├── test_upload.py       # 测试上传接口
 │   ├── test_parse.py        # 测试解析接口
 │   ├── test_generate.py     # 测试生成接口
+│   ├── test_api_validation.py # 上传/解析/生成校验
+│   ├── test_generation_control.py # 暂停、继续与任务控制
+│   ├── test_shared_pipeline.py # 共享章节加载与重名处理
+│   ├── test_task_persistence.py # JSON 持久化与 TTL
+│   ├── test_character_metadata.py # 角色元数据
+│   ├── test_dialogue_parser_metadata.py # 对话解析元数据
+│   ├── test_text_normalizer.py # 章节标题规范化
+│   ├── test_voice_assigner.py # 音色分配
 │   └── test_task_status.py  # 测试任务状态
 │
 ├── integration/             # 集成测试（httpx）
@@ -1061,11 +1088,20 @@ tests/
 **示例**：
 ```python
 # tests/unit/test_upload.py
+import importlib.util
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
-from fcgi-bin.api import app
 
-client = TestClient(app)
+project_root = Path(__file__).parent.parent.parent
+spec = importlib.util.spec_from_file_location(
+    "api", project_root / "fcgi-bin" / "api.py"
+)
+api_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(api_module)
+
+client = TestClient(api_module.app)
 
 @pytest.mark.unit
 def test_upload_with_file(sample_text_file):
@@ -1136,7 +1172,7 @@ async def test_complete_workflow(api_base_url, sample_text_file):
 **运行集成测试**：
 ```bash
 # 步骤 1: 启动 API 服务器（新终端）
-uvicorn fcgi-bin.api:app --host 0.0.0.0 --port 8000
+bash api.sh
 
 # 步骤 2: 运行集成测试（另一个终端）
 pytest tests/integration -v
@@ -1238,13 +1274,12 @@ bash cli.sh -i debug/test.txt --multi-voice true \
 
 ## 13. 参考文档
 
-- [项目通用开发规范](../.augment/rules/imported/python.md)
 - [安装指南](./INSTALL.zh.md)
 - [README](./README.zh.md)
 
 ---
 
 **原稿**：2025-01-27
-**更新时间**：2025-12-01
+**更新时间**：2026-10-23
 **维护者**：GA Sprite Birds 开发团队
 

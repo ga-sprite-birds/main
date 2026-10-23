@@ -11,5 +11,10 @@ cd "${SCRIPT_DIR}"
 
 
 # Set PYTHONPATH and run the CLI
-PYTHONPATH=. python fcgi-bin/cli.py "$@"
+PYTHON_BIN="${PYTHON_BIN:-python}"
+if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
+    PYTHON_BIN="python3"
+fi
+
+PYTHONPATH=. "$PYTHON_BIN" fcgi-bin/cli.py "$@"
 

@@ -8,8 +8,8 @@ export default {
     },
     audio: {
         title: "文本转高质量章节音频",
-        apiOnline: "任务已连接",
-        apiPending: "等待任务",
+        apiOnline: "服务已连接",
+        apiPending: "服务未连接",
         source: "输入与参数",
         refresh: "刷新",
         dropText: "拖入或点击选择 txt / md / pdf，可多次添加并自动上传",
@@ -31,6 +31,7 @@ export default {
         deleteConfirm: "确定删除选中的 {count} 个章节音频吗？文件也会从磁盘删除。",
         deleted: "章节音频已删除",
         pauseRequested: "已请求暂停，当前章节完成后停止",
+        taskExpired: "任务已失效，请重新上传文件",
         progress: "任务进度",
         taskId: "任务 ID",
         createdAt: "创建时间",

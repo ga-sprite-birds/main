@@ -19,8 +19,8 @@
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/tiger-sprite/ga-sprite-birds.git
-cd ga-sprite-birds
+git clone https://github.com/ga-sprite-birds/main.git
+cd main
 ```
 
 ### 2. Create a Python Environment and Install Dependencies
@@ -114,36 +114,9 @@ curl -fsSL https://ollama.ai/install.sh | sh
 ollama pull deepseek-r1:7b
 ```
 
-### 4. Install a Local TTS Model (Optional)
+### 4. TTS Engine
 
-#### CosyVoice (Recommended)
-
-```bash
-# Install dependencies
-pip install modelscope
-pip install funasr
-pip install cosyvoice
-
-# Download the model (downloaded automatically on first run)
-# The model will be saved to ./models/CosyVoice
-```
-
-#### ChatTTS
-
-```bash
-pip install ChatTTS
-```
-
-#### GPT-SoVITS
-
-```bash
-# Clone the repository
-git clone https://github.com/RVC-Boss/GPT-SoVITS.git
-cd GPT-SoVITS
-
-# Install dependencies
-pip install -r requirements.txt
-```
+The current release uses **Edge TTS** for narration. It is free and does not require a local model, but it does need network access. Other `TTS_ENGINE` values are not implemented in this release.
 
 ### 5. Configuration File
 
@@ -158,8 +131,8 @@ vim .env
 ### 6. Verify the Installation
 
 ```bash
-# Run the tests
-pytest
+# Run the unit tests (no server required)
+pytest tests/unit
 ```
 
 ---
@@ -205,31 +178,27 @@ TTS_VOICE=zh-CN-YunxiNeural
 
 ## Starting the Service
 
-### Development Mode
+### Recommended
 
 ```bash
-# Start Ollama (if using the local LLM)
+# Start Ollama first if you use the local LLM
 ollama serve
 
-# Start the FastAPI service
-python fcgi-bin/api.py
-
-# Or use uvicorn (with hot reload)
-uvicorn fcgi-bin.api:app --host 0.0.0.0 --port 8000 --reload
+# Start the local service and open the GUI
+bash api.sh
 ```
 
-### Production Mode
+`api.sh` starts FastAPI on a free port starting at `API_PORT` (default `8000`) and opens the browser.
+
+### Direct launch
 
 ```bash
-# Use gunicorn + uvicorn workers
-pip install gunicorn
-
-gunicorn fcgi-bin.api:app \
-  --workers 4 \
-  --worker-class uvicorn.workers.UvicornWorker \
-  --bind 0.0.0.0:8000 \
-  --timeout 300
+PYTHONPATH=. python fcgi-bin/api.py
 ```
+
+### Production note
+
+This project is designed for local use. The API has no authentication, and the bundled launcher uses a single process. If you need to expose it to a trusted network, place it behind an authenticated reverse proxy instead of binding it directly to the public internet.
 
 ---
 
@@ -317,8 +286,8 @@ ollama list
 If Edge TTS fails to connect, you can:
 
 1. Retry later.
-2. Switch to a local TTS model.
-3. Use another API (Alibaba Cloud, Azure).
+2. Check your network/proxy configuration.
+3. Use a different network or a mirror if your region blocks the service.
 
 **Note**: The system has a built-in automatic retry mechanism (exponential backoff, up to 5 retries), so most network issues recover automatically.
 
@@ -397,9 +366,10 @@ Integration tests require the API server to be started first:
 
 ```bash
 # Terminal 1: Start the API server
-uvicorn fcgi-bin.api:app --host 0.0.0.0 --port 8000
+bash api.sh
 
 # Terminal 2: Run the integration tests
+# They default to http://localhost:8000.
 pytest tests/integration -v
 ```
 
@@ -429,4 +399,4 @@ After installation, please read [../README.md](../README.md) to learn how to use
 **Author:** adam
 **Email:** dev@ebf.hk
 **Website:** http://ebf.cc
-**Source:** https://github.com/tiger-sprite/ga-sprite-birds
+**Source:** https://github.com/ga-sprite-birds/main

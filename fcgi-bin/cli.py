@@ -17,6 +17,7 @@ import asyncio
 import argparse
 import importlib
 import json
+import shutil
 from typing import Optional
 
 from loguru import logger
@@ -40,23 +41,16 @@ if '--language' in sys.argv:
 
 _i18n_module.set_locale(_default_language)
 
-# Get the translation function
-t = _i18n_module.t
-
 # Dynamically import core modules (based on config.CORE_DIR)
-_utils_module = importlib.import_module(f'{_core_module_name}.Utils')
-_parser_module = importlib.import_module(f'{_core_module_name}.Parser')
 _llm_module = importlib.import_module(f'{_core_module_name}.LLM')
 _audio_module = importlib.import_module(f'{_core_module_name}.Audio')
 _character_module = importlib.import_module(f'{_core_module_name}.character_analyzer')
 _common_module = importlib.import_module(f'{_core_module_name}.Common')
 
 # Import required classes and functions
-read_text_file = _utils_module.read_text_file
-extract_pdf_text = _utils_module.extract_pdf_text
-normalize_chapter_headings = _utils_module.normalize_chapter_headings
-get_unique_filename = _utils_module.get_unique_filename
-ChapterParser = _parser_module.ChapterParser
+load_chapters = _common_module.load_chapters
+generate_single_voice_chapter = _audio_module.generate_single_voice_chapter
+resolve_output_path = _audio_module.resolve_output_path
 LLMManager = _llm_module.LLMManager
 TTSManager = _audio_module.TTSManager
 AudioExporter = _audio_module.AudioExporter
@@ -115,62 +109,36 @@ async def generate_from_file(
     enable_llm = ParamManager.merge_enable_llm(enable_llm)
     multi_voice = ParamManager.merge_multi_voice(multi_voice)
 
+    if rate is not None and not 0.5 <= rate <= 2.0:
+        logger.error(t("cli.invalid_rate"))
+        return
+
     logger.info(t("cli.input_file", path=input_file))
     logger.info(t("cli.llm_mode", mode=config.LLM_MODE))
-    logger.info(t("cli.tts_mode", mode=config.TTS_MODE))
+    logger.info(t("cli.tts_engine", engine=config.TTS_ENGINE))
     logger.info(t("cli.llm_enabled", enabled=enable_llm))
     logger.info(t("cli.multi_voice", enabled=multi_voice))
     logger.info("")
 
-    # Read file content
+    # Read, preprocess, normalize, and split chapters through the shared loader.
     logger.info(t("cli.reading_file"))
-    file_ext = input_path.suffix.lower()
-    if file_ext == ".pdf":
-        text = extract_pdf_text(str(input_path))
-    else:
-        text = read_text_file(str(input_path))
-
-    logger.info(t("cli.file_size", size=len(text)))
-
-    # Text preprocessing
-    if config.TEXT_PREPROCESSING_ENABLED:
-        logger.info(t("cli.preprocessing"))
-        from ga_birds.Utils.file_utils import preprocess_text
-        text = preprocess_text(
-            text,
-            remove_extra_newlines=True,
-            remove_headers_footers=True,
-            fix_pdf_linebreaks=True
-        )
-
-    # Normalize irregular chapter headings (Markdown bold/heading, etc.)
-    if config.CHAPTER_NORMALIZE_ENABLED:
-        text = normalize_chapter_headings(text)
-
-    # Chapter splitting
-    logger.info(t("cli.parsing_chapters"))
-    parser = ChapterParser(
-        regex_patterns=config.CHAPTER_REGEX_PATTERNS,
-        min_length=config.CHAPTER_MIN_LENGTH,
-        keep_title=config.CHAPTER_KEEP_TITLE
-    )
-    chapters = parser.parse(text)
+    chapters = load_chapters(str(input_path))
     logger.info(t("cli.chapters_parsed", count=len(chapters)))
     logger.info("")
-    
+
     # Determine the range of chapters to process
     if end_chapter is None:
         end_chapter = len(chapters)
-    
+
     # Validate chapter range
     if start_chapter < 1 or start_chapter > len(chapters):
         logger.error(t("cli.start_chapter_invalid", start=start_chapter, total=len(chapters)))
         return
-    
+
     if end_chapter < start_chapter or end_chapter > len(chapters):
         logger.error(t("cli.end_chapter_invalid", end=end_chapter, start=start_chapter, total=len(chapters)))
         return
-    
+
     logger.info(t("cli.processing_chapters", start=start_chapter, end=end_chapter))
     logger.info("")
     selected_contents = [
@@ -408,7 +376,7 @@ async def generate_from_file(
             logger.info(t("cli.llm_init_success"))
         except Exception as e:
             logger.error(t("cli.llm_init_failed", error=e))
-            if config.ENABLE_MULTI_VOICE:
+            if multi_voice:
                 logger.error(t("cli.analysis_needs_llm"))
                 return
             logger.warning(t("cli.skipping_llm"))
@@ -476,79 +444,73 @@ async def generate_from_file(
 
     logger.info(t("cli.initializing_exporter"))
     audio_exporter = AudioExporter()
-    
+
     logger.info("")
     logger.info("=" * 60)
     logger.info(t("cli.starting_generation"))
     logger.info("=" * 60)
     logger.info("")
-    
+
     # Generate audio
     success_count = 0
     failed_count = 0
-    
+
     for chapter in chapters:
         # Check whether within the processing range
         if chapter.index < start_chapter or chapter.index > end_chapter:
             continue
-        
+
         logger.info(f"[{chapter.index}/{len(chapters)}] {chapter.title}")
         logger.info(t("cli.content_length", length=len(chapter.content)))
-        
+
         try:
-            # Save original content for comparison
-            original_content = chapter.content
-            original_length = len(original_content)
-
-            # Content currently being processed
-            content = original_content
-            colloquialized_content = None
-
-            # LLM colloquialization (optional)
-            if enable_llm:
-                if llm_manager:
-                    logger.info(t("cli.llm_colloquializing"))
-                    logger.debug(t("cli.llm_original_length", length=original_length))
-                    logger.debug(t("cli.llm_original_preview", text=content[:100]))
-                    try:
-                        colloquialized_content = llm_manager.colloquialize_text(content)
-                        colloquialized_length = len(colloquialized_content)
-                        logger.debug(t("cli.llm_result_length", length=colloquialized_length))
-                        logger.debug(t("cli.llm_result_preview", text=colloquialized_content[:100]))
-
-                        # Check whether the LLM actually changed the text
-                        if colloquialized_content != content:
-                            content = colloquialized_content
-                            logger.info(t("cli.llm_done", original=original_length, result=colloquialized_length))
-                        else:
-                            logger.warning(t("cli.llm_unchanged"))
-                            logger.warning(t("cli.llm_debug_saved"))
-                            # Do not set to None; keep the LLM output for debugging
-
-                    except Exception as e:
-                        logger.error(t("cli.llm_failed", error=e))
-                        logger.warning(t("cli.llm_using_original"))
-                        import traceback
-                        logger.debug(traceback.format_exc())
-                        colloquialized_content = None
-                else:
-                    logger.warning(t("cli.llm_not_initialized"))
-                    logger.debug(f"  → enable_llm={enable_llm}, llm_manager={llm_manager}")
-
-            # Add intro/outro (using ChapterProcessor)
-            intro, outro = ChapterProcessor.prepare_intro_outro(
-                chapter.index, chapter.title
-            )
-            # Final content for single-voice mode
-            final_content = ChapterProcessor.combine_content_with_intro_outro(
-                content, intro, outro
-            )
-            logger.debug(t("cli.intro_outro_enabled", enabled=intro is not None))
-
             # Multi-character voice vs single voice
             if multi_voice and character_template_data:
                 # Multi-character voice mode
                 logger.info(t("cli.using_multi_voice"))
+
+                # Save original content for comparison
+                original_content = chapter.content
+                original_length = len(original_content)
+                content = original_content
+                colloquialized_content = None
+
+                # LLM colloquialization (optional)
+                if enable_llm:
+                    if llm_manager:
+                        logger.info(t("cli.llm_colloquializing"))
+                        logger.debug(t("cli.llm_original_length", length=original_length))
+                        logger.debug(t("cli.llm_original_preview", text=content[:100]))
+                        try:
+                            colloquialized_content = llm_manager.colloquialize_text(content)
+                            colloquialized_length = len(colloquialized_content)
+                            logger.debug(t("cli.llm_result_length", length=colloquialized_length))
+                            logger.debug(t("cli.llm_result_preview", text=colloquialized_content[:100]))
+
+                            # Check whether the LLM actually changed the text
+                            if colloquialized_content != content:
+                                content = colloquialized_content
+                                logger.info(t("cli.llm_done", original=original_length, result=colloquialized_length))
+                            else:
+                                logger.warning(t("cli.llm_unchanged"))
+                                logger.warning(t("cli.llm_debug_saved"))
+                                # Do not set to None; keep the LLM output for debugging
+
+                        except Exception as e:
+                            logger.error(t("cli.llm_failed", error=e))
+                            logger.warning(t("cli.llm_using_original"))
+                            import traceback
+                            logger.debug(traceback.format_exc())
+                            colloquialized_content = None
+                    else:
+                        logger.warning(t("cli.llm_not_initialized"))
+                        logger.debug(f"  → enable_llm={enable_llm}, llm_manager={llm_manager}")
+
+                # Add intro/outro (using ChapterProcessor)
+                intro, outro = ChapterProcessor.prepare_intro_outro(
+                    chapter.index, chapter.title
+                )
+                logger.debug(t("cli.intro_outro_enabled", enabled=intro is not None))
 
                 # 1. Parse dialogue (only the body, excluding intro/outro)
                 dialogue_parser = DialogueParser(
@@ -589,6 +551,13 @@ async def generate_from_file(
                     custom_base_path=output_dir
                 )
                 audio_path.parent.mkdir(parents=True, exist_ok=True)
+
+                resolved_path = resolve_output_path(audio_path)
+                if resolved_path is None:
+                    logger.info("")
+                    success_count += 1
+                    continue
+                audio_path = resolved_path
 
                 # Save chapter text (multi-character mode - saved before TTS generation)
                 ChapterTextSaver.save_multi_voice_text(
@@ -641,85 +610,35 @@ async def generate_from_file(
                     temp_audio_files.append(str(temp_audio_path))
 
                 # 3. Merge audio
-                # Handle the case where the file already exists
-                if audio_path.exists():
-                    if config.OUTPUT_DUPLICATE_HANDLING == "skip":
-                        logger.info(t("cli.file_exists_skip", path=audio_path))
-                        logger.info("")
-                        # Clean up temporary files
-                        audio_merger = AudioMerger()
-                        audio_merger.cleanup_temp_files(temp_audio_files)
-                        import shutil
-                        shutil.rmtree(temp_dir, ignore_errors=True)
-                        continue
-                    elif config.OUTPUT_DUPLICATE_HANDLING == "rename":
-                        audio_path = get_unique_filename(audio_path)
-                        logger.info(t("cli.file_exists_rename", path=audio_path.name))
-                    # overwrite mode needs no special handling
-
                 logger.info(t("cli.merging_audio", count=len(temp_audio_files)))
                 audio_merger = AudioMerger()
                 if audio_merger.merge_audio_files(temp_audio_files, str(audio_path)):
                     logger.info(t("cli.merge_complete"))
                     # Clean up temporary files
                     audio_merger.cleanup_temp_files(temp_audio_files)
-                    import shutil
                     shutil.rmtree(temp_dir, ignore_errors=True)
                 else:
                     logger.error(t("cli.merge_failed"))
                     raise Exception("音频合并失败")
 
             else:
-                # Single-voice mode
-                audio_path = audio_exporter.get_output_path(
-                    index=chapter.index,
-                    title=chapter.title,
-                    role="default",
-                    custom_base_path=output_dir
+                # Single-voice mode (shared with the API)
+                await generate_single_voice_chapter(
+                    chapter_index=chapter.index,
+                    chapter_title=chapter.title,
+                    content=chapter.content,
+                    output_dir=output_dir,
+                    voice=voice,
+                    rate=rate,
+                    enable_llm=enable_llm,
+                    llm_manager=llm_manager,
+                    tts_manager=tts_manager,
+                    audio_exporter=audio_exporter,
                 )
-                audio_path.parent.mkdir(parents=True, exist_ok=True)
-
-                # Handle the case where the file already exists
-                if audio_path.exists():
-                    if config.OUTPUT_DUPLICATE_HANDLING == "skip":
-                        logger.info(t("cli.file_exists_skip", path=audio_path))
-                        logger.info("")
-                        continue
-                    elif config.OUTPUT_DUPLICATE_HANDLING == "rename":
-                        audio_path = get_unique_filename(audio_path)
-                        logger.info(t("cli.file_exists_rename", path=audio_path.name))
-                    # overwrite mode needs no special handling
-
-                # Save chapter text (single-voice mode)
-                ChapterTextSaver.save_single_voice_text(
-                    audio_path=audio_path,
-                    final_content=final_content,
-                    original_content=original_content,
-                    llm_content=colloquialized_content,
-                    enable_llm=enable_llm
-                )
-
-                # TTS generate audio (single-voice mode)
-                logger.info(t("cli.tts_generating"))
-
-                # Prepare TTS parameters
-                tts_kwargs = {
-                    "text": final_content,
-                    "output_path": str(audio_path),
-                    "voice": voice
-                }
-
-                # If speech rate is specified, add it to the parameters
-                if rate is not None:
-                    tts_kwargs["rate"] = rate
-
-                await tts_manager.generate_audio(**tts_kwargs)
-
-                logger.info(t("cli.generation_complete", path=audio_path))
 
             logger.info("")
             success_count += 1
-            
+
         except Exception as e:
             logger.error(t("cli.generation_failed", error=e))
             logger.info("")
@@ -830,7 +749,7 @@ def main():
     parser.add_argument(
         "--multi-voice",
         nargs='?',
-        const=None,
+        const="true",
         type=str.lower,
         choices=["true", "false"],
         help=t('cli.help.multi_voice')
@@ -878,7 +797,7 @@ def main():
             level=args.log_level,
             format=config.LOG_FORMAT
         )
-    
+
     # Run the generation task
     # Parameter priority: CLI arguments > config file
 

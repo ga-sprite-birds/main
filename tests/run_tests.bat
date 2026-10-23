@@ -33,7 +33,7 @@ if "%TEST_TYPE%"=="integration" (
     echo （需要先启动 API 服务器）
     echo.
     echo 请确保已在另一个终端运行：
-    echo   uvicorn fcgi-bin.api:app --host 0.0.0.0 --port 8000
+    echo   utils\router\win-run.bat
     echo.
     pause
     pytest tests/integration -v -m integration
@@ -50,7 +50,7 @@ if "%TEST_TYPE%"=="all" (
     echo.
     echo 2. 集成测试
     echo 请确保已在另一个终端运行：
-    echo   uvicorn fcgi-bin.api:app --host 0.0.0.0 --port 8000
+    echo   utils\router\win-run.bat
     echo.
     pause
     pytest tests/integration -v -m integration

@@ -32,7 +32,7 @@ class AudioExporter:
         self.base_path.mkdir(parents=True, exist_ok=True)
 
         logger.info(t("audio.exporter_initialized", path=self.base_path, strategy=self.strategy))
-    
+
     def get_output_path(
         self,
         index: int,
@@ -59,8 +59,7 @@ class AudioExporter:
         if self.strategy == "by_role":
             subdir = base / (role or "default")
         elif self.strategy == "by_model":
-            model_name = config.TTS_LOCAL_ENGINE if config.TTS_MODE == "local" else "edge-tts"
-            subdir = base / model_name
+            subdir = base / "edge-tts"
         elif self.strategy == "by_date":
             date_str = datetime.now().strftime("%Y%m%d")
             subdir = base / date_str
@@ -69,7 +68,7 @@ class AudioExporter:
 
         # Ensure subdirectory exists
         subdir.mkdir(parents=True, exist_ok=True)
-        
+
         # Generate filename
         filename = self.filename_template.format(
             index=index,
@@ -78,12 +77,12 @@ class AudioExporter:
             date=datetime.now().strftime("%Y%m%d"),
             format=self.format
         )
-        
+
         output_path = subdir / filename
         logger.debug(t("audio.output_path_generated", path=output_path))
-        
+
         return output_path
-    
+
     @staticmethod
     def _sanitize_filename(filename: str) -> str:
         """
@@ -104,9 +103,9 @@ class AudioExporter:
         max_length = 100
         if len(filename) > max_length:
             filename = filename[:max_length]
-        
+
         return filename
-    
+
     def convert_format(
         self,
         input_path: str,
@@ -133,9 +132,9 @@ class AudioExporter:
         if output_path is None:
             input_file = Path(input_path)
             output_path = str(input_file.with_suffix(f".{target_format}"))
-        
+
         logger.info(t("audio.converting_format", input=input_path, output=output_path))
-        
+
         try:
             # Load audio
             audio = AudioSegment.from_file(input_path)
@@ -146,13 +145,13 @@ class AudioExporter:
                 format=target_format,
                 bitrate=f"{bitrate}k"
             )
-            
+
             logger.info(t("audio.conversion_complete", path=output_path))
             return output_path
         except Exception as e:
             logger.error(t("audio.conversion_failed", error=e))
             raise
-    
+
     def merge_audio_files(
         self,
         input_paths: list[str],
@@ -183,14 +182,14 @@ class AudioExporter:
                     combined = combined.append(audio, crossfade=crossfade)
                 else:
                     combined = combined + audio
-            
+
             # Export the merged audio
             combined.export(
                 output_path,
                 format=self.format,
                 bitrate=f"{self.bitrate}k"
             )
-            
+
             logger.info(t("audio.merge_complete", path=output_path))
             return output_path
         except Exception as e:

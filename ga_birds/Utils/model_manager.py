@@ -6,10 +6,9 @@ Version: v1.0
 Dev team: Tiger
 """
 
-import os
 import sys
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Tuple
 
 import ollama
 from loguru import logger
@@ -25,7 +24,7 @@ class ModelManager:
     def __init__(self):
         """Initialize the model manager"""
         self.cache_dir = Path(config.MODEL_CACHE_DIR)
-        
+
     def ensure_cache_dir(self) -> bool:
         """
         Ensure the cache directory exists
@@ -88,7 +87,7 @@ class ModelManager:
             logger.error(t("model.ollama_check_failed", error=e))
             logger.error(t("model.ollama_service_hint"))
             return False
-    
+
     def download_ollama_model(self, model_name: str) -> bool:
         """
         Download the Ollama model
@@ -152,7 +151,7 @@ class ModelManager:
 
         # 3. Download the model
         return self.download_ollama_model(model_name)
-    
+
     def get_device(self, prefer_gpu: bool = True) -> Tuple[str, str]:
         """
         Get an available compute device
@@ -196,7 +195,7 @@ class ModelManager:
         cpu_info = f"{platform.processor()} ({platform.machine()})"
         logger.info(t("model.using_cpu", info=cpu_info))
         return 'cpu', f"CPU - {cpu_info}"
-    
+
     def check_ollama_service(self, host: str = "http://localhost:11434") -> bool:
         """
         Check whether the Ollama service is running
@@ -222,7 +221,7 @@ class ModelManager:
             logger.error(t("model.ollama_service_step1"))
             logger.error(t("model.ollama_service_step2", host=host))
             return False
-    
+
     def validate_local_llm_setup(self) -> bool:
         """
         Validate the local LLM setup
@@ -246,37 +245,5 @@ class ModelManager:
             return False
 
         logger.info(t("model.llm_setup_valid"))
-        return True
-
-    def validate_local_tts_setup(self) -> bool:
-        """
-        Validate the local TTS setup
-
-        Returns:
-            bool: True if the setup is valid, otherwise False
-        """
-        if config.TTS_MODE != "local":
-            return True
-
-        logger.info(t("model.validating_tts_setup"))
-
-        # 1. Check the model path
-        model_path = Path(config.TTS_LOCAL_MODEL_PATH)
-        if not model_path.exists():
-            logger.warning(t("model.tts_model_path_missing", path=str(model_path.absolute())))
-            logger.info(t("model.first_run_auto_download"))
-
-        # 2. Check the device
-        device_type, device_desc = self.get_device(
-            prefer_gpu=(config.TTS_LOCAL_DEVICE != 'cpu')
-        )
-
-        # If GPU is required by config but only CPU is available, warn
-        if config.TTS_LOCAL_DEVICE == 'cuda' and device_type == 'cpu':
-            logger.warning(t("model.gpu_required_but_cpu"))
-            logger.warning(t("model.cpu_may_be_slower"))
-
-        logger.info(t("model.tts_device_ready", desc=device_desc))
-        logger.info(t("model.tts_setup_valid"))
         return True
 

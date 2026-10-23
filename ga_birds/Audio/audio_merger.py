@@ -25,7 +25,7 @@ class AudioMerger:
             logger.info(t("audio.ffmpeg_path_set", path=config.FFMPEG_PATH))
 
         logger.info(t("audio.merger_initialized"))
-    
+
     def merge_audio_files(self, audio_files: List[str], output_path: str) -> bool:
         """
         Merge multiple audio files
@@ -59,14 +59,14 @@ class AudioMerger:
             logger.debug(t("audio.merge_export_params", format=output_format, bitrate=bitrate))
             logger.info(t("audio.merge_complete", path=output_path))
             return True
-            
+
         except ImportError:
             logger.error(t("tts.pydub_not_installed"))
             return self._merge_with_ffmpeg(audio_files, output_path)
         except Exception as e:
             logger.error(t("audio.merge_failed", error=e))
             return False
-    
+
     def _merge_with_ffmpeg(self, audio_files: List[str], output_path: str) -> bool:
         """
         Merge audio using ffmpeg (fallback method)
@@ -107,7 +107,7 @@ class AudioMerger:
             ]
 
             logger.info(t("audio.merging_with_ffmpeg"))
-            result = subprocess.run(
+            subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
@@ -129,7 +129,7 @@ class AudioMerger:
         except Exception as e:
             logger.error(t("audio.merge_failed", error=e))
             return False
-    
+
     def cleanup_temp_files(self, audio_files: List[str]):
         """
         Clean up temporary audio files

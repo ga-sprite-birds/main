@@ -12,7 +12,6 @@ Priority: project i18n > local translation files > hardcoded default translation
 import sys
 import json
 from pathlib import Path
-from typing import Optional
 
 
 class UtilsI18n:

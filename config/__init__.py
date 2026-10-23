@@ -100,13 +100,6 @@ MODEL_CACHE_DIR = os.getenv('MODEL_CACHE_DIR', './models')
 
 # ========== TTS configuration ==========
 
-# TTS_MODE: TTS runtime mode
-# Purpose: Choose between a local model or the API service
-# Allowed values: 'api' (API service), 'local' (local model)
-# Effect: Determines which set of TTS configuration to use
-# Recommendation: Use 'api' for quick testing, 'local' for high quality
-TTS_MODE = os.getenv('TTS_MODE', 'api')
-
 # TTS_ENGINE: TTS engine type
 # Purpose: Specifies the TTS engine to use
 # Allowed values: edge
@@ -157,11 +150,6 @@ TTS_CHUNK_MAX_CHARS = int(os.getenv('TTS_CHUNK_MAX_CHARS', '2000'))
 
 # TTS_CHUNK_TIMEOUT: Seconds to wait for one TTS chunk before timing out and retrying
 TTS_CHUNK_TIMEOUT = int(os.getenv('TTS_CHUNK_TIMEOUT', '180'))
-
-# TASK_CACHE_DIR: Directory for persisted task records
-# Purpose: Tasks are kept as readable JSON files so they survive a restart.
-#          The record is deleted automatically once the task completes.
-TASK_CACHE_DIR = os.getenv('TASK_CACHE_DIR', './cache/tasks')
 
 # ========== Chapter configuration ==========
 
@@ -301,7 +289,7 @@ API_PORT = int(os.getenv('API_PORT', '8000'))
 
 # API_DEBUG: Debug mode
 # Purpose: Whether to enable FastAPI debug mode
-API_DEBUG = os.getenv('API_DEBUG', 'true').lower() == 'true'
+API_DEBUG = os.getenv('API_DEBUG', 'false').lower() == 'true'
 
 # API_CORS_ENABLED: Whether to enable CORS
 # Purpose: Controls whether cross-origin requests are allowed
@@ -324,41 +312,14 @@ API_UPLOAD_DIR = os.getenv('API_UPLOAD_DIR', './uploads')
 
 # ========== Task configuration ==========
 
-# TASK_QUEUE_TYPE: Task queue type
-# Purpose: Specifies the task queue implementation
-# Allowed values: memory (in-memory queue), redis (Redis queue)
-# Recommendation: Use 'memory' for development, 'redis' for production
-TASK_QUEUE_TYPE = os.getenv('TASK_QUEUE_TYPE', 'memory')
-
-# TASK_MAX_CONCURRENT: Maximum concurrent tasks
-# Purpose: Limits the number of tasks running simultaneously
-TASK_MAX_CONCURRENT = int(os.getenv('TASK_MAX_CONCURRENT', '3'))
-
-# TASK_TIMEOUT: Task timeout
-# Purpose: Maximum execution time for a single task (seconds)
-TASK_TIMEOUT = int(os.getenv('TASK_TIMEOUT', '3600'))
-
-# TASK_RESULT_TTL: Task result retention time
-# Purpose: How long task results are retained in the system (seconds)
+# TASK_RESULT_TTL: Task record retention time
+# Purpose: Removes stale non-completed task records on startup (seconds, 0 = never)
 TASK_RESULT_TTL = int(os.getenv('TASK_RESULT_TTL', '86400'))
 
-# ========== Redis configuration ==========
-
-# REDIS_HOST: Redis server address
-# Purpose: Specifies the IP address of the Redis server
-REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
-
-# REDIS_PORT: Redis server port
-# Purpose: Specifies the port of the Redis server
-REDIS_PORT = int(os.getenv('REDIS_PORT', '6379'))
-
-# REDIS_DB: Redis database number
-# Purpose: Specifies the Redis database number to use
-REDIS_DB = int(os.getenv('REDIS_DB', '0'))
-
-# REDIS_PASSWORD: Redis password
-# Purpose: Authentication password for the Redis server
-REDIS_PASSWORD = os.getenv('REDIS_PASSWORD')
+# TASK_CACHE_DIR: Directory for persisted task records
+# Purpose: Tasks are kept as readable JSON files so they survive a restart.
+#          The record is deleted automatically once the task completes.
+TASK_CACHE_DIR = os.getenv('TASK_CACHE_DIR', './cache/tasks')
 
 # ========== Character analysis configuration ==========
 
@@ -495,7 +456,7 @@ CORE_DIR = os.getenv('CORE_DIR', 'ga_birds')
 
 # LANGUAGE: System language
 # Purpose: Sets the language for the system UI and output
-# Allowed values: en_US (English), zh_CN (Simplified Chinese), ja_JP (Japanese)
+# Allowed values: en_US (English), zh_CN (Simplified Chinese)
 # Effect: Language of CLI output, API responses, and log messages
 # Recommendation: Choose based on the user base; default is English
 # Default: en_US

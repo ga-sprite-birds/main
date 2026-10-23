@@ -19,8 +19,8 @@
 ### 1. 克隆项目
 
 ```bash
-git clone https://github.com/tiger-sprite/ga-sprite-birds.git
-cd ga-sprite-birds
+git clone https://github.com/ga-sprite-birds/main.git
+cd main
 ```
 
 ### 2. 创建 Python 环境并安装依赖
@@ -114,36 +114,9 @@ curl -fsSL https://ollama.ai/install.sh | sh
 ollama pull deepseek-r1:7b
 ```
 
-### 4. 安装本地 TTS 模型（可选）
+### 4. TTS 引擎
 
-#### CosyVoice（推荐）
-
-```bash
-# 安装依赖
-pip install modelscope
-pip install funasr
-pip install cosyvoice
-
-# 下载模型（首次运行时自动下载）
-# 模型会保存到 ./models/CosyVoice
-```
-
-#### ChatTTS
-
-```bash
-pip install ChatTTS
-```
-
-#### GPT-SoVITS
-
-```bash
-# 克隆仓库
-git clone https://github.com/RVC-Boss/GPT-SoVITS.git
-cd GPT-SoVITS
-
-# 安装依赖
-pip install -r requirements.txt
-```
+当前版本使用 **Edge TTS** 生成语音。它免费、无需本地模型，但需要联网。其他 `TTS_ENGINE` 取值在当前版本中尚未实现。
 
 ### 5. 配置文件
 
@@ -158,8 +131,8 @@ vim .env
 ### 6. 验证安装
 
 ```bash
-# 运行测试
-pytest
+# 运行单元测试（无需启动服务）
+pytest tests/unit
 ```
 
 ---
@@ -205,31 +178,27 @@ TTS_VOICE=zh-CN-YunxiNeural
 
 ## 启动服务
 
-### 开发模式
+### 推荐方式
 
 ```bash
-# 启动 Ollama（如果使用本地 LLM）
+# 如果使用本地 LLM，先启动 Ollama
 ollama serve
 
-# 启动 FastAPI 服务
-python fcgi-bin/api.py
-
-# 或使用 uvicorn（支持热重载）
-uvicorn fcgi-bin.api:app --host 0.0.0.0 --port 8000 --reload
+# 启动本地服务并打开界面
+bash api.sh
 ```
 
-### 生产模式
+`api.sh` 会从 `API_PORT`（默认 `8000`）开始寻找空闲端口，并自动打开浏览器。
+
+### 直接启动
 
 ```bash
-# 使用 gunicorn + uvicorn workers
-pip install gunicorn
-
-gunicorn fcgi-bin.api:app \
-  --workers 4 \
-  --worker-class uvicorn.workers.UvicornWorker \
-  --bind 0.0.0.0:8000 \
-  --timeout 300
+PYTHONPATH=. python fcgi-bin/api.py
 ```
+
+### 生产环境说明
+
+本项目面向本地使用，API 没有鉴权，启动脚本使用单进程。如果需要暴露到可信网络，请放在带鉴权的反向代理之后，不要直接绑定到公网。
 
 ---
 
@@ -317,8 +286,8 @@ ollama list
 如果 Edge TTS 连接失败，可以：
 
 1. 稍后重试
-2. 切换到本地 TTS 模型
-3. 使用其他 API（阿里云、Azure）
+2. 检查网络或代理配置
+3. 如果所在地区屏蔽了该服务，改用其他网络或镜像
 
 **注意**：系统已内置自动重试机制（指数退避，最多重试 5 次），大部分网络问题会自动恢复。
 
@@ -397,7 +366,7 @@ pytest tests/unit/test_upload.py -v
 
 ```bash
 # 终端 1: 启动 API 服务器
-uvicorn fcgi-bin.api:app --host 0.0.0.0 --port 8000
+bash api.sh
 
 # 终端 2: 运行集成测试
 pytest tests/integration -v

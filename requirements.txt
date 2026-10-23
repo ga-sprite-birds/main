@@ -1,12 +1,12 @@
 # Audio narration system dependencies
 # Python 3.10+
 #
-# Installation notes:
-# 1. Upgrade pip and build tools first: python -m pip install --upgrade pip setuptools wheel
-# 2. Then install dependencies: pip install -r requirements.txt
+# Installation:
+#   python -m pip install --upgrade pip setuptools wheel
+#   python -m pip install -r requirements.txt
 #
-# Note: use >= version constraints instead of pinned == versions
-# to avoid issues where a specific version is unavailable
+# FFmpeg is also required for audio processing; install it with your
+# system package manager (for example: apt install ffmpeg).
 
 # ============================================
 # Web framework
@@ -18,52 +18,35 @@ python-multipart>=0.0.6
 # ============================================
 # Configuration management
 # ============================================
-pyyaml>=6.0.1
 pydantic>=2.5.0
-pydantic-settings>=2.1.0
+python-dotenv>=1.0.0
 
 # ============================================
 # Text processing
 # ============================================
 chardet>=5.2.0
 pypdf>=3.17.0
-python-magic ; sys_platform != "win32"  # Use python-magic on Linux/macOS (requires system libmagic)
-python-magic-bin>=0.4.14 ; sys_platform == "win32"  # Windows only
 
 # ============================================
 # LLM integration
 # ============================================
-ollama>=0.1.6  # Ollama Python SDK
-openai>=1.0.0  # Compatible with OpenAI-style API calls
+ollama>=0.1.6
+openai>=1.0.0
 httpx>=0.26.0
-tiktoken>=0.5.0  # Token counting utility
+tiktoken>=0.5.0
+tenacity>=8.2.3
+langdetect>=1.0.9
 
 # ============================================
-# TTS
+# TTS and audio processing
 # ============================================
 edge-tts>=7.3.1
-
-# ============================================
-# Audio processing
-# ============================================
 pydub>=0.25.1
-soundfile>=0.12.1
-# Note: FFmpeg must be installed; see INSTALL.md
-
-# ============================================
-# Async tasks (optional)
-# ============================================
-# celery>=5.3.4  # If you need a more complex task queue
-# redis>=5.0.1  # Required by Celery
 
 # ============================================
 # Utilities
 # ============================================
 loguru>=0.7.2
-aiofiles>=23.2.1
-python-dotenv>=1.0.0
-tenacity>=8.2.3  # Retry mechanism (exponential backoff, error classification)
-langdetect>=1.0.9  # Content language detection for multi-character voice casting
 
 # ============================================
 # Development tools
@@ -72,4 +55,3 @@ pytest>=7.4.4
 pytest-asyncio>=0.23.3
 black>=24.1.1
 flake8>=7.0.0
-

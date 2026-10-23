@@ -8,7 +8,7 @@ Dev team: Tiger
 
 import re
 import importlib
-from typing import Optional, List
+from typing import Optional
 import time
 
 import ollama
@@ -88,7 +88,7 @@ class LLMManager:
         if config.LLM_MAX_TOKENS >= config.LLM_NUM_CTX:
             logger.warning(t("llm.output_warning", tokens=config.LLM_MAX_TOKENS, ctx=config.LLM_NUM_CTX))
             logger.warning(t("llm.output_suggestion", suggested=config.LLM_NUM_CTX // 4))
-    
+
     def generate(
         self,
         prompt: str,
@@ -207,7 +207,7 @@ class LLMManager:
 
         logger.debug(t("llm.filter_strategy2", length=len(filtered)))
         return filtered
-    
+
     @llm_retry
     def _generate_api(
         self,
@@ -241,7 +241,7 @@ class LLMManager:
         logger.debug(t("llm.api_done", input=len(prompt), output=len(result), max_tokens=max_tokens))
 
         return result
-    
+
     def colloquialize_text(self, text: str) -> str:
         """
         Make the text colloquial (supports automatic segmentation)

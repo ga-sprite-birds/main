@@ -16,6 +16,10 @@ from loguru import logger
 from ga_birds.Common.i18n import t
 
 
+# File extensions accepted by the loader and the upload endpoint
+SUPPORTED_INPUT_EXTENSIONS = {".txt", ".md", ".pdf"}
+
+
 def get_unique_filename(path: Path) -> Path:
     """
     If the file already exists, generate a unique file name (similar to Windows renaming)
@@ -65,7 +69,7 @@ def detect_encoding(file_path: str) -> str:
         if confidence < 0.7:
             logger.warning(t("file.encoding_low_confidence"))
             return "utf-8"
-        
+
         return encoding
     except Exception as e:
         logger.error(t("file.encoding_detect_failed", error=e))
@@ -123,7 +127,7 @@ def read_file(file_path: str) -> str:
 
     suffix = path.suffix.lower()
 
-    if suffix == '.txt':
+    if suffix in ('.txt', '.md'):
         content = read_text_file(file_path)
     elif suffix == '.pdf':
         content = extract_pdf_text(file_path)
@@ -149,16 +153,16 @@ def extract_pdf_text(file_path: str) -> str:
     try:
         reader = PdfReader(file_path)
         text_parts = []
-        
+
         for page_num, page in enumerate(reader.pages, 1):
             text = page.extract_text()
             if text:
                 text_parts.append(text)
             logger.debug(t("file.pdf_page_extracted", page=page_num, length=len(text)))
-        
+
         full_text = "\n".join(text_parts)
         logger.info(t("file.pdf_extract_success", path=file_path, size=len(full_text)))
-        
+
         return full_text
     except Exception as e:
         logger.error(t("file.pdf_extract_failed", path=file_path, error=e))
@@ -168,7 +172,6 @@ def extract_pdf_text(file_path: str) -> str:
 def preprocess_text(
     text: str,
     remove_extra_newlines: bool = True,
-    remove_headers_footers: bool = True,
     fix_pdf_linebreaks: bool = True
 ) -> str:
     """
@@ -177,7 +180,6 @@ def preprocess_text(
     Args:
         text: original text
         remove_extra_newlines: whether to remove extra newlines
-        remove_headers_footers: whether to remove headers and footers
         fix_pdf_linebreaks: whether to fix PDF line breaks
 
     Returns:
@@ -206,14 +208,8 @@ def preprocess_text(
 
     # Remove extra newlines (keep only one of consecutive blank lines)
     if remove_extra_newlines:
-        import re
         processed = re.sub(r'\n{3,}', '\n\n', processed)
 
-    # Remove headers and footers (simple strategy: remove short lines at the start and end of each page)
-    if remove_headers_footers:
-        # This strategy can be adjusted based on actual conditions
-        pass
-    
     logger.info(t("file.preprocess_done", before=len(text), after=len(processed)))
 
     return processed

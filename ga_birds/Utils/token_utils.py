@@ -6,7 +6,7 @@ supporting both API and Ollama modes.
 """
 
 import re
-from typing import List, Tuple
+from typing import List
 from loguru import logger
 from ga_birds.Common.i18n import t
 

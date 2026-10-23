@@ -4,9 +4,8 @@ Uses an LLM to automatically detect and merge duplicate characters
 """
 
 import json
-from typing import List, Dict, Set
+from typing import List, Dict
 from loguru import logger
-import config
 from ga_birds.Common.i18n import t
 
 

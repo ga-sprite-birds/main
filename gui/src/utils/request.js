@@ -25,6 +25,10 @@ request.interceptors.response.use(
         return response.data;
     },
     (error) => {
+        // Background polling passes silent: true to avoid toast spam.
+        if (error.config?.silent) {
+            return Promise.reject(error);
+        }
         if (error.response) {
             const { status, data } = error.response;
             const message = data?.detail || data?.msg || data?.message;

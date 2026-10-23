@@ -1,436 +1,369 @@
-# GA Sprite Birds - User Guide
+# GA Sprite Birds
 
-> Convert text into high-quality audio, with support for single-character/multi-character voice acting, LLM-based colloquialization, and chapter splitting.
+> Convert books and long text into chapter-based audio with Edge TTS, optional LLM colloquialization, and a local web GUI.
 
----
-
-## 📋 Features
-
-| Feature | Description | CLI | API |
-|---------|-------------|:---:|:---:|
-| **Single-character voice** | Uniform voice across a whole chapter, fast generation | ✅ | ✅ |
-| **Multi-character voice** | Intelligently identify dialogue and assign a different voice to each character | ✅ | ✅ |
-| **Character analysis** | Automatically extract novel characters and generate a voice-acting template | ✅ | ❌ |
-| **LLM colloquialization** | Convert written text into natural spoken language | ✅ | ✅ |
-| **Chapter splitting** | Automatically detect chapter titles and generate them independently | ✅ | ✅ |
-| **Multilingual interface** | Switch between Chinese/English interfaces | ✅ | ✅ |
-| **TTS preview tool** | Quickly preview all Edge TTS voices | ✅ | ❌ |
-
-**Supported formats**:
-- 📄 Input: `.txt`, `.pdf`
-- 🎵 Output: `.mp3`
-- 🌐 TTS: Edge TTS (free, 550+ voices)
-- 🤖 LLM: Ollama (local) / OpenAI API (cloud)
+GA Sprite Birds splits a text file into chapters, optionally rewrites each chapter into natural spoken language, and generates one MP3 per chapter. It ships with a web GUI, a CLI, and a local FastAPI service. Single-voice generation works in the GUI, CLI, and API; multi-character voice generation is CLI-only.
 
 ---
 
-## 1️⃣ Single-character voice
+## Features
 
-The simplest way to use it — the entire book uses a single voice.
+| Feature | Description | GUI | CLI | API |
+|---------|-------------|:---:|:---:|:---:|
+| **Single-voice narration** | One voice for the whole book | ✅ | ✅ | ✅ |
+| **Multi-character voice** | Detect dialogue and assign voices per character | ❌ | ✅ | ❌ |
+| **Character analysis** | Extract characters and build a voice template | ❌ | ✅ | ❌ |
+| **LLM colloquialization** | Rewrite written text into natural speech | ✅ | ✅ | ✅ |
+| **Chapter splitting** | Detect chapter headings and generate separately | ✅ | ✅ | ✅ |
+| **Chapter selection** | Generate only checked chapters | ✅ | ✅ | ✅ |
+| **Pause / resume** | Stop after the current chapter and continue later | ✅ | ❌ | ✅ |
+| **Task persistence** | Restore interrupted or paused tasks after a restart | ✅ | — | ✅ |
+| **Multilingual UI** | Chinese and English | ✅ | ✅ | ✅ |
+| **TTS preview tool** | Browse and preview Edge TTS voices | ❌ | ✅ | ❌ |
 
-### CLI usage
+**Input formats:** `.txt`, `.md`, `.pdf`  
+**Output format:** `.mp3`  
+**TTS engine:** Edge TTS (free, no API key; requires network access)  
+**LLM backends:** Ollama (local) or any OpenAI-compatible API
+
+---
+
+## Quick start
+
+### 1. Install
+
+Requires Python 3.10+ and FFmpeg.
 
 ```bash
-# Basic usage (uses the default voice from the config file)
-python fcgi-bin/cli.py -i input.txt
+git clone https://github.com/ga-sprite-birds/main.git
+cd main
 
-# Specify a voice
-python fcgi-bin/cli.py -i input.txt --voice zh-CN-YunxiNeural
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
 
-# Disable LLM processing (faster, but text is not colloquialized)
-python fcgi-bin/cli.py -i input.txt --no-llm
+# Debian/Ubuntu example
+sudo apt install ffmpeg
+```
+
+Or create a Conda environment:
+
+```bash
+conda env create -f environment.yml
+conda activate ga-sprite-birds
+```
+
+### 2. Configure
+
+```bash
+cp .env.example .env
+```
+
+The defaults use Edge TTS and enable the LLM. To use a local LLM:
+
+```env
+LLM_MODE=local
+LLM_LOCAL_HOST=http://localhost:11434
+LLM_LOCAL_MODEL=deepseek-r1:7b
+```
+
+To use an OpenAI-compatible API:
+
+```env
+LLM_MODE=api
+LLM_API_TYPE=openai
+LLM_API_ENDPOINT=https://api.deepseek.com/v1
+LLM_API_KEY=your_api_key_here
+LLM_API_MODEL=deepseek-chat
+```
+
+See [Configuration](#configuration) for the options that matter most.
+
+### 3. Run
+
+**Web GUI + local API**
+
+```bash
+bash api.sh
+```
+
+The script starts FastAPI, chooses a free port starting at `API_PORT` (default `8000`), and opens `http://127.0.0.1:<port>/` in the browser. Interactive API docs are at `/docs`.
+
+**CLI**
+
+```bash
+bash cli.sh -i input.txt
+```
+
+**GUI source development**
+
+The built GUI is served from the repository root. To edit it:
+
+```bash
+cd gui
+npm install
+npm run dev      # Vite dev server on :5173
+npm run build    # writes ../index.html
+```
+
+---
+
+## GUI workflow
+
+1. Drop one or more `.txt`, `.md`, or `.pdf` files into the upload area.
+2. Set the output directory and voice, then click **Parse**.
+3. Select the chapters to generate (all chapters are checked by default) and click **Start**.
+4. Use **Pause** to stop after the current chapter; use **Resume** to continue the remaining selected chapters.
+5. Completed chapters can be played or downloaded. **Delete** removes the chapter's audio and companion text files from disk after confirmation.
+
+Only the latest task is kept in the browser. Task records live in `cache/tasks/` and are deleted automatically when a task completes.
+
+---
+
+## CLI usage
+
+### Single voice
+
+```bash
+# Basic
+bash cli.sh -i input.txt
+
+# Choose a voice and speech rate (0.5-2.0)
+bash cli.sh -i input.txt --voice zh-CN-YunxiNeural --rate 1.2
+
+# Skip LLM colloquialization (faster)
+bash cli.sh -i input.txt --no-llm
 
 # Generate only chapters 1-5
-python fcgi-bin/cli.py -i input.txt --start 1 --end 5
+bash cli.sh -i input.txt --start 1 --end 5
 
-# Specify the output directory
-python fcgi-bin/cli.py -i input.txt -o ./my_output
+# Custom output directory
+bash cli.sh -i input.txt -o ./my_output
+
+# English interface
+bash cli.sh -i input.txt --language en_US
 ```
 
-### API usage
+The CLI uses `ENABLE_MULTI_VOICE` from `.env`. If it is `true`, pass `--multi-voice false` for single-voice generation.
+
+### Multi-character voice
+
+This is a two-step CLI-only workflow.
+
+**Step 1: analyze characters**
 
 ```bash
-# 1. Start the service
-uvicorn fcgi-bin.api:app --host 0.0.0.0 --port 8000
+bash cli.sh -i novel.txt --analyze-characters
 
-# 2. Upload a file
-curl -X POST "http://localhost:8000/upload" \
-  -F "file=@input.txt"
-# Returns: {"task_id": "abc123", "status": "pending"}
-
-# 3. Parse chapters
-curl -X POST "http://localhost:8000/parse" \
-  -H "Content-Type: application/json" \
-  -d '{"task_id": "abc123"}'
-
-# 4. Generate audio
-curl -X POST "http://localhost:8000/generate" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task_id": "abc123",
-    "voice": "zh-CN-YunxiNeural",
-    "enable_llm": true
-  }'
-
-# 5. Check progress
-curl "http://localhost:8000/task/abc123/status"
-
-# 6. Download audio
-curl "http://localhost:8000/task/abc123/chapter/1" --output chapter_1.mp3
-```
-
-**Output**:
-```
-output/input/
-├── 001-第一章.mp3
-├── 002-第二章.mp3
-└── ...
-```
-
----
-
-## 2️⃣ Multi-character voice
-
-Assign a different voice to each character in the novel to make the dialogue more vivid. This takes two steps: **character analysis** → **multi-character generation**.
-
-### Step 1: Character analysis
-
-#### CLI usage
-
-```bash
-# Smart mode: automatically analyze characters and merge duplicates
-python fcgi-bin/cli.py -i novel.txt --analyze-characters
-
-# Hybrid mode: use a user-provided character list
-python fcgi-bin/cli.py -i novel.txt --analyze-characters \
+# Hybrid mode with a user-provided character list
+bash cli.sh -i novel.txt --analyze-characters \
   --analysis-mode hybrid \
   --character-list characters.txt
 ```
 
-**Character list file format** (`characters.txt`):
-```
+Example `characters.txt`:
+
+```text
 张三 male
 李四 female
 王五
 ```
 
-#### API usage
+The analysis writes a template such as `cache/role/novel_characters.json`.
 
-> Note: Character analysis is currently CLI-only (via `--analyze-characters`, see "CLI usage" above). After analysis completes, a character template file `cache/role/*.json` is generated; this template can be referenced in the "Multi-character generation" API below via the `character_template` parameter.
-
-**Output**: generates a character template file `cache/role/novel_characters.json`
-
-```json
-{
-  "张三": {
-    "gender": "male",
-    "voice": "zh-CN-YunxiNeural"
-  },
-  "李四": {
-    "gender": "female",
-    "voice": "zh-CN-XiaoxiaoNeural"
-  }
-}
-```
-
-### Step 2: Multi-character generation
-
-#### CLI usage
+**Step 2: generate**
 
 ```bash
-# Use the auto-generated character template
-python fcgi-bin/cli.py -i novel.txt --multi-voice true
+# Use the auto-generated template
+bash cli.sh -i novel.txt --multi-voice true
 
-# Use a specified character template
-python fcgi-bin/cli.py -i novel.txt --multi-voice true \
-  --character-template cache/role/custom_characters.json
-
-# Generate only chapters 1-3 (for testing)
-python fcgi-bin/cli.py -i novel.txt --multi-voice true \
+# Use a specific template and generate chapters 1-3
+bash cli.sh -i novel.txt --multi-voice true \
+  --character-template cache/role/custom_characters.json \
   --start 1 --end 3
 ```
 
-#### API usage
+Multi-character output includes a `.txt` file next to each MP3 with the dialogue and voice annotations.
+
+### TTS preview
 
 ```bash
-curl -X POST "http://localhost:8000/generate" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task_id": "abc123",
-    "multi_voice": true,
-    "character_template": "cache/role/novel_characters.json",
-    "enable_llm": true
-  }'
-```
-
-**Output**:
-```
-output/novel/
-├── 001-第一章.mp3
-├── 001-第一章.txt  # contains character dialogue annotations
-├── 002-第二章.mp3
-└── ...
-```
-
----
-
-## 3️⃣ TTS preview tool
-
-Quickly preview the 550+ voices of Edge TTS to find the most suitable one.
-
-If you prefer to try voices directly in the browser first, you can also use the official Edge TTS website:
-[https://edge-tts.com](https://edge-tts.com)
-
-### CLI usage
-
-```bash
-# List all Chinese voices
+# List Chinese voices
 python utils/try_tts/cli.py list --lang zh-CN
 
-# List Chinese male voices
-python utils/try_tts/cli.py list --lang zh-CN --gender male
-
-# List Chinese female voices
-python utils/try_tts/cli.py list --lang zh-CN --gender female
-
-# Generate preview audio for all Chinese voices
+# Generate previews for all Chinese voices
 python utils/try_tts/cli.py generate --lang zh-CN
 
-# Generate preview audio for a specific voice
-python utils/try_tts/cli.py generate --voice zh-CN-XiaoxiaoNeural
-
-# Custom preview text
-python utils/try_tts/cli.py generate --lang zh-CN \
-  --text "这是我的试听文本"
-
-# Export the voice list as documentation
-python utils/try_tts/cli.py list --lang zh-CN --save-doc voices.md
-
-# English interface
-python utils/try_tts/cli.py list --lang en-US --language en_US
-```
-
-### API usage
-
-The TTS preview tool is a standalone CLI tool and does not provide an API interface.
-
-**Output**:
-```
-output/tts_samples/
-├── zh-CN-XiaoxiaoNeural.mp3
-├── zh-CN-YunxiNeural.mp3
-└── ...
-```
-
----
-
-## 4️⃣ Multilingual interface
-
-Supports switching between Chinese/English interfaces, including help text, log messages, and API responses.
-
-### CLI usage
-
-```bash
-# English interface
-python fcgi-bin/cli.py --help --language en_US
-
-# Chinese interface
-python fcgi-bin/cli.py --help --language zh_CN
-
-# Generate audio using the English interface
-python fcgi-bin/cli.py -i input.txt --language en_US
-```
-
-### API usage
-
-```bash
-# Use the Chinese interface
-curl -X POST "http://localhost:8000/upload" \
-  -F "file=@input.txt" \
-  -F "language=zh_CN"
-
-# Use the English interface
-curl -X POST "http://localhost:8000/generate" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task_id": "abc123",
-    "language": "en_US"
-  }'
-```
-
-### Configuration file (global default)
-
-```env
-# .env file
-LANGUAGE=en_US  # or zh_CN
-```
-
-**Priority**: CLI/API parameter > config file > default value (en_US)
-
----
-
-## 5️⃣ LLM colloquialization
-
-Convert written text into natural spoken language for smoother narration. Supports both local (Ollama) and cloud (OpenAI API) modes.
-
-### CLI usage
-
-```bash
-# Enable LLM (default)
-python fcgi-bin/cli.py -i input.txt
-
-# Disable LLM (faster, but text is not colloquialized)
-python fcgi-bin/cli.py -i input.txt --no-llm
-```
-
-### API usage
-
-```bash
-curl -X POST "http://localhost:8000/generate" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task_id": "abc123",
-    "enable_llm": true
-  }'
-```
-
-### Configure the LLM engine
-
-```env
-# .env file
-
-# Local mode (Ollama)
-LLM_MODE=local
-LLM_LOCAL_HOST=http://localhost:11434
-LLM_LOCAL_MODEL=deepseek-r1:7b
-
-# API mode (OpenAI)
-LLM_MODE=api
-LLM_API_KEY=your_api_key
-LLM_API_MODEL=deepseek-chat
-LLM_API_ENDPOINT=https://api.deepseek.com/v1
-```
-
----
-
-## 6️⃣ Chapter range control
-
-Generate only specified chapters to save time and resources.
-
-### CLI usage
-
-```bash
-# Generate only chapter 1
-python fcgi-bin/cli.py -i input.txt --start 1 --end 1
-
-# Generate chapters 1-5
-python fcgi-bin/cli.py -i input.txt --start 1 --end 5
-
-# Generate starting from chapter 10 to the end
-python fcgi-bin/cli.py -i input.txt --start 10
-```
-
-### API usage
-
-```bash
-curl -X POST "http://localhost:8000/generate" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task_id": "abc123",
-    "start_chapter": 1,
-    "end_chapter": 5
-  }'
-```
-
----
-
-## 7️⃣ Voice and speech rate
-
-Customize the voice and speech rate for a personalized narration experience.
-
-### CLI usage
-
-```bash
-# Specify a voice
-python fcgi-bin/cli.py -i input.txt --voice zh-CN-YunxiNeural
-
-# Specify speech rate (0.5-2.0, 1.0 is normal)
-python fcgi-bin/cli.py -i input.txt --rate 1.2
-
-# Specify both voice and speech rate
-python fcgi-bin/cli.py -i input.txt \
+# Preview one voice with custom text
+python utils/try_tts/cli.py generate \
   --voice zh-CN-XiaoxiaoNeural \
-  --rate 1.1
+  --text "这是我的试听文本"
 ```
 
-### API usage
+Previews are written to `output/tts_samples/`.
+
+---
+
+## API usage
+
+Start the service with `bash api.sh`, or directly:
 
 ```bash
+PYTHONPATH=. python fcgi-bin/api.py
+```
+
+The API is intended for local use and has no authentication. Do not expose it directly to the public internet. The examples below use port `8000`; replace it with the port printed by `api.sh` if different.
+
+### 1. Upload
+
+`file`, `path`, `output_path`, and `language` are query parameters; the file itself is multipart form data.
+
+```bash
+# Upload a file
+curl -X POST "http://localhost:8000/upload?output_path=./my_output" \
+  -F "file=@input.txt"
+
+# Or point at a file already on the server
+curl -X POST "http://localhost:8000/upload?path=/absolute/path/input.txt"
+```
+
+Response:
+
+```json
+{"task_id":"<id>","status":"pending","message":"File uploaded, task ID: <id>"}
+```
+
+Uploads are limited by `API_MAX_UPLOAD_SIZE` (MB, default `100`). Files are stored under `API_UPLOAD_DIR` with a unique prefix.
+
+### 2. Parse
+
+```bash
+curl -X POST "http://localhost:8000/parse" \
+  -H "Content-Type: application/json" \
+  -d '{"task_id":"<id>","language":"en_US"}'
+```
+
+### 3. Generate
+
+```bash
+# All chapters
+curl -X POST "http://localhost:8000/generate" \
+  -H "Content-Type: application/json" \
+  -d '{"task_id":"<id>","voice":"zh-CN-YunxiNeural","enable_llm":true}'
+
+# Selected chapters, with a speech rate
 curl -X POST "http://localhost:8000/generate" \
   -H "Content-Type: application/json" \
   -d '{
-    "task_id": "abc123",
-    "voice": "zh-CN-YunxiNeural",
-    "rate": 1.2
+    "task_id": "<id>",
+    "chapter_indexes": [1, 2, 5],
+    "rate": 1.2,
+    "enable_llm": false
   }'
 ```
 
-### Configuration file (global default)
+`chapter_indexes` must be a non-empty list of existing chapter numbers when supplied. Omit it to generate all chapters. `enable_llm` defaults to `ENABLE_LLM` from `.env`; `rate` must be between `0.5` and `2.0`.
 
-```env
-# .env file
-TTS_VOICE=zh-CN-XiaoxiaoNeural
-TTS_RATE=1.0
-```
+The API supports single-voice generation only. Use the CLI for multi-character voice generation.
 
----
-
-## 8️⃣ Output path
-
-Customize the output directory and file format.
-
-### CLI usage
+### 4. Status, pause, resume, delete
 
 ```bash
-# Specify the output directory
-python fcgi-bin/cli.py -i input.txt -o ./my_output
+# Task progress and per-chapter status
+curl "http://localhost:8000/task/<id>/status"
 
-# Output to an absolute path
-python fcgi-bin/cli.py -i input.txt -o /path/to/output
+# Stop after the current chapter
+curl -X POST "http://localhost:8000/task/<id>/pause"
+
+# Continue the remaining chapters from the saved selection
+curl -X POST "http://localhost:8000/task/<id>/resume"
+
+# Download a chapter
+curl "http://localhost:8000/task/<id>/chapter/1" --output chapter_1.mp3
+
+# Delete a chapter's audio and companion text files
+curl -X DELETE "http://localhost:8000/task/<id>/chapter/1"
+
+# API defaults and health
+curl "http://localhost:8000/api/status"
 ```
 
-### API usage
+Pausing finishes the current chapter first. Remaining chapters in the selected scope are marked `paused`; resuming treats them as pending. Task options and the selected chapter scope are persisted, so a paused task can be resumed after a service restart.
 
-```bash
-curl -X POST "http://localhost:8000/upload" \
-  -F "file=@input.txt" \
-  -F "output_path=./my_output"
-```
+### Output layout
 
-### Configuration file (global default)
+With the default `OUTPUT_STRATEGY=by_role`:
 
-```env
-# .env file
-OUTPUT_BASE_PATH=./output
-OUTPUT_FORMAT=mp3
-OUTPUT_BITRATE=192
+```text
+output/
+└── default/
+    ├── 001-第一章.mp3
+    ├── 001-第一章.txt
+    ├── 002-第二章.mp3
+    └── ...
 ```
 
 ---
 
-## 📚 Reference documentation
+## Configuration
 
-- [Development guide](./help/development-guide.md) - Required reading for developers
-- [Installation guide](./help/INSTALL.md) - Environment setup instructions
+Copy `.env.example` to `.env`. The most useful settings:
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `LANGUAGE` | `en_US` | Default UI/API language (`en_US` or `zh_CN`) |
+| `ENABLE_LLM` | `true` | Default for LLM colloquialization |
+| `LLM_MODE` | `local` | `local` (Ollama) or `api` (OpenAI-compatible) |
+| `TTS_VOICE` | `zh-CN-YunxiNeural` | Default Edge TTS voice |
+| `TTS_RATE` | `1.0` | Default speech rate |
+| `TTS_CHUNK_MAX_CHARS` | `2000` | Split long chapters into chunks at sentence boundaries |
+| `TTS_CHUNK_TIMEOUT` | `180` | Timeout per TTS chunk in seconds |
+| `OUTPUT_BASE_PATH` | `./output` | Output root |
+| `OUTPUT_DUPLICATE_HANDLING` | `rename` | `skip`, `rename`, or `overwrite` |
+| `OUTPUT_STRATEGY` | `by_role` | `by_role`, `by_model`, `by_date`, or flat |
+| `CHAPTER_NORMALIZE_ENABLED` | `true` | Normalize Markdown/bold chapter headings |
+| `API_MAX_UPLOAD_SIZE` | `100` | Upload limit in MB (`0` disables) |
+| `API_UPLOAD_DIR` | `./uploads` | Upload storage directory |
+| `TASK_CACHE_DIR` | `./cache/tasks` | Persisted task records |
+| `TASK_RESULT_TTL` | `86400` | Stale record retention in seconds (`0` = never expire) |
+
+`OUTPUT_FORMAT` and `OUTPUT_BITRATE` currently control the MP3 export settings; see `config/__init__.py` for the full list.
 
 ---
 
-**Last updated**: 2025-12-01
-**Maintainer**: GA Sprite Birds Development Team
+## Project layout
+
+```text
+fcgi-bin/            CLI and FastAPI entry points
+ga_birds/
+  Audio/             TTS engines, chapter generator, exporter, merger
+  Common/            Shared config, i18n, chapter loader, text saver
+  LLM/               Ollama/OpenAI clients
+  Parser/            Chapter parser
+  character_analyzer/ Multi-voice character and dialogue analysis
+  Task/              In-memory task manager and JSON persistence
+  Utils/             File, text, retry, and token helpers
+gui/                 Vue 3 + Element Plus frontend
+help/                Installation and development guides
+output/              Generated audio (ignored by git)
+uploads/             Uploaded source files (ignored by git)
+cache/tasks/         Persisted task records (ignored by git)
+```
 
 ---
 
-**Author:** adam
-**Email:** dev@ebf.hk
-**Website:** http://ebf.cc
-**Source:** https://github.com/tiger-sprite/ga-sprite-birds
+## Reference documentation
+
+- [Development guide](./help/development-guide.md)
+- [Installation guide](./help/INSTALL.md)
+- [中文说明](./help/README.zh.md)
+
+---
+
+**Last updated:** 2026-10-23  
+**Maintainer:** GA Sprite Birds Development Team
+
+**Author:** adam  
+**Email:** dev@ebf.hk  
+**Website:** http://ebf.cc  
+**Source:** https://github.com/ga-sprite-birds/main

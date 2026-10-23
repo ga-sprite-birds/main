@@ -1,6 +1,6 @@
 """
 GA Sprite Birds - TTS Manager
-Unified management of TTS calls for local and API modes
+Unified entry point for the configured TTS engine
 
 Version: v2.0 (modular architecture)
 Dev team: Tiger
@@ -24,7 +24,6 @@ class TTSManager:
     def __init__(self):
         """Initialize the TTS manager"""
         # Normalize to lowercase for case-insensitive support
-        self.mode = config.TTS_MODE.lower()
         self.engine_name = config.TTS_ENGINE.lower()
 
         # Create the TTS engine instance
@@ -34,7 +33,7 @@ class TTSManager:
         if not self.engine.validate_setup():
             raise RuntimeError(t("tts.validate_failed", engine=self.engine_name))
 
-        logger.info(t("tts.manager_initialized", mode=self.mode, engine=self.engine_name))
+        logger.info(t("tts.manager_initialized", engine=self.engine_name))
 
     def _create_engine(self) -> BaseTTSEngine:
         """

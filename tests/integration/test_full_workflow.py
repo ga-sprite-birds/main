@@ -1,6 +1,6 @@
 """
 Test the complete workflow
-Requires the API server to be running first: uvicorn fcgi-bin.api:app --host 0.0.0.0 --port 8000
+Requires the API server to be running first: bash api.sh
 """
 
 import pytest
@@ -14,7 +14,7 @@ import time
 @pytest.mark.asyncio
 async def test_complete_workflow_simple(api_base_url, sample_text_file):
     """Test the complete workflow (simple text, LLM disabled)"""
-    
+
     async with httpx.AsyncClient(base_url=api_base_url, timeout=120.0) as client:
         # 1. Upload file
         print("\n📤 步骤 1: 上传文件...")
@@ -23,22 +23,22 @@ async def test_complete_workflow_simple(api_base_url, sample_text_file):
                 "/upload",
                 files={"file": ("sample.txt", f, "text/plain")}
             )
-        
+
         assert response.status_code == 200, f"上传失败: {response.text}"
         task_id = response.json()["task_id"]
         print(f"✓ 上传成功，task_id: {task_id}")
-        
+
         # 2. Parse text
         print("\n📝 步骤 2: 解析文本...")
         response = await client.post(
             "/parse",
             json={"task_id": task_id}
         )
-        
+
         assert response.status_code == 200, f"解析失败: {response.text}"
         assert response.json()["status"] == "parsed"
-        print(f"✓ 解析成功")
-        
+        print("✓ 解析成功")
+
         # 3. Generate audio (disable LLM to speed up testing)
         print("\n🎵 步骤 3: 生成音频...")
         response = await client.post(
@@ -48,38 +48,38 @@ async def test_complete_workflow_simple(api_base_url, sample_text_file):
                 "enable_llm": False  # Disable LLM to speed up testing
             }
         )
-        
+
         assert response.status_code == 200, f"生成失败: {response.text}"
         assert response.json()["status"] == "generating"
-        print(f"✓ 生成任务已启动")
-        
+        print("✓ 生成任务已启动")
+
         # 4. Poll task status (wait up to 60 seconds)
         print("\n⏳ 步骤 4: 等待生成完成...")
         max_wait = 60
         start_time = time.time()
-        
+
         while time.time() - start_time < max_wait:
             response = await client.get(f"/task/{task_id}/status")
             assert response.status_code == 200, f"查询状态失败: {response.text}"
-            
+
             status_data = response.json()
             status = status_data.get("status", "unknown")
             progress = status_data.get("progress", 0)
-            
+
             print(f"  状态: {status}, 进度: {progress}%")
-            
+
             if status == "completed":
-                print(f"✓ 生成完成！")
+                print("✓ 生成完成！")
                 assert "total_chapters" in status_data or "chapters" in status_data
                 break
             elif status == "failed":
                 error_msg = status_data.get("error", "未知错误")
                 pytest.fail(f"任务失败: {error_msg}")
-            
+
             await asyncio.sleep(2)  # Poll every 2 seconds
         else:
             pytest.fail(f"任务超时（超过 {max_wait} 秒）")
-        
+
         print("\n✅ 完整流程测试通过！")
 
 
@@ -124,7 +124,7 @@ async def test_complete_workflow_multi_chapter(api_base_url, sample_multi_chapte
         )
 
         assert response.status_code == 200
-        print(f"✓ 生成任务已启动")
+        print("✓ 生成任务已启动")
 
         # 4. Poll status
         print("\n⏳ 步骤 4: 等待生成完成...")
@@ -141,7 +141,7 @@ async def test_complete_workflow_multi_chapter(api_base_url, sample_multi_chapte
             print(f"  状态: {status}")
 
             if status == "completed":
-                print(f"✓ 多章节生成完成！")
+                print("✓ 多章节生成完成！")
                 break
             elif status == "failed":
                 pytest.fail(f"任务失败: {status_data.get('error')}")
