@@ -22,9 +22,9 @@ GA Sprite Birds 会把文本拆分为章节，可选地把书面语改写为自�
 | **多语言界面** | 中文 / English | ✅ | ✅ | ✅ |
 | **TTS 试听工具** | 浏览并试听 Edge TTS 音色 | ❌ | ✅ | ❌ |
 
-**输入格式：** `.txt`、`.md`、`.pdf`  
-**输出格式：** `.mp3`  
-**TTS 引擎：** Edge TTS（免费、无需 API Key，但需要联网）  
+**输入格式：** `.txt`、`.md`、`.pdf`
+**输出格式：** `.mp3`
+**TTS 引擎：** Edge TTS（免费、无需 API Key，但需要联网）
 **LLM 后端：** Ollama（本地）或任意 OpenAI 兼容接口
 
 ---
