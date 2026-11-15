@@ -1,0 +1,33 @@
+# Production template. Adjust User/Group/WorkingDirectory/ExecStart and the
+# ReadWritePaths to match your install location before enabling.
+[Unit]
+Description=GA Sprite Birds Core Engine
+Documentation=file:///opt/ga-sprite-birds/docs/deploy/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=gasprite
+Group=gasprite
+WorkingDirectory=/opt/ga-sprite-birds
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=/opt/ga-sprite-birds
+ExecStart=/opt/ga-sprite-birds/.venv/bin/python -m engine run
+# Graceful stop: let the current chapter finish and checkpoint.
+KillSignal=SIGTERM
+TimeoutStopSec=90
+Restart=on-failure
+RestartSec=5
+
+# Runtime directories: task DB, discovery file and lock are owned by Core.
+StateDirectory=ga-sprite-birds
+ReadWritePaths=/opt/ga-sprite-birds/data /opt/ga-sprite-birds/run /opt/ga-sprite-birds/cache /opt/ga-sprite-birds/output /opt/ga-sprite-birds/logs /opt/ga-sprite-birds/uploads
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

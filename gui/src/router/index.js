@@ -1,18 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router";
-import policyRoutes from "@/router/policy.js";
+import routes from "@/router/routes.js";
 import i18n from "@/i18n/index.js";
-
-const routes = [
-    ...policyRoutes,
-    {
-        path: "/",
-        redirect: "/policy/dashboard",
-    },
-    {
-        path: "/:pathMatch(.*)*",
-        redirect: "/policy/dashboard",
-    },
-];
 
 const router = createRouter({
     history: createWebHistory(),

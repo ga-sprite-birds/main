@@ -11,7 +11,7 @@ import { useThemeStore } from "@/store/modules/theme.js";
 import { supportedLocales, getDefaultLocale } from "@/i18n/languages.js";
 
 // ── 语言持久化（优先读 localStorage，没有则用 .env 默认）───
-const LANG_STORAGE_KEY = "policy_lang";
+const LANG_STORAGE_KEY = "app_lang";
 const savedLang = localStorage.getItem(LANG_STORAGE_KEY);
 const allLocales = supportedLocales();
 if (savedLang && allLocales.includes(savedLang)) {

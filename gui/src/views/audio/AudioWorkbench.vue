@@ -102,7 +102,10 @@
           <el-progress type="dashboard" :percentage="progressPercent" :status="progressStatus" />
           <div class="progress-copy">
             <strong>{{ statusText }}</strong>
-            <span>{{ completedChapters }}/{{ totalChapters }} {{ $t("audio.chapterUnit") }}</span>
+            <span>{{ displayCompleted }}/{{ displayTotal }} {{ $t("audio.chapterUnit") }}</span>
+            <span v-if="displayTotal !== totalChapters" class="progress-total">
+              {{ $t("audio.totalParsed", { count: totalChapters }) }}
+            </span>
           </div>
         </div>
 
@@ -308,6 +311,9 @@ const isGenerating = computed(() => statusData.value?.status === "generating")
 const isPaused = computed(() => statusData.value?.status === "paused")
 const totalChapters = computed(() => statusData.value?.total_chapters || 0)
 const completedChapters = computed(() => statusData.value?.completed_chapters || 0)
+// 只生成勾选章节时，面板显示本次生成目标（分母=勾选数），而不是全书章节数。
+const displayTotal = computed(() => statusData.value?.target_chapters ?? totalChapters.value)
+const displayCompleted = computed(() => statusData.value?.target_completed_chapters ?? completedChapters.value)
 const chapters = computed(() => statusData.value?.chapters || [])
 const visibleChapters = computed(() => {
   if (!statusFilter.value) return chapters.value
@@ -429,15 +435,22 @@ async function parseSource() {
     chapterTableRef.value?.clearSelection()
     statusData.value = {
       ...(statusData.value || {}),
-      status: response.status || "parsed",
-      total_chapters: 0,
+      status: response.status || "pending",
+      phase: response.phase || "parsing",
+      total_chapters: response.total_chapters || 0,
       completed_chapters: 0,
       progress: 0,
       chapters: [],
       error: null,
     }
-    await refreshStatus()
-    ElMessage.success(t("audio.parsed"))
+    if (response.phase === "ready") {
+      await refreshStatus()
+      ElMessage.success(t("audio.parsed"))
+    } else {
+      // Parse runs inside the Core engine; poll until phase becomes ready.
+      startPolling()
+      ElMessage.success(t("audio.parseStarted"))
+    }
   } finally {
     busyAction.value = ""
   }
@@ -589,16 +602,34 @@ async function loadDefaults() {
 }
 
 function normalizeTaskStatus(data) {
-  // Older backends could keep "completed" after a chapter was deleted. Treat
-  // that impossible combination as parsed so the UI cannot show stale results.
-  if (
-    data?.status === "completed" &&
-    Number(data.total_chapters) > 0 &&
-    Number(data.completed_chapters) < Number(data.total_chapters)
-  ) {
-    return { ...data, status: "parsed" }
+  if (!data) return data
+
+  const rawStatus = data.status || "pending"
+  let status = rawStatus
+  if (rawStatus === "succeeded") status = "completed"
+  else if (rawStatus === "canceled") status = "cancelled"
+  else if (rawStatus === "queued" || rawStatus === "running") status = "generating"
+  else if (rawStatus === "pending" && data.phase === "ready") status = "parsed"
+
+  const chapters = (data.chapters || []).map((chapter) => {
+    let chapterStatus = chapter.status || "pending"
+    if (chapterStatus === "succeeded") chapterStatus = "completed"
+    else if (chapterStatus === "running") chapterStatus = "generating"
+    else if (chapterStatus === "canceled") chapterStatus = "cancelled"
+    return {
+      ...chapter,
+      status: chapterStatus,
+      completed_at: chapter.completed_at || chapter.finished_at,
+    }
+  })
+
+  return {
+    ...data,
+    status,
+    raw_status: rawStatus,
+    completed_at: data.completed_at || data.finished_at,
+    chapters,
   }
-  return data
 }
 
 async function fetchTaskStatus({ silent = false } = {}) {
@@ -621,7 +652,7 @@ async function fetchTaskStatus({ silent = false } = {}) {
     if (requestId !== statusRequestId || taskId.value !== id) return null
     // A transient status timeout must not leave the UI permanently stale.
     // Keep polling; only a missing task ends the loop.
-    if (error?.response?.status === 404) {
+    if (error?.response?.status === 404 || error?.code === 3002) {
       stopPolling()
       taskId.value = ""
       statusData.value = null

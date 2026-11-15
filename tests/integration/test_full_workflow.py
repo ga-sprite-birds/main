@@ -1,220 +1,162 @@
-"""
-Test the complete workflow
-Requires the API server to be running first: bash api.sh
+"""End-to-end workflow against a running Control API + Core engine.
+
+Start both processes first:
+    python -m engine run
+    python fcgi-bin/api.py
+
+The tests skip themselves when the API is unreachable, so they are safe to run
+in a normal ``pytest`` session without a server.
 """
 
-import pytest
-import httpx
 import asyncio
 import time
+
+import httpx
+import pytest
+
+API = "/fcgi-bin/api"
+TERMINAL = {"succeeded", "failed", "canceled", "removed"}
+
+
+def _data(response: httpx.Response) -> dict:
+    """Unwrap the {code, msg, data} envelope."""
+    payload = response.json()
+    assert payload.get("code") == 0, payload
+    return payload.get("data") or {}
+
+
+async def _skip_without_server(client: httpx.AsyncClient) -> None:
+    try:
+        response = await client.get(f"{API}/status")
+    except httpx.HTTPError as exc:  # pragma: no cover - environment dependent
+        pytest.skip(f"API not reachable: {exc}")
+    if response.status_code != 200 or response.json().get("code") != 0:
+        pytest.skip("API is not healthy")
+
+
+async def _require_engine(client: httpx.AsyncClient) -> None:
+    response = await client.get(f"{API}/engine")
+    if response.status_code != 200 or response.json().get("code") != 0:
+        pytest.skip("Core engine is not running")
+
+
+async def _wait_for(
+    client: httpx.AsyncClient,
+    task_id: str,
+    timeout: float,
+    stop_statuses: set[str] | None = None,
+) -> dict:
+    wanted = (stop_statuses or set()) | TERMINAL
+    deadline = time.time() + timeout
+    last: dict = {}
+    while time.time() < deadline:
+        last = _data(await client.get(f"{API}/task/{task_id}/status"))
+        if last.get("status") in wanted:
+            return last
+        await asyncio.sleep(1.5)
+    pytest.fail(f"任务超时，最后一次状态：{last}")
 
 
 @pytest.mark.integration
 @pytest.mark.slow
 @pytest.mark.asyncio
 async def test_complete_workflow_simple(api_base_url, sample_text_file):
-    """Test the complete workflow (simple text, LLM disabled)"""
-
+    """上传 → 解析 → 生成，走完整命令链路并等待终态。"""
     async with httpx.AsyncClient(base_url=api_base_url, timeout=120.0) as client:
-        # 1. Upload file
-        print("\n📤 步骤 1: 上传文件...")
-        with open(sample_text_file, "rb") as f:
-            response = await client.post(
-                "/upload",
-                files={"file": ("sample.txt", f, "text/plain")}
+        await _skip_without_server(client)
+        await _require_engine(client)
+
+        with open(sample_text_file, "rb") as handle:
+            upload = await client.post(
+                f"{API}/upload",
+                files={"file": ("sample.txt", handle, "text/plain")},
             )
+        task = _data(upload)
+        task_id = task["task_id"]
+        assert task["status"] in {"pending", "queued"}
 
-        assert response.status_code == 200, f"上传失败: {response.text}"
-        task_id = response.json()["task_id"]
-        print(f"✓ 上传成功，task_id: {task_id}")
-
-        # 2. Parse text
-        print("\n📝 步骤 2: 解析文本...")
-        response = await client.post(
-            "/parse",
-            json={"task_id": task_id}
+        parsed = _data(
+            await client.post(f"{API}/parse", json={"task_id": task_id})
         )
+        assert parsed["task_id"] == task_id
 
-        assert response.status_code == 200, f"解析失败: {response.text}"
-        assert response.json()["status"] == "parsed"
-        print("✓ 解析成功")
+        status = _data(await client.get(f"{API}/task/{task_id}/status"))
+        assert status["total_chapters"] >= 1
 
-        # 3. Generate audio (disable LLM to speed up testing)
-        print("\n🎵 步骤 3: 生成音频...")
-        response = await client.post(
-            "/generate",
-            json={
-                "task_id": task_id,
-                "enable_llm": False  # Disable LLM to speed up testing
-            }
-        )
+        _data(await client.post(f"{API}/generate", json={"task_id": task_id}))
 
-        assert response.status_code == 200, f"生成失败: {response.text}"
-        assert response.json()["status"] == "generating"
-        print("✓ 生成任务已启动")
+        final = await _wait_for(client, task_id, timeout=180)
+        assert final["status"] == "succeeded", final.get("error")
+        assert final["completed_chapters"] >= 1
 
-        # 4. Poll task status (wait up to 60 seconds)
-        print("\n⏳ 步骤 4: 等待生成完成...")
-        max_wait = 60
-        start_time = time.time()
-
-        while time.time() - start_time < max_wait:
-            response = await client.get(f"/task/{task_id}/status")
-            assert response.status_code == 200, f"查询状态失败: {response.text}"
-
-            status_data = response.json()
-            status = status_data.get("status", "unknown")
-            progress = status_data.get("progress", 0)
-
-            print(f"  状态: {status}, 进度: {progress}%")
-
-            if status == "completed":
-                print("✓ 生成完成！")
-                assert "total_chapters" in status_data or "chapters" in status_data
-                break
-            elif status == "failed":
-                error_msg = status_data.get("error", "未知错误")
-                pytest.fail(f"任务失败: {error_msg}")
-
-            await asyncio.sleep(2)  # Poll every 2 seconds
-        else:
-            pytest.fail(f"任务超时（超过 {max_wait} 秒）")
-
-        print("\n✅ 完整流程测试通过！")
+        events = _data(await client.get(f"{API}/task/{task_id}/events"))
+        kinds = [event["type"] for event in events["events"]]
+        assert "task.created" in kinds
+        assert "task.succeeded" in kinds
 
 
 @pytest.mark.integration
 @pytest.mark.slow
 @pytest.mark.asyncio
-async def test_complete_workflow_multi_chapter(api_base_url, sample_multi_chapter_file):
-    """Test the complete workflow (multi-chapter text)"""
+async def test_pause_and_resume_round_trip(api_base_url, sample_multi_chapter_file):
+    """暂停后状态落为 paused，继续后可再次完成。"""
+    async with httpx.AsyncClient(base_url=api_base_url, timeout=120.0) as client:
+        await _skip_without_server(client)
+        await _require_engine(client)
 
-    async with httpx.AsyncClient(base_url=api_base_url, timeout=180.0) as client:
-        # 1. Upload file
-        print("\n📤 步骤 1: 上传多章节文件...")
-        with open(sample_multi_chapter_file, "rb") as f:
-            response = await client.post(
-                "/upload",
-                files={"file": ("sample_multi_chapter.txt", f, "text/plain")}
+        with open(sample_multi_chapter_file, "rb") as handle:
+            task = _data(
+                await client.post(
+                    f"{API}/upload",
+                    files={
+                        "file": (
+                            "sample_multi_chapter.txt",
+                            handle,
+                            "text/plain",
+                        )
+                    },
+                )
             )
+        task_id = task["task_id"]
+        _data(await client.post(f"{API}/parse", json={"task_id": task_id}))
+        _data(await client.post(f"{API}/generate", json={"task_id": task_id}))
 
-        assert response.status_code == 200
-        task_id = response.json()["task_id"]
-        print(f"✓ 上传成功，task_id: {task_id}")
-
-        # 2. Parse text
-        print("\n📝 步骤 2: 解析章节...")
-        response = await client.post(
-            "/parse",
-            json={"task_id": task_id}
+        _data(await client.post(f"{API}/task/{task_id}/pause", json={}))
+        paused = await _wait_for(
+            client, task_id, timeout=120, stop_statuses={"paused"}
         )
+        assert paused["status"] in {"paused", "succeeded"}
 
-        assert response.status_code == 200
-        parse_data = response.json()
-        print(f"✓ 解析成功，消息: {parse_data.get('message', '')}")
+        if paused["status"] == "paused":
+            _data(await client.post(f"{API}/task/{task_id}/resume", json={}))
+            final = await _wait_for(client, task_id, timeout=180)
+            assert final["status"] in {"succeeded", "failed"}
 
-        # 3. Generate audio
-        print("\n🎵 步骤 3: 生成多章节音频...")
-        response = await client.post(
-            "/generate",
-            json={
-                "task_id": task_id,
-                "enable_llm": False
-            }
-        )
-
-        assert response.status_code == 200
-        print("✓ 生成任务已启动")
-
-        # 4. Poll status
-        print("\n⏳ 步骤 4: 等待生成完成...")
-        max_wait = 120
-        start_time = time.time()
-
-        while time.time() - start_time < max_wait:
-            response = await client.get(f"/task/{task_id}/status")
-            assert response.status_code == 200
-
-            status_data = response.json()
-            status = status_data.get("status", "unknown")
-
-            print(f"  状态: {status}")
-
-            if status == "completed":
-                print("✓ 多章节生成完成！")
-                break
-            elif status == "failed":
-                pytest.fail(f"任务失败: {status_data.get('error')}")
-
-            await asyncio.sleep(3)
-        else:
-            pytest.fail(f"任务超时（超过 {max_wait} 秒）")
-
-        print("\n✅ 多章节流程测试通过！")
-
-
-@pytest.mark.integration
-@pytest.mark.asyncio
-async def test_multi_language_interface(api_base_url, sample_text_file):
-    """Test the multi-language interface"""
-
-    async with httpx.AsyncClient(base_url=api_base_url, timeout=30.0) as client:
-        # Test the English interface
-        print("\n🌐 测试英语界面...")
-        response = await client.post(
-            "/upload",
-            params={
-                "path": str(sample_text_file),
-                "language": "en_US"
-            }
-        )
-        assert response.status_code == 200
-        print("✓ 英语界面正常")
-
-        # Test the Chinese interface
-        print("\n🌐 测试中文界面...")
-        response = await client.post(
-            "/upload",
-            params={
-                "path": str(sample_text_file),
-                "language": "zh_CN"
-            }
-        )
-        assert response.status_code == 200
-        print("✓ 中文界面正常")
-
-        print("\n✅ 多语言测试通过！")
+        _data(await client.delete(f"{API}/task/{task_id}"))
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_error_handling(api_base_url):
-    """Test error handling"""
-
+    """缺失资源与缺参都返回统一信封，而不是裸 4xx。"""
     async with httpx.AsyncClient(base_url=api_base_url, timeout=30.0) as client:
-        # Test a non-existent file
-        print("\n❌ 测试不存在的文件...")
-        response = await client.post(
-            "/upload",
-            params={"path": "/nonexistent/file.txt"}
+        await _skip_without_server(client)
+
+        missing_file = await client.post(
+            f"{API}/upload", params={"path": "/nonexistent/file.txt"}
         )
-        assert response.status_code == 404
-        print("✓ 正确返回 404")
+        assert missing_file.json()["code"] == 3002
 
-        # Test a non-existent task
-        print("\n❌ 测试不存在的任务...")
-        response = await client.post(
-            "/parse",
-            json={"task_id": "nonexistent_task"}
+        missing_task = await client.post(
+            f"{API}/parse", json={"task_id": "nonexistent_task"}
         )
-        assert response.status_code == 404
-        print("✓ 正确返回 404")
+        assert missing_task.json()["code"] != 0
 
-        # Test missing parameters
-        print("\n❌ 测试缺少参数...")
-        response = await client.post("/upload")
-        assert response.status_code == 400
-        print("✓ 正确返回 400")
+        no_source = await client.post(f"{API}/upload")
+        assert no_source.json()["code"] == 1001
 
-        print("\n✅ 错误处理测试通过！")
-
+        bad_extension = await client.post(
+            f"{API}/upload",
+            files={"file": ("novel.exe", b"binary", "application/octet-stream")},
+        )
+        assert bad_extension.json()["code"] == 1000

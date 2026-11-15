@@ -9,9 +9,28 @@ from typing import Dict, Optional
 import config
 
 try:
+    from langdetect import DetectorFactory
     from langdetect import detect as detect_language
+
+    # langdetect 的检测结果默认带随机性，固定种子保证同一文本每次结果一致。
+    DetectorFactory.seed = 0
 except ImportError:  # pragma: no cover - optional dependency
     detect_language = None
+
+# langdetect 会把很短的英文句子误判成索马里语（so）等冷门语言，
+# 只接受项目支持的语言码，其余回落到关键词启发式。
+SUPPORTED_LANGUAGE_CODES = {
+    "en",
+    "zh",
+    "ja",
+    "ko",
+    "de",
+    "fr",
+    "es",
+    "pt",
+    "it",
+    "ru",
+}
 
 
 LANGUAGE_KEYWORDS = {
@@ -183,7 +202,11 @@ class SegmentUtils:
     def detect_language(cls, text: str, fallback_language: str = "en") -> str:
         if detect_language and text.strip():
             try:
-                return cls.normalize_language_code(detect_language(text[:5000]), fallback=fallback_language)
+                detected = cls.normalize_language_code(
+                    detect_language(text[:5000]), fallback=fallback_language
+                )
+                if detected in SUPPORTED_LANGUAGE_CODES:
+                    return detected
             except Exception:  # pragma: no cover - optional dependency failures
                 pass
         return cls.heuristic_detect_language(text, fallback_language=fallback_language)

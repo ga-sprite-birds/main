@@ -3,8 +3,8 @@ import { ref, computed } from "vue";
 import { themeRegistry, normalizeThemeTokens, applyThemeToDocument, resolveThemeRegistryKey } from "@/assets/styles/theme.js";
 import i18n from "@/i18n/index.js";
 
-const STORAGE_KEY_FAMILY = "policy_theme_family";
-const STORAGE_KEY_MODE = "policy_theme_mode";
+const STORAGE_KEY_FAMILY = "app_theme_family";
+const STORAGE_KEY_MODE = "app_theme_mode";
 const SYSTEM_DARK_MEDIA = "(prefers-color-scheme: dark)";
 
 export const useThemeStore = defineStore("theme", () => {
@@ -85,10 +85,10 @@ export const useThemeStore = defineStore("theme", () => {
                 }
             };
 
-            if (!systemMedia.__policyThemeBound) {
+            if (!systemMedia.__appThemeBound) {
                 systemMedia.addEventListener("change", handleSystemThemeChange);
-                systemMedia.__policyThemeBound = true;
-                systemMedia.__policyThemeHandler = handleSystemThemeChange;
+                systemMedia.__appThemeBound = true;
+                systemMedia.__appThemeHandler = handleSystemThemeChange;
             }
         }
 

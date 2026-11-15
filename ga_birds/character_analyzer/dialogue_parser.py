@@ -16,11 +16,6 @@ from .segment_utils import SegmentUtils
 class DialogueParser:
     """Dialogue parser (multi-character voice casting module)"""
 
-    # Chunk size (in characters), using the configured value
-    CHUNK_SIZE = config.DIALOGUE_CHUNK_SIZE
-    # Chunk overlap (in characters), to keep context coherent
-    CHUNK_OVERLAP = config.DIALOGUE_CHUNK_OVERLAP
-
     def __init__(self, llm_manager, characters: List[Dict]):
         """
         Initialize the dialogue parser
@@ -29,6 +24,10 @@ class DialogueParser:
             llm_manager: LLM manager
             characters: character list (loaded from the character template)
         """
+        # Chunk size / overlap are read per instance so that the task config
+        # snapshot (not the process-import-time value) is always used.
+        self.CHUNK_SIZE = config.DIALOGUE_CHUNK_SIZE
+        self.CHUNK_OVERLAP = config.DIALOGUE_CHUNK_OVERLAP
         self.llm_manager = llm_manager
         self.characters = characters
         self.fallback_language = (

@@ -1,0 +1,20 @@
+# Personal/dev template (runs as the invoking user, no root).
+# Adjust WorkingDirectory and ExecStart to your project path and Python.
+[Unit]
+Description=GA Sprite Birds Control API
+Documentation=https://github.com/tiger-sprite/ga-sprite-birds
+After=network-online.target ga-sprite-birds-core.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/web/ga-sprite-birds
+ExecStart=/home/adam/miniconda3/envs/ga-sprite-birds/bin/python fcgi-bin/api.py
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+KillSignal=SIGTERM
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target

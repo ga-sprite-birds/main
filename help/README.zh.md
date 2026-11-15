@@ -1,386 +1,207 @@
 # GA Sprite Birds
 
-> 将书籍或长文本按章节转换为语音，支持 Edge TTS、可选的 LLM 口语化，以及本地 Web 界面。
+> 把书籍或长文本变成有声书：自动拆分章节，可选地让 LLM 把书面语改写为自然口语，逐章合成 MP3；支持为不同角色分配不同音色。
 
-GA Sprite Birds 会把文本拆分为章节，可选地把书面语改写为自然口语，然后为每一章生成一个 MP3。项目提供 Web 界面、CLI 和本地 FastAPI 服务。单角色配音支持界面、CLI 和 API；多角色配音目前仅支持 CLI。
+GA Sprite Birds 是一个可自托管的有声书生成引擎。它识别章节边界，可把文本改写为口语，再把每一章渲染成音频。你可以用 **Web 界面**、**CLI** 或 **HTTP API** 驱动它——三种方式共享同一个引擎和同一份任务状态，CLI 排的任务能在界面里看到，也能用 API 控制。
 
----
-
-## 功能
-
-| 功能 | 说明 | 界面 | CLI | API |
-|------|------|:---:|:---:|:---:|
-| **单角色配音** | 整本书使用同一个音色 | ✅ | ✅ | ✅ |
-| **多角色配音** | 识别对话并为不同角色分配音色 | ❌ | ✅ | ❌ |
-| **角色分析** | 提取角色并生成配音模板 | ❌ | ✅ | ❌ |
-| **LLM 口语化** | 将书面语改写为自然口语 | ✅ | ✅ | ✅ |
-| **章节拆分** | 自动识别章节标题并逐章生成 | ✅ | ✅ | ✅ |
-| **章节选择** | 只生成勾选的章节 | ✅ | ✅ | ✅ |
-| **标点停顿** | 按句插入停顿，可选轻微语气 | ✅ | ✅ | ✅ |
-| **暂停 / 继续** | 当前章节完成后暂停，之后继续剩余章节 | ✅ | ❌ | ✅ |
-| **任务持久化** | 服务重启后恢复暂停或中断的任务 | ✅ | — | ✅ |
-| **多语言界面** | 中文 / English | ✅ | ✅ | ✅ |
-| **TTS 试听工具** | 浏览并试听 Edge TTS 音色 | ❌ | ✅ | ❌ |
-
-**输入格式：** `.txt`、`.md`、`.pdf`
-**输出格式：** `.mp3`
-**TTS 引擎：** Edge TTS（免费、无需 API Key，但需要联网）
-**LLM 后端：** Ollama（本地）或任意 OpenAI 兼容接口
+- **输入：** `.txt` / `.md` / `.pdf` · **输出：** 每章一个 `.mp3`（可选章节文本）
+- **TTS：** Edge TTS（免费，需联网） · **LLM：** 本地 Ollama 或任意 OpenAI 兼容接口
 
 ---
 
-## 快速开始
+## 1. 功能特点
 
-### 1. 安装
+| 功能 | 说明 |
+|---|---|
+| 章节拆分 | 识别章节标题（纯文本 / Markdown / PDF），逐章生成；可全选或只生成勾选章节 |
+| 单角色 / 多角色配音 | 整本书一个音色，或识别角色并为每个角色分配音色 |
+| LLM 口语化 | 可选地把书面语改写为自然口语（Ollama 或 OpenAI 兼容接口） |
+| 停顿与轻语气 | `off` / `pause` / `prosody`，按标点插入停顿、可选语气变化 |
+| 音色试听 | 选定前先听一段缓存样音 |
+| 暂停 / 继续 / 取消 / 重试 | 在章节边界协作生效；失败任务可重新入队 |
+| 崩溃恢复 | 章节级 checkpoint：重启绝不重做已完成的章节 |
+| 任务持久化 | 任务状态与事件存于 SQLite；关页面、重启进程都不丢进度 |
+| 系统配置 | 三层配置（默认值 → 用户覆盖 → 任务快照），修改只对新任务生效 |
+| 多语言 | 中文 / 英文界面、CLI 与 API 消息 |
 
-需要 Python 3.10+ 和 FFmpeg。
+> 界面当前覆盖单角色生成与系统配置；多角色生成、角色分析、TTL 清理通过 CLI/API 提供。
+
+---
+
+## 2. 安装与文档导航
+
+**环境要求：** Python 3.10+ 和 FFmpeg。只有要自己构建前端时才需要 Node.js。
 
 ```bash
-git clone https://github.com/ga-sprite-birds/main.git
-cd main
-
-python -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
+git clone https://github.com/tiger-sprite/ga-sprite-birds.git
+cd ga-sprite-birds
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-
-# Debian/Ubuntu 示例
-sudo apt install ffmpeg
 ```
 
-也可以使用 Conda：
+启动引擎和 API，打开 <http://127.0.0.1:8000/>：
 
 ```bash
-conda env create -f environment.yml
-conda activate ga-sprite-birds
+python -m engine run        # 终端 1 — Core 引擎
+python fcgi-bin/api.py      # 终端 2 — Control API + GUI
 ```
 
-### 2. 配置
+**文档导航**
 
-```bash
-cp .env.example .env
-```
-
-默认使用 Edge TTS 并启用 LLM。使用本地模型：
-
-```env
-LLM_MODE=local
-LLM_LOCAL_HOST=http://localhost:11434
-LLM_LOCAL_MODEL=deepseek-r1:7b
-```
-
-使用 OpenAI 兼容接口：
-
-```env
-LLM_MODE=api
-LLM_API_TYPE=openai
-LLM_API_ENDPOINT=https://api.deepseek.com/v1
-LLM_API_KEY=your_api_key_here
-LLM_API_MODEL=deepseek-chat
-```
-
-更多选项见[配置说明](#配置)。
-
-### 3. 启动
-
-**Web 界面 + 本地 API**
-
-```bash
-bash api.sh
-```
-
-脚本会启动 FastAPI，从 `API_PORT`（默认 `8000`）开始寻找空闲端口，并打开 `http://127.0.0.1:<端口>/`。接口文档位于 `/docs`。
-
-**CLI**
-
-```bash
-bash cli.sh -i input.txt
-```
-
-**界面源码开发**
-
-仓库根目录已包含构建好的界面。修改界面源码：
-
-```bash
-cd gui
-npm install
-npm run dev      # Vite 开发服务器 :5173
-npm run build    # 生成 ../index.html
-```
+| 文档 | 内容 |
+|---|---|
+| [安装指南](./INSTALL.zh.md) · [Install guide](./INSTALL.md) | 运行环境、初始安装、本地与 API 部署、故障排查 |
+| [API 参考](../docs/api.md) | 全部端点、CLI/API 对等矩阵 |
+| [部署与运维](../docs/deploy/README.md) | systemd、目录权限、反向代理、升级回滚 |
+| [开发规范](./development-guide.zh.md) · [Development guide](./development-guide.md) | 架构边界、新增配置项、i18n 同步、测试 |
+| 设计规格 | [系统配置](../docs/design/v2-system-config.md) · [无头 Core](../docs/design/v2-headless-core.md) |
+| systemd 单元模板 | [`scripts/systemd/`](../scripts/systemd/)（core/api × user/system） |
 
 ---
 
-## 界面使用流程
+## 3. 设计原理：一个引擎，两种接入方式
 
-1. 将 `.txt`、`.md` 或 `.pdf` 文件拖入上传区域，可一次添加多个文件。
-2. 设置输出根目录、音色和停顿/语气模式，点击 **解析**。
-3. 勾选要生成的章节（默认全选），点击 **开始**。
-4. **暂停**会等当前章节完成后停止；**继续**会生成剩余选中的章节。
-5. 已完成的章节可以直接试听或下载。**清空任务**会在确认后删除所有章节音频、章节文本、解析列表和任务记录；已上传的源文件会保留，重新开始需再次上传。
-
-浏览器只保留最近一个任务。任务记录保存在 `cache/tasks/`，任务完成后自动删除。
-
----
-
-## CLI 使用
-
-### 单角色
-
-```bash
-# 基础用法
-bash cli.sh -i input.txt
-
-# 指定音色和语速（0.5-2.0）
-bash cli.sh -i input.txt --voice zh-CN-YunxiNeural --rate 1.2
-
-# 按标点停顿；prosody 还会轻微调整问句/感叹句/省略号
-bash cli.sh -i input.txt --prosody pause
-
-# 关闭 LLM 口语化（更快）
-bash cli.sh -i input.txt --no-llm
-
-# 只生成第 1-5 章
-bash cli.sh -i input.txt --start 1 --end 5
-
-# 指定输出目录
-bash cli.sh -i input.txt -o ./my_output
-
-# 英文界面
-bash cli.sh -i input.txt --language en_US
-```
-
-CLI 会读取 `.env` 中的 `ENABLE_MULTI_VOICE`。如果它为 `true`，单角色生成需要显式传入 `--multi-voice false`。`--prosody` 同样适用于多角色输出。
-
-### 多角色
-
-多角色是仅 CLI 支持的两步流程。
-
-**第一步：角色分析**
-
-```bash
-bash cli.sh -i novel.txt --analyze-characters
-
-# 使用自定义角色列表的混合模式
-bash cli.sh -i novel.txt --analyze-characters \
-  --analysis-mode hybrid \
-  --character-list characters.txt
-```
-
-`characters.txt` 示例：
+### 3.1 两个进程，一个引擎
 
 ```text
-张三 male
-李四 female
-王五
+GUI / CLI / HTTP 客户端
+        │
+        ▼
+Control API（fcgi-bin/api.py）          Core 引擎（python -m engine run）
+· 接收上传、托管 GUI                    · 唯一的任务执行者
+· 转发命令（幂等）                 ───▶ · 任务状态的唯一写者
+· 只读查询任务状态                 ◀─── · 章节级 checkpoint、崩溃恢复
+        │                                    │
+        └────── 只读 ────▶ data/tasks.db ◀──── 写入 ────┘
 ```
 
-分析结果会写入类似 `cache/role/novel_characters.json` 的模板文件。
+- **引擎是唯一写者。** 任务状态、章节、事件只能由引擎写入，API 和 CLI 绝不直接写 `tasks.db`；停掉 API 不影响正在运行的任务。
+- **恢复是内置能力。** 引擎重启后，`running` 任务从最后一个成功章节续跑，`paused` 任务保持暂停。
+- **配置按任务冻结快照。** 改配置不影响运行中的任务，只对之后新启动的任务生效。
 
-**第二步：生成**
+### 3.2 CLI 模式 —— 面向本地批处理与脚本
 
-```bash
-# 使用自动生成的模板
-bash cli.sh -i novel.txt --multi-voice true
+`fcgi-bin/cli.py` 是引擎的轻客户端，适合本机与自动化：
 
-# 指定模板并只生成第 1-3 章
-bash cli.sh -i novel.txt --multi-voice true \
-  --character-template cache/role/custom_characters.json \
-  --start 1 --end 3
-```
+- 一条命令即可串起**上传 + 解析 + 生成**（`cli.py add -i book.txt`）。
+- 人类可读输出或 `--json`；`--follow` 持续输出进度。
+- 完整控制面：`add / list / get / status / pause / resume / cancel / retry / remove / events / clean / config / system`。
+- 无需开放端口：CLI 通过本地命令通道与引擎通信。
+- 适合 cron、批量转换与运维。
 
-多角色输出会在每个 MP3 旁生成一个 `.txt`，记录对白和音色分配。
+### 3.3 API 模式 —— 面向服务与集成
 
-### TTS 试听
+`fcgi-bin/api.py` 以 `/fcgi-bin/api/*` 暴露同样的能力，供远程客户端与 Web 界面使用：
 
-```bash
-# 列出中文音色
-python utils/try_tts/cli.py list --lang zh-CN
+- 分步端点 + JSON 请求体：`upload → parse → generate → status/下载`。
+- 统一响应信封 `{"code", "msg", "data"}`；事件流按 `event_id` 游标增量拉取。
+- 供其他系统上传、批处理与集成。
+- 托管打包好的 GUI；界面每次点击都映射到同样的端点。
+- 无内置鉴权，暴露时请绑定回环/内网地址并在前面加反向代理。
 
-# 为所有中文音色生成试听
-python utils/try_tts/cli.py generate --lang zh-CN
+### 3.4 CLI 与 API 对比
 
-# 用自定义文本试听一个音色
-python utils/try_tts/cli.py generate \
-  --voice zh-CN-XiaoxiaoNeural \
-  --text "这是我的试听文本"
-```
+| | CLI（`fcgi-bin/cli.py`） | HTTP API（`/fcgi-bin/api/*`） |
+|---|---|---|
+| 适合 | 脚本、cron、批处理、运维 | 集成、远程客户端、GUI |
+| 调用 | 一条命令完成上传 + 解析 + 生成 | 分步端点、JSON 请求体 |
+| 传输 | 仅本地命令通道 | 绑定地址上的 HTTP |
+| 输出 | 人类可读或 `--json` | 统一 `{code, msg, data}` 信封 |
+| 需要 API 服务 | 否 | 是 |
 
-试听文件输出到 `output/tts_samples/`。
+两者向同一个引擎提交**同样的幂等命令**，能力对等。
 
 ---
 
-## API 使用
+## 4. 如何使用
 
-使用 `bash api.sh` 启动，或直接运行：
-
-```bash
-PYTHONPATH=. python fcgi-bin/api.py
-```
-
-API 仅面向本地使用，没有鉴权。不要直接暴露到公网。以下示例使用 `8000` 端口；如果 `api.sh` 自动切换了端口，请替换为实际端口。
-
-### 1. 上传
-
-`file`、`path`、`output_path`、`language` 都是查询参数；文件本身使用 multipart 表单上传。`output_path` 是输出根目录，系统会自动追加源文件名作为子目录。
+### 4.1 启动
 
 ```bash
-# 上传文件
-curl -X POST "http://localhost:8000/upload?output_path=./my_output" \
-  -F "file=@input.txt"
-
-# 或指定服务器上已有的文件
-curl -X POST "http://localhost:8000/upload?path=/absolute/path/input.txt"
+python -m engine run        # 终端 1 — Core 引擎（Ctrl+C 优雅停止）
+python fcgi-bin/api.py      # 终端 2 — Control API + GUI
 ```
 
-返回：
+引擎状态：`python -m engine status`（PID、端口、任务计数）。默认监听 `127.0.0.1:39300`，端口和 token 写入 `run/engine.json`。
 
-```json
-{"task_id":"<id>","status":"pending","message":"文件上传成功，任务 ID: <id>"}
-```
+### 4.2 界面（GUI）
 
-上传大小受 `API_MAX_UPLOAD_SIZE` 限制（单位 MB，默认 `100`）。文件保存在 `API_UPLOAD_DIR`，并自动添加唯一前缀。
+打开 <http://127.0.0.1:8000/>：
 
-### 2. 解析
+1. 拖入一个或多个 `.txt` / `.md` / `.pdf`，每个上传创建一个任务。
+2. 设置输出目录、音色（可试听）和停顿模式，点击**解析**。
+3. 勾选要生成的章节，点击**开始**。
+4. **暂停**在当前章节完成后停下；**继续**生成剩余章节。已完成章节可在线播放或下载。
+5. 侧边栏**系统配置**按分组编辑业务配置，带选项说明、覆盖徽标与按组重置。
+
+### 4.3 CLI
 
 ```bash
-curl -X POST "http://localhost:8000/parse" \
+# 上传 + 解析 + 排队生成，一步完成
+python fcgi-bin/cli.py add -i book.txt --voice zh-CN-YunxiNeural --rate 1.2 --no-llm --start 1 --end 5
+
+# 多角色：先分析角色，再按模板生成
+python fcgi-bin/cli.py add -i novel.txt --analyze-characters --analysis-mode hybrid --character-list characters.txt
+python fcgi-bin/cli.py add -i novel.txt --multi-voice --character-template cache/role/novel_characters.json
+
+# 控制与跟踪
+python fcgi-bin/cli.py list --status running
+python fcgi-bin/cli.py pause <task_id> && python fcgi-bin/cli.py resume <task_id>
+python fcgi-bin/cli.py events <task_id> --follow
+
+# 业务配置（与 GUI 同一份存储）
+python fcgi-bin/cli.py config set TTS_RATE 1.15
+```
+
+`characters.txt` 每行一个 `名字 [性别]`（如 `张三 male`、`李四 female`）。全部子命令见 `python fcgi-bin/cli.py --help`。
+
+### 4.4 API
+
+```bash
+# 上传（幂等）
+curl -X POST "http://127.0.0.1:8000/fcgi-bin/api/upload" \
+  -F "file=@book.txt" -H "Idempotency-Key: book-v1"
+
+# 解析（后台执行），然后生成选中章节
+curl -X POST "http://127.0.0.1:8000/fcgi-bin/api/parse" \
+  -H "Content-Type: application/json" -d '{"task_id":"<id>","command_id":"parse-1"}'
+curl -X POST "http://127.0.0.1:8000/fcgi-bin/api/generate" \
   -H "Content-Type: application/json" \
-  -d '{"task_id":"<id>","language":"zh_CN"}'
+  -d '{"task_id":"<id>","chapter_indexes":[1,2],"rate":1.2,"prosody_mode":"prosody"}'
+
+# 进度查询；音色试听（audio/mpeg）
+curl "http://127.0.0.1:8000/fcgi-bin/api/task/<id>/status"
+curl -o preview.mp3 "http://127.0.0.1:8000/fcgi-bin/api/tts/preview?voice=zh-CN-YunxiNeural"
 ```
 
-### 3. 生成
+错误码分段：`1000` 参数、`2000` 认证、`3000` 业务、`4000` 系统；引擎不可用时 HTTP `503` + `code 3004`。全部端点见 [docs/api.md](../docs/api.md)。
 
-```bash
-# 生成全部章节
-curl -X POST "http://localhost:8000/generate" \
-  -H "Content-Type: application/json" \
-  -d '{"task_id":"<id>","voice":"zh-CN-YunxiNeural","enable_llm":true}'
-
-# 只生成指定章节，并设置语速
-curl -X POST "http://localhost:8000/generate" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task_id": "<id>",
-    "chapter_indexes": [1, 2, 5],
-    "rate": 1.2,
-    "prosody_mode": "prosody",
-    "enable_llm": false
-  }'
-```
-
-传入 `chapter_indexes` 时，必须是非空且存在的章节序号列表；省略表示全部章节。`enable_llm` 默认读取 `.env` 中的 `ENABLE_LLM`；`rate` 必须在 `0.5` 到 `2.0` 之间。`prosody_mode` 可选 `off`（默认）、`pause` 或 `prosody`；省略时读取 `.env` 中的 `TTS_PROSODY_MODE`。
-
-API 只支持单角色配音。多角色配音请使用 CLI。
-
-### 4. 状态、暂停、继续、清空
-
-```bash
-# 任务进度和每章状态
-curl "http://localhost:8000/task/<id>/status"
-
-# 当前章节完成后暂停
-curl -X POST "http://localhost:8000/task/<id>/pause"
-
-# 继续生成剩余章节（沿用保存的章节范围）
-curl -X POST "http://localhost:8000/task/<id>/resume"
-
-# 下载某一章
-curl "http://localhost:8000/task/<id>/chapter/1" --output chapter_1.mp3
-
-# 清空整个任务：解析列表、所有音频和任务记录
-curl -X DELETE "http://localhost:8000/task/<id>"
-
-# 可选：只删除某一章的音频和章节文本
-curl -X DELETE "http://localhost:8000/task/<id>/chapter/1"
-
-# API 默认配置和健康状态
-curl "http://localhost:8000/api/status"
-```
-
-暂停会先完成当前章节。选中范围内尚未生成的章节会标记为 `paused`，继续时按待生成处理。任务参数和章节范围都会持久化，因此服务重启后仍可继续暂停的任务。清空任务会删除解析列表、所有生成音频和任务记录；已上传的源文件会保留。
-
-### 输出目录
-
-每个源文件都会在输出根目录下创建独立目录，目录名使用源文件名（不含扩展名）。默认 `OUTPUT_STRATEGY=by_role`：
+### 4.5 任务生命周期
 
 ```text
-output/
-└── 示例书名/
+pending ──▶ queued ──▶ running ──▶ succeeded / failed / canceled
+                ▲          │
+                │          ├──▶ paused ──▶ queued (resume)
+                └──────────┘         failed ──▶ queued (retry)
+任意状态 ──▶ removed
+```
+
+暂停/取消在章节边界生效；运行中任务每 10 秒刷新心跳。
+
+### 4.6 输出目录
+
+每个源文件在输出根目录下得到同名子目录：
+
+```text
+output/示例书名/
     ├── 001-第一章.mp3
     ├── 001-第一章.txt
-    ├── 002-第二章.mp3
-    └── ...
+    └── 002-第二章.mp3
 ```
 
-自定义输出根目录 `abc` 时，系统仍会自动追加源文件名：`abc/示例书名/`。多角色输出使用 `abc/示例书名/multi/`。
-
-标题匹配 `OUTPUT_FRONT_MATTER_MARKERS`（默认 `导读,前言`）的前置章节会使用 `000` 前缀并命名为 `<前缀>篇`；后续章节序号不重排。
+前置章节（默认匹配 `导读,前言`）使用 `000` 前缀；多角色输出在 `示例书名/multi/` 下。
 
 ---
 
-## 配置
-
-复制 `.env.example` 为 `.env`。常用配置：
-
-| 变量 | 默认值 | 说明 |
-|------|--------|------|
-| `LANGUAGE` | `en_US` | 默认界面/API 语言（`en_US` 或 `zh_CN`） |
-| `ENABLE_LLM` | `true` | 是否默认启用 LLM 口语化 |
-| `LLM_MODE` | `local` | `local`（Ollama）或 `api`（OpenAI 兼容） |
-| `TTS_VOICE` | `zh-CN-YunxiNeural` | 默认 Edge TTS 音色 |
-| `TTS_RATE` | `1.0` | 默认语速 |
-| `TTS_CHUNK_MAX_CHARS` | `2000` | 长章节按句子边界切块 |
-| `TTS_CHUNK_TIMEOUT` | `180` | 单个 TTS 分块超时（秒） |
-| `TTS_PROSODY_MODE` | `off` | `off`、`pause` 或 `prosody` |
-| `TTS_PROSODY_MAX_UNIT_CHARS` | `120` | 每个停顿单元的最大字符数；越小请求越多 |
-| `OUTPUT_BASE_PATH` | `./output` | 输出根目录；会自动追加源文件名子目录 |
-| `OUTPUT_FRONT_MATTER_MARKERS` | `导读,前言` | 前置章节标题前缀，逗号分隔；留空可关闭 000 规则 |
-| `OUTPUT_DUPLICATE_HANDLING` | `rename` | `skip`、`rename` 或 `overwrite` |
-| `OUTPUT_STRATEGY` | `by_role` | `by_role`、`by_model`、`by_date` 或平铺 |
-| `CHAPTER_NORMALIZE_ENABLED` | `true` | 规范化 Markdown/加粗章节标题 |
-| `API_MAX_UPLOAD_SIZE` | `100` | 上传大小限制（MB，`0` 表示不限制） |
-| `API_UPLOAD_DIR` | `./uploads` | 上传文件目录 |
-| `TASK_CACHE_DIR` | `./cache/tasks` | 任务记录目录 |
-| `TASK_RESULT_TTL` | `86400` | 非完成任务记录保留时间（秒，`0` 表示永不过期） |
-
-`TTS_PROSODY_MAX_UNIT_CHARS=120` 与试听样例一致。生成整本长书时，可提高到 `200`-`300` 以减少 TTS 请求数，代价是句内停顿更少。
-
-`OUTPUT_FORMAT` 和 `OUTPUT_BITRATE` 控制 MP3 导出参数；完整配置见 `config/__init__.py`。
-
----
-
-## 项目结构
-
-```text
-fcgi-bin/            CLI 和 FastAPI 入口
-ga_birds/
-  Audio/             TTS 引擎、章节生成器、导出与合并
-  Common/            配置、i18n、章节加载、文本保存
-  LLM/               Ollama / OpenAI 客户端
-  Parser/            章节解析器
-  character_analyzer/ 多角色与对话分析
-  Task/              任务管理与 JSON 持久化
-  Utils/             文件、文本、重试、Token 工具
-gui/                 Vue 3 + Element Plus 前端
-help/                安装与开发文档
-output/              生成的音频（已被 git 忽略）
-uploads/             上传的源文件（已被 git 忽略）
-cache/tasks/         任务记录（已被 git 忽略）
-```
-
----
-
-## 参考文档
-
-- [开发指南](./help/development-guide.md)
-- [安装指南](./help/INSTALL.md)
-- [English README](../README.md)
-
----
-
-**最后更新：** 2026-10-23  
-**维护者：** GA Sprite Birds Development Team
-
-**作者：** adam  
-**邮箱：** dev@ebf.hk  
-**网站：** http://ebf.cc  
-**源码：** https://github.com/ga-sprite-birds/main
+**作者：** adam · dev@ebf.hk · <http://ebf.cc>
+**源码：** <https://github.com/tiger-sprite/ga-sprite-birds>

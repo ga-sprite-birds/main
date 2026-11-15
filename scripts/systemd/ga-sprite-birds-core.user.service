@@ -1,0 +1,21 @@
+# Personal/dev template (runs as the invoking user, no root).
+# Adjust WorkingDirectory and ExecStart to your project path and Python.
+[Unit]
+Description=GA Sprite Birds Core Engine
+Documentation=https://github.com/tiger-sprite/ga-sprite-birds
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/web/ga-sprite-birds
+ExecStart=/home/adam/miniconda3/envs/ga-sprite-birds/bin/python -m engine run
+Restart=on-failure
+RestartSec=5
+# Graceful shutdown: let the engine finish the current chapter / checkpoint.
+TimeoutStopSec=60
+KillSignal=SIGTERM
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target

@@ -1,5 +1,5 @@
 <template>
-  <el-container class="policy-layout">
+  <el-container class="app-layout">
     <!-- ── Header ────────────────────────────────────────── -->
     <Header
       header-fixed
@@ -68,7 +68,7 @@ const sidebarCollapsedWidth = 64
 </script>
 
 <style scoped>
-.policy-layout {
+.app-layout {
   height: 100vh;
   display: flex;
   flex-direction: column;

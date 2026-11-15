@@ -88,13 +88,13 @@ class _FakeMerger:
 
 
 @pytest.mark.unit
-def test_generate_with_prosody_off_is_unchanged():
+def test_generate_with_prosody_off_is_unchanged(tmp_path):
     manager = _FakeTTSManager()
 
     asyncio.run(prosody.generate_with_prosody(
         tts_manager=manager,
         text="普通一句。",
-        output_path="/tmp/prosody_off.mp3",
+        output_path=str(tmp_path / "prosody_off.mp3"),
         mode="off",
     ))
 

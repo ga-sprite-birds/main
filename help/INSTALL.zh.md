@@ -1,395 +1,224 @@
-# GA Sprite Birds - 安装指南
+# GA Sprite Birds — 安装指南
 
-> **版本**: v1.0
-> **开发团队**: Tiger
+> 适用于 v2（Core 引擎 + 轻薄 Control API，两个进程）。English version: [INSTALL.md](INSTALL.md)
+> 日常使用见：[README.zh.md](README.zh.md)。
 
-## 系统要求
-
-- **操作系统**：Windows 10+, macOS 10.15+, Linux
-- **Python**：3.10+
-- **内存**：
-  - 最低：8GB（仅使用 API 模式）
-  - 推荐：32GB（使用本地 LLM DeepSeek R1 7B）
-- **磁盘空间**：10GB+（用于模型存储）
+本文顺序：**1) 运行环境 → 2) 初始安装 → 3) 部署方式（本地 / API）→ 4) GUI 构建 → 5) 故障排查**。
 
 ---
 
-## 安装步骤
+## 1. 运行环境
 
-### 1. 克隆项目
+| 项目 | 要求 | 说明 |
+|---|---|---|
+| 操作系统 | Windows 10+ / macOS 10.15+ / Linux | |
+| Python | 3.10+ | |
+| FFmpeg | **必需** | MP3 导出 / 音频合并 |
+| Node.js | 可选 | 仅自行构建前端时需要 |
+| 内存 | 最低 4GB；用本地 LLM 建议 16GB+ | 纯在线 API 模式占用很低 |
+| 磁盘 | ~1GB + 生成的音频 | 含依赖与缓存 |
+| 网络 | Edge TTS / 在线 LLM 需要 | 本地 Ollama 可离线 |
+
+---
+
+## 2. 初始安装
+
+### 2.1 获取代码
 
 ```bash
-git clone https://github.com/ga-sprite-birds/main.git
-cd main
+git clone https://github.com/tiger-sprite/ga-sprite-birds.git
+cd ga-sprite-birds
 ```
 
-### 2. 创建 Python 环境并安装依赖
+### 2.2 创建 Python 环境
 
-#### 方式 1：使用安装脚本
-
-```bash
-# 使用辅助脚本安装项目依赖
-bash install_dependencies.sh
-```
-
-#### 方式 2：使用 Conda 环境（推荐）
+**venv（通用）**
 
 ```bash
-# 创建基础环境（只安装 Python、pip、setuptools、wheel 和 ffmpeg）
-conda create -n ga-sprite-birds python=3.10 pip setuptools wheel -c conda-forge -y
-conda activate ga-sprite-birds
-
-# 安装 FFmpeg（音频处理必需）
-conda install -c conda-forge ffmpeg -y
-
-# 升级 pip 和构建工具
-python -m pip install --upgrade pip setuptools wheel
-
-# 安装所有 Python 依赖（requirements.txt 已做跨平台处理，Windows/Linux/macOS 通用）
-pip install -r requirements.txt
-```
-
-#### 方式 3：使用 venv（不使用 Conda）
-
-```bash
-# 创建虚拟环境
-python -m venv venv
-
-# 激活环境
+python -m venv .venv
 # Windows:
-venv\Scripts\activate
-# Linux/macOS:
-source venv/bin/activate
+.venv\Scripts\activate
+# Linux / macOS:
+source .venv/bin/activate
 
-# 升级 pip 和构建工具
-python -m pip install --upgrade pip setuptools wheel
-
-# 安装依赖（同方式 2）
+pip install -U pip setuptools wheel
 pip install -r requirements.txt
-
-# 注意：需要手动安装 FFmpeg
-# Windows: 从 https://ffmpeg.org/download.html 下载
-# macOS: brew install ffmpeg
-# Linux: sudo apt install ffmpeg
 ```
 
-**重要提示**：
-- 使用 `>=` 版本约束而不是固定版本，避免特定版本不存在的问题
-- 必须先安装 `setuptools` 和 `wheel`，否则某些包（如 pydantic-core）会构建失败
-
-### 3. 安装 Ollama（可选，本地 LLM）
-
-如果使用本地 LLM 模式，需要安装 Ollama：
-
-#### Windows
+**Conda**
 
 ```bash
-# 下载安装包
-# https://ollama.ai/download/windows
-
-# 安装后，拉取模型
-ollama pull deepseek-r1:7b
-```
-
-#### macOS
-
-```bash
-# 使用 Homebrew
-brew install ollama
-
-# 或下载安装包
-# https://ollama.ai/download/mac
-
-# 拉取模型
-ollama pull deepseek-r1:7b
-```
-
-#### Linux
-
-```bash
-# 安装 Ollama
-curl -fsSL https://ollama.ai/install.sh | sh
-
-# 拉取模型
-ollama pull deepseek-r1:7b
-```
-
-### 4. TTS 引擎
-
-当前版本使用 **Edge TTS** 生成语音。它免费、无需本地模型，但需要联网。其他 `TTS_ENGINE` 取值在当前版本中尚未实现。
-
-### 5. 配置文件
-
-复制并编辑配置文件：
-
-```bash
-# 复制环境变量示例并编辑（项目配置通过 .env 环境变量管理，非 config.yaml）
-cp .env.example .env
-vim .env
-```
-
-### 6. 验证安装
-
-```bash
-# 运行单元测试（无需启动服务）
-pytest tests/unit
-```
-
----
-
-## 配置说明
-
-### 最小配置（仅使用 API 模式）
-
-项目配置通过 `.env` 环境变量管理（由 `config/__init__.py` 读取），不使用 YAML 文件。复制 `.env.example` 后编辑：
-
-```env
-# .env —— 仅使用云端 API（OpenAI 兼容）
-
-# LLM（口语化）：云端 API 模式
-LLM_MODE=api
-LLM_API_TYPE=openai
-LLM_API_ENDPOINT=https://api.openai.com/v1
-LLM_API_KEY=your_api_key_here
-LLM_API_MODEL=gpt-4
-
-# TTS：Edge TTS（免费，无需 Key）
-TTS_ENGINE=edge
-TTS_VOICE=zh-CN-XiaoxiaoNeural
-```
-
-### 完全本地配置（本地 LLM）
-
-```env
-# .env —— 使用本地 Ollama 运行 LLM
-
-LLM_MODE=local
-LLM_LOCAL_HOST=http://localhost:11434
-LLM_LOCAL_MODEL=deepseek-r1:7b
-
-# TTS 当前版本仅支持 edge（Edge TTS），无需本地模型
-TTS_ENGINE=edge
-TTS_VOICE=zh-CN-YunxiNeural
-```
-
-> 说明：当前版本 TTS 引擎仅支持 `edge`（Edge TTS）。全部配置项及默认值见 `.env.example`。
-
----
-
-## 启动服务
-
-### 推荐方式
-
-```bash
-# 如果使用本地 LLM，先启动 Ollama
-ollama serve
-
-# 启动本地服务并打开界面
-bash api.sh
-```
-
-`api.sh` 会从 `API_PORT`（默认 `8000`）开始寻找空闲端口，并自动打开浏览器。
-
-### 直接启动
-
-```bash
-PYTHONPATH=. python fcgi-bin/api.py
-```
-
-### 生产环境说明
-
-本项目面向本地使用，API 没有鉴权，启动脚本使用单进程。如果需要暴露到可信网络，请放在带鉴权的反向代理之后，不要直接绑定到公网。
-
----
-
-## 常见问题
-
-### 1. pip 安装依赖时报错：找不到特定版本
-
-**错误示例**：
-```
-ERROR: Could not find a version that satisfies the requirement pypdf==3.17.4
-ERROR: Could not find a version that satisfies the requirement openai==1.10.0
-```
-
-**解决方案**：
-- 使用 `>=` 版本约束而不是 `==` 固定版本
-- 确保已升级 pip：`python -m pip install --upgrade pip`
-
-### 2. pip 安装时报错：Cannot import 'setuptools.build_meta' 或 'maturin'
-
-**错误示例**：
-```
-pip._vendor.pyproject_hooks._impl.BackendUnavailable: Cannot import 'setuptools.build_meta'
-pip._vendor.pyproject_hooks._impl.BackendUnavailable: Cannot import 'maturin'
-```
-
-**解决方案**：
-```bash
-# 先升级 pip、setuptools 和 wheel
-python -m pip install --upgrade pip setuptools wheel
-
-# 然后再安装其他依赖
-pip install "fastapi>=0.109.0" ...
-```
-
-### 3. 包下载缓慢或失败
-
-**解决方案**：
-```bash
-# 使用可替代的镜像源
-pip install -i https://pypi.tuna.tsinghua.edu.cn/simple "fastapi>=0.109.0" ...
-```
-
-### 4. Conda 环境创建失败
-
-```bash
-# 清理 Conda 缓存
-conda clean --all
-
-# 删除旧环境
-conda env remove -n ga-sprite-birds
-
-# 重新创建环境（推荐使用手动方式）
-conda create -n ga-sprite-birds python=3.10 pip setuptools wheel -y
+conda env create -f environment.yml
 conda activate ga-sprite-birds
-conda install -c conda-forge ffmpeg -y
+pip install -r requirements.txt
 ```
 
-### 5. FFmpeg 未找到
+### 2.3 安装 FFmpeg
+
+- **Windows**：从 <https://ffmpeg.org/download.html> 下载并加入 `PATH`，或在 `.env` 设置 `FFMPEG_PATH`
+- **macOS**：`brew install ffmpeg`
+- **Debian/Ubuntu**：`sudo apt install ffmpeg`
+
+用 `ffmpeg -version` 验证。
+
+### 2.4（可选）安装 Ollama 以使用本地 LLM
+
+只有"不用在线 API 也要 LLM 口语化"时才需要：
 
 ```bash
-# 检查 FFmpeg 是否安装
-ffmpeg -version
-
-# 如果未安装，使用 Conda 安装
-conda install -c conda-forge ffmpeg -y
-
-# 或手动下载：https://ffmpeg.org/download.html
+# Linux
+curl -fsSL https://ollama.com/install.sh | sh
+ollama pull deepseek-r1:7b      # 默认本地模型，可在 .env 修改
 ```
 
-### 6. Ollama 连接失败
+Windows / macOS 安装包：<https://ollama.com/download>。也可以完全跳过本地模型，改用任意 OpenAI 兼容接口（`LLM_MODE=api`，见下）。
+
+### 2.5 配置 `.env`
 
 ```bash
-# 检查 Ollama 服务是否运行
-curl http://localhost:11434/api/tags
-
-# 如果未运行，启动服务
-ollama serve
-
-# 检查模型是否已下载
-ollama list
+cp .env.example .env
 ```
 
-### 7. Edge TTS 网络问题
+`.env` **只放部署设置与凭据**：
 
-如果 Edge TTS 连接失败，可以：
+| 变量 | 默认 | 用途 |
+|---|---|---|
+| `LLM_MODE` | `local` | `local`（Ollama）或 `api`（OpenAI 兼容） |
+| `LLM_API_ENDPOINT` / `LLM_API_KEY` / `LLM_API_MODEL` | — | `api` 模式的端点、密钥、模型 |
+| `LLM_LOCAL_HOST` / `LLM_LOCAL_MODEL` | `http://localhost:11434` / `deepseek-r1:7b` | 本地 Ollama |
+| `API_HOST` / `API_PORT` | `127.0.0.1` / `8000` | Control API 绑定地址 |
+| `TASK_MAX_CONCURRENT` | `2` | 引擎并发任务数 |
+| `TASK_RESULT_TTL` | `86400` | 终态任务记录保留秒数；`0` 表示永久 |
+| `FFMPEG_PATH` | 空 | FFmpeg 目录；空则用系统 `PATH` |
+| `LOG_LEVEL` / `LOG_FILE` | `INFO` / `./logs/app.log` | 日志 |
 
-1. 稍后重试
-2. 检查网络或代理配置
-3. 如果所在地区屏蔽了该服务，改用其他网络或镜像
+> **业务配置不在 `.env` 里。** 语言、音色、语速、章节规则、输出策略来自 `data/system.db`（默认值）+ `cache/config/system.json`（用户覆盖）。请在 GUI 的**系统配置**页或 `python fcgi-bin/cli.py config set …` 修改；对之后新启动的任务立即生效，无需重启。
 
-**注意**：系统已内置自动重试机制（指数退避，最多重试 5 次），大部分网络问题会自动恢复。
+### 2.6 验证安装
 
-### 8. 内存不足
+```bash
+python -m engine doctor --json   # 检查目录、权限、数据库、ffmpeg、端口
+```
 
-如果运行本地 LLM 时内存不足：
-
-1. 使用更小的模型（如 DeepSeek R1 1.5B）
-2. 切换到 API 模式
-3. 增加系统内存或使用 GPU
+`doctor` 会检查 data/run/cache 目录可写、SQLite 正常、FFmpeg 可执行、默认端口可用。
 
 ---
 
-## 重试机制说明
+## 3. 部署方式
 
-系统已内置智能重试机制，无需手动配置：
+v2 始终是**两个进程**：Core 引擎（唯一执行者、任务状态唯一写者）与 Control API（托管 GUI 与端点）。下面两种部署方式只是进程的托管方式不同，功能完全一致。
 
-### TTS 请求重试
-- **最大重试次数**：5 次
-- **重试策略**：指数退避（1s, 2s, 4s, 8s, 16s，最大 30s）
-- **适用场景**：网络超时、连接失败、临时故障
+### 3.1 本地部署（个人机器 / 开发）
 
-### LLM 请求重试
-- **最大重试次数**：3 次
-- **重试策略**：指数退避（1s, 2s, 4s，最大 10s）
-- **适用场景**：本地 Ollama 连接失败、API 临时故障
+每个进程一个终端：
 
-### 重试日志示例
-```
-WARNING - Attempt 1 failed: Connection timeout, retrying in 1.0s...
-WARNING - Attempt 2 failed: Connection timeout, retrying in 2.0s...
-INFO - TTS 生成成功（第 3 次尝试）
-```
-
-### 依赖说明
-重试机制使用 `tenacity` 库实现，已包含在 `requirements.txt` 中：
 ```bash
-pip install "tenacity>=8.2.3"
+# 终端 1：Core 引擎（前台；Ctrl+C 优雅停止）
+python -m engine run
+
+# 终端 2：Control API（同时托管 GUI）
+python fcgi-bin/api.py
+```
+
+打开 <http://127.0.0.1:8000/>。健康检查：
+
+```bash
+python -m engine status                      # PID / 端口 / 任务计数
+curl -s http://127.0.0.1:8000/fcgi-bin/api/status
+```
+
+- 引擎默认监听 `127.0.0.1:39300`，端口被占用会顺延；实际端口与 token 写入 `run/engine.json`。
+- 引擎是**单实例**：再执行一次 `python -m engine run` 会立即退出（退出码 2）。
+- 临时后台运行（仅调试）：`nohup python -m engine run > logs/engine.log 2>&1 &`。
+
+### 3.2 API 部署（长期运行 / 对外提供 HTTP API）
+
+API **没有内置鉴权** —— 请绑定回环/内网地址，对外时在前面加 Nginx 或内部网关。**切勿**暴露引擎命令通道 `127.0.0.1:39300`。
+
+**Linux — systemd（推荐）。** unit 模板在 [`scripts/systemd/`](../scripts/systemd/)：
+`ga-sprite-birds-core.{user,system}.service` 与 `ga-sprite-birds-api.{user,system}.service`。
+
+用户级（无需 root；随登录会话启动）：
+
+```bash
+mkdir -p ~/.config/systemd/user
+cp scripts/systemd/ga-sprite-birds-core.user.service ~/.config/systemd/user/ga-sprite-birds-core.service
+cp scripts/systemd/ga-sprite-birds-api.user.service  ~/.config/systemd/user/ga-sprite-birds-api.service
+systemctl --user daemon-reload
+systemctl --user enable --now ga-sprite-birds-core ga-sprite-birds-api
+
+systemctl --user status ga-sprite-birds-core
+journalctl --user -u ga-sprite-birds-core -f
+```
+
+登出后仍要常驻：`sudo loginctl enable-linger "$USER"`。
+
+系统级（开机自启、与登录无关）：
+
+```bash
+sudo cp scripts/systemd/ga-sprite-birds-core.system.service /etc/systemd/system/ga-sprite-birds-core.service
+sudo cp scripts/systemd/ga-sprite-birds-api.system.service  /etc/systemd/system/ga-sprite-birds-api.service
+# 先按需修改 unit 内的 User/Group/WorkingDirectory/ExecStart
+sudo systemctl daemon-reload
+sudo systemctl enable --now ga-sprite-birds-core ga-sprite-birds-api
+
+systemctl status ga-sprite-birds-core
+journalctl -u ga-sprite-birds-core -f
+```
+
+unit 会失败自动重启（`Restart=on-failure`），并优雅停止（当前章节先完成并 checkpoint）。目录权限、反向代理、升级回滚见 [docs/deploy/README.md](../docs/deploy/README.md)。
+
+**Windows — NSSM**（保留工作目录、崩溃重启）：
+
+```powershell
+nssm install GASpriteBirds-Core "C:\path\to\python.exe" "-m engine run"
+nssm set GASpriteBirds-Core AppDirectory "C:\path\to\repo"
+nssm install GASpriteBirds-API "C:\path\to\python.exe" "fcgi-bin/api.py"
+nssm set GASpriteBirds-API AppDirectory "C:\path\to\repo"
+nssm start GASpriteBirds-Core; nssm start GASpriteBirds-API
 ```
 
 ---
 
-## 卸载
+## 4. GUI 构建（仅开发用）
+
+发布版已在仓库根目录提供打包好的单文件 `index.html`。要改前端：
 
 ```bash
-# 删除 Conda 环境
-conda deactivate
-conda env remove -n ga-sprite-birds
-
-# 删除项目文件
-cd ..
-rm -rf ga-sprite-birds
+cd gui
+npm install
+npm run dev      # Vite 开发服务器 :5173，/fcgi-bin 代理到 API
+npm run build    # 输出单文件 ../index.html
 ```
+
+> **Windows + 网络共享盘**：`vite build` 会加载 rollup 原生模块，在 SMB/UNC 路径上会失败。请在本地区盘构建，再把 `index.html` 拷回共享盘。
 
 ---
 
-## 可选：运行 API 测试
+## 5. 故障排查
 
-安装完成后，可以运行 API 测试验证系统功能是否正常。
+**`python -m engine run` 立即退出、码 2？**
+已有实例在运行（单实例锁）。用 `python -m engine status` 查看，或先停止它。
 
-### 运行单元测试（推荐）
+**API 返回 503 / code 3004？**
+引擎未运行，或端口/token 不匹配。先启动引擎；API 从 `run/engine.json` 读取地址。
 
-单元测试不需要启动服务器，速度快：
+**数据库完整性 / WAL 告警？**
+用 `python -m engine doctor` 检查 `tasks.db` 完整性。`data/` 尽量放本地磁盘；SQLite WAL 在 SMB 网络盘上不可靠。
 
-```bash
-# 运行所有单元测试
-pytest tests/unit -v
+**音色试听没声音？**
+试听走 Edge TTS，需要联网；每个音色首次合成需几秒（缓存在 `cache/tts/preview/`）。
 
-# 运行特定测试
-pytest tests/unit/test_upload.py -v
-```
-
-### 运行集成测试
-
-集成测试需要先启动 API 服务器：
+**如何跑测试？**
 
 ```bash
-# 终端 1: 启动 API 服务器
-bash api.sh
-
-# 终端 2: 运行集成测试
-pytest tests/integration -v
+python -m pytest tests    # 引擎不可达时集成测试自动跳过
 ```
-
-### 生成测试报告（可选）
-
-```bash
-# 安装测试报告工具
-pip install pytest-html pytest-cov
-
-# 生成 HTML 测试报告
-pytest --html=report.html --self-contained-html
-
-# 生成测试覆盖率报告
-pytest --cov=ga_birds --cov=fcgi-bin --cov-report=html
-```
-
-详细说明请参考 [tests/README.md](../tests/README.md)。
 
 ---
 
 ## 下一步
 
-安装完成后，请阅读 [README.zh.md](README.zh.md) 了解如何使用系统。
-
+- 使用说明：[中文 README](README.zh.md) · [English README](../README.md)
+- API 端点：[docs/api.md](../docs/api.md)
+- 运维细节：[docs/deploy/README.md](../docs/deploy/README.md)

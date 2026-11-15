@@ -76,3 +76,10 @@ htmlcov/
 .cache/
 debug/
 cache/
+
+# Runtime state (v2): task DB, config DB, discovery file with the engine token
+data/
+run/
+
+# Tooling workspace
+.workbuddy/

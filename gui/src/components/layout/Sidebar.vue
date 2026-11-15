@@ -6,19 +6,34 @@
     :style="asideStyle"
   >
     <el-menu
-      :default-active="route.path"
+      :default-active="activeMenu"
       :collapse="collapsed"
       router
       class="sidebar-menu"
       :class="{ 'sidebar-menu-classic': isClassicTheme }"
       :style="menuStyle"
     >
-      <el-menu-item index="/policy/dashboard">
+      <el-menu-item index="/dashboard">
         <el-icon><Headset /></el-icon>
         <template #title>{{ $t("route.dashboard") }}</template>
       </el-menu-item>
 
-      <el-menu-item index="/policy/theme">
+      <el-sub-menu index="/system/config">
+        <template #title>
+          <el-icon><Tools /></el-icon>
+          <span>{{ $t("route.systemConfig") }}</span>
+        </template>
+        <el-menu-item
+          v-for="section in configSections"
+          :key="section.key"
+          :index="`/system/config?section=${section.key}`"
+        >
+          <el-icon><component :is="section.icon" /></el-icon>
+          <template #title>{{ $t(section.title) }}</template>
+        </el-menu-item>
+      </el-sub-menu>
+
+      <el-menu-item index="/theme">
         <el-icon><Setting /></el-icon>
         <template #title>{{ $t("theme.settings") }}</template>
       </el-menu-item>
@@ -31,7 +46,18 @@
 import { computed } from "vue"
 import { useRoute } from "vue-router"
 import { useThemeStore } from "@/store/modules/theme.js"
-import { Headset, Setting } from "@element-plus/icons-vue"
+import {
+  ChatDotRound,
+  Document,
+  Filter,
+  FolderOpened,
+  Headset,
+  MagicStick,
+  Microphone,
+  Setting,
+  Tools,
+  User,
+} from "@element-plus/icons-vue"
 
 defineProps({
   collapsed: { type: Boolean, default: false },
@@ -42,6 +68,33 @@ defineProps({
 const route = useRoute()
 const themeStore = useThemeStore()
 const isClassicTheme = computed(() => themeStore.themeAppearance === "photoshop-cs3")
+
+// 与后端 system/config_schema.py 的分组保持一致（顺序即菜单顺序）。
+const configSections = [
+  { key: "language", title: "config.section.language", icon: ChatDotRound },
+  { key: "llm", title: "config.section.llm", icon: MagicStick },
+  { key: "tts", title: "config.section.tts", icon: Microphone },
+  { key: "chapter", title: "config.section.chapter", icon: Document },
+  { key: "output", title: "config.section.output", icon: FolderOpened },
+  {
+    key: "text_preprocessing",
+    title: "config.section.text_preprocessing",
+    icon: Filter,
+  },
+  {
+    key: "character_analysis",
+    title: "config.section.character_analysis",
+    icon: User,
+  },
+]
+
+const activeMenu = computed(() => {
+  if (route.path === "/system/config") {
+    const section = route.query.section || configSections[0].key
+    return `/system/config?section=${section}`
+  }
+  return route.path
+})
 
 const asideStyle = computed(() => ({
   backgroundColor: "var(--theme-aside-bg)",

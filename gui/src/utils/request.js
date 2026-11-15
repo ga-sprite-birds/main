@@ -22,7 +22,21 @@ request.interceptors.request.use(
 // 响应拦截器
 request.interceptors.response.use(
     (response) => {
-        return response.data;
+        const payload = response.data;
+        if (payload && typeof payload === "object" && "code" in payload) {
+            if (payload.code !== 0) {
+                const error = new Error(payload.msg || "请求失败");
+                error.code = payload.code;
+                error.data = payload.data;
+                error.response = { status: 200, data: payload };
+                if (!response.config?.silent) {
+                    ElMessage.error(payload.msg || "请求失败");
+                }
+                return Promise.reject(error);
+            }
+            return payload.data;
+        }
+        return payload;
     },
     (error) => {
         // Background polling passes silent: true to avoid toast spam.
@@ -31,7 +45,7 @@ request.interceptors.response.use(
         }
         if (error.response) {
             const { status, data } = error.response;
-            const message = data?.detail || data?.msg || data?.message;
+            const message = data?.msg || data?.detail || data?.message;
             switch (status) {
                 case 401:
                     ElMessage.error(message || "请求未授权");
@@ -41,6 +55,9 @@ request.interceptors.response.use(
                     break;
                 case 404:
                     ElMessage.error(message || "请求的资源不存在");
+                    break;
+                case 503:
+                    ElMessage.error(message || "Core 引擎未运行");
                     break;
                 case 500:
                     ElMessage.error(message || "服务器内部错误");

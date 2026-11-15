@@ -1,402 +1,238 @@
-# GA Sprite Birds - Installation Guide
+# GA Sprite Birds — Installation Guide
 
-> **Version**: v1.0
-> **Dev team**: Tiger
+> For v2 (Core engine + thin Control API, two processes). 中文版本：[INSTALL.zh.md](INSTALL.zh.md)
+> Daily usage: [README](../README.md).
 
-## System Requirements
-
-- **Operating System**: Windows 10+, macOS 10.15+, Linux
-- **Python**: 3.10+
-- **Memory**:
-  - Minimum: 8GB (API mode only)
-  - Recommended: 32GB (with local LLM DeepSeek R1 7B)
-- **Disk Space**: 10GB+ (for model storage)
+This guide is ordered as: **1) runtime requirements → 2) first-time installation → 3) deployment (local / API)** → 4) GUI build → 5) troubleshooting.
 
 ---
 
-## Installation Steps
+## 1. Runtime requirements
 
-### 1. Clone the Repository
+| Item | Requirement | Notes |
+|---|---|---|
+| OS | Windows 10+ / macOS 10.15+ / Linux | |
+| Python | 3.10+ | |
+| FFmpeg | **Required** | MP3 export / audio merge |
+| Node.js | Optional | Only to build the GUI yourself |
+| Memory | 4 GB minimum; 16 GB+ with a local LLM | API-only setups use very little |
+| Disk | ~1 GB plus generated audio | Dependencies and caches included |
+| Network | Required for Edge TTS / online LLMs | Local Ollama can work offline |
+
+---
+
+## 2. Initial installation
+
+### 2.1 Get the code
 
 ```bash
-git clone https://github.com/ga-sprite-birds/main.git
-cd main
+git clone https://github.com/tiger-sprite/ga-sprite-birds.git
+cd ga-sprite-birds
 ```
 
-### 2. Create a Python Environment and Install Dependencies
+### 2.2 Create a Python environment
 
-#### Option 1: Use the Installation Script
-
-```bash
-# Install project dependencies with the helper script
-bash install_dependencies.sh
-```
-
-#### Option 2: Use a Conda Environment (Recommended)
+**venv (portable)**
 
 ```bash
-# Create the base environment (only installs Python, pip, setuptools, wheel and ffmpeg)
-conda create -n ga-sprite-birds python=3.10 pip setuptools wheel -c conda-forge -y
-conda activate ga-sprite-birds
-
-# Install FFmpeg (required for audio processing)
-conda install -c conda-forge ffmpeg -y
-
-# Upgrade pip and build tools
-python -m pip install --upgrade pip setuptools wheel
-
-# Install all Python dependencies (requirements.txt is cross-platform and works on Windows/Linux/macOS)
-pip install -r requirements.txt
-```
-
-#### Option 3: Use venv (without Conda)
-
-```bash
-# Create a virtual environment
-python -m venv venv
-
-# Activate the environment
+python -m venv .venv
 # Windows:
-venv\Scripts\activate
-# Linux/macOS:
-source venv/bin/activate
+.venv\Scripts\activate
+# Linux / macOS:
+source .venv/bin/activate
 
-# Upgrade pip and build tools
-python -m pip install --upgrade pip setuptools wheel
-
-# Install dependencies (same as Option 2)
+pip install -U pip setuptools wheel
 pip install -r requirements.txt
-
-# Note: FFmpeg must be installed manually
-# Windows: download from https://ffmpeg.org/download.html
-# macOS: brew install ffmpeg
-# Linux: sudo apt install ffmpeg
 ```
 
-**Important Notes**:
-- Use `>=` version constraints instead of pinned versions to avoid issues where a specific version does not exist.
-- `setuptools` and `wheel` must be installed first, otherwise some packages (such as pydantic-core) will fail to build.
-
-### 3. Install Ollama (Optional, for Local LLM)
-
-If you use the local LLM mode, you need to install Ollama:
-
-#### Windows
+**Conda**
 
 ```bash
-# Download the installer
-# https://ollama.ai/download/windows
-
-# After installation, pull the model
-ollama pull deepseek-r1:7b
-```
-
-#### macOS
-
-```bash
-# Using Homebrew
-brew install ollama
-
-# Or download the installer
-# https://ollama.ai/download/mac
-
-# Pull the model
-ollama pull deepseek-r1:7b
-```
-
-#### Linux
-
-```bash
-# Install Ollama
-curl -fsSL https://ollama.ai/install.sh | sh
-
-# Pull the model
-ollama pull deepseek-r1:7b
-```
-
-### 4. TTS Engine
-
-The current release uses **Edge TTS** for narration. It is free and does not require a local model, but it does need network access. Other `TTS_ENGINE` values are not implemented in this release.
-
-### 5. Configuration File
-
-Copy and edit the configuration file:
-
-```bash
-# Copy the environment variable example and edit it (project configuration is managed via .env environment variables, not config.yaml)
-cp .env.example .env
-vim .env
-```
-
-### 6. Verify the Installation
-
-```bash
-# Run the unit tests (no server required)
-pytest tests/unit
-```
-
----
-
-## Configuration Reference
-
-### Minimal Configuration (API Mode Only)
-
-Project configuration is managed through `.env` environment variables (read by `config/__init__.py`); no YAML file is used. Copy `.env.example` and then edit it:
-
-```env
-# .env — Cloud API only (OpenAI compatible)
-
-# LLM (conversational): cloud API mode
-LLM_MODE=api
-LLM_API_TYPE=openai
-LLM_API_ENDPOINT=https://api.openai.com/v1
-LLM_API_KEY=your_api_key_here
-LLM_API_MODEL=gpt-4
-
-# TTS: Edge TTS (free, no key required)
-TTS_ENGINE=edge
-TTS_VOICE=zh-CN-XiaoxiaoNeural
-```
-
-### Fully Local Configuration (Local LLM)
-
-```env
-# .env — Run the LLM using local Ollama
-
-LLM_MODE=local
-LLM_LOCAL_HOST=http://localhost:11434
-LLM_LOCAL_MODEL=deepseek-r1:7b
-
-# The current version's TTS engine only supports edge (Edge TTS); no local model required
-TTS_ENGINE=edge
-TTS_VOICE=zh-CN-YunxiNeural
-```
-
-> Note: The current version's TTS engine only supports `edge` (Edge TTS). See `.env.example` for the full list of options and default values.
-
----
-
-## Starting the Service
-
-### Recommended
-
-```bash
-# Start Ollama first if you use the local LLM
-ollama serve
-
-# Start the local service and open the GUI
-bash api.sh
-```
-
-`api.sh` starts FastAPI on a free port starting at `API_PORT` (default `8000`) and opens the browser.
-
-### Direct launch
-
-```bash
-PYTHONPATH=. python fcgi-bin/api.py
-```
-
-### Production note
-
-This project is designed for local use. The API has no authentication, and the bundled launcher uses a single process. If you need to expose it to a trusted network, place it behind an authenticated reverse proxy instead of binding it directly to the public internet.
-
----
-
-## Frequently Asked Questions
-
-### 1. pip reports an error when installing dependencies: specific version not found
-
-**Error example**:
-```
-ERROR: Could not find a version that satisfies the requirement pypdf==3.17.4
-ERROR: Could not find a version that satisfies the requirement openai==1.10.0
-```
-
-**Solution**:
-- Use `>=` version constraints instead of `==` pinned versions.
-- Make sure pip is upgraded: `python -m pip install --upgrade pip`
-
-### 2. pip error: Cannot import 'setuptools.build_meta' or 'maturin'
-
-**Error example**:
-```
-pip._vendor.pyproject_hooks._impl.BackendUnavailable: Cannot import 'setuptools.build_meta'
-pip._vendor.pyproject_hooks._impl.BackendUnavailable: Cannot import 'maturin'
-```
-
-**Solution**:
-```bash
-# Upgrade pip, setuptools and wheel first
-python -m pip install --upgrade pip setuptools wheel
-
-# Then install the remaining dependencies
-pip install "fastapi>=0.109.0" ...
-```
-
-### 3. Slow or failed package downloads
-
-**Solution**:
-```bash
-# Use an alternative package mirror
-pip install -i https://pypi.tuna.tsinghua.edu.cn/simple "fastapi>=0.109.0" ...
-```
-
-### 4. Conda environment creation failed
-
-```bash
-# Clean the Conda cache
-conda clean --all
-
-# Remove the old environment
-conda env remove -n ga-sprite-birds
-
-# Recreate the environment (manual method recommended)
-conda create -n ga-sprite-birds python=3.10 pip setuptools wheel -y
+conda env create -f environment.yml
 conda activate ga-sprite-birds
-conda install -c conda-forge ffmpeg -y
+pip install -r requirements.txt
 ```
 
-### 5. FFmpeg not found
+### 2.3 Install FFmpeg
+
+- **Windows**: download from <https://ffmpeg.org/download.html> and add it to `PATH`, or set `FFMPEG_PATH` in `.env`
+- **macOS**: `brew install ffmpeg`
+- **Debian/Ubuntu**: `sudo apt install ffmpeg`
+
+Verify with `ffmpeg -version`.
+
+### 2.4 (Optional) Install Ollama for local LLM
+
+Only needed for LLM colloquialization without an online API:
 
 ```bash
-# Check if FFmpeg is installed
-ffmpeg -version
-
-# If not installed, install via Conda
-conda install -c conda-forge ffmpeg -y
-
-# Or download manually: https://ffmpeg.org/download.html
+# Linux
+curl -fsSL https://ollama.com/install.sh | sh
+ollama pull deepseek-r1:7b      # default local model; change in .env
 ```
 
-### 6. Ollama connection failed
+Windows / macOS installers: <https://ollama.com/download>. You can skip local models entirely
+and use any OpenAI-compatible endpoint (`LLM_MODE=api`, see below).
+
+### 2.5 Configure `.env`
 
 ```bash
-# Check whether the Ollama service is running
-curl http://localhost:11434/api/tags
-
-# If not running, start the service
-ollama serve
-
-# Check whether the model is downloaded
-ollama list
+cp .env.example .env
 ```
 
-### 7. Edge TTS network issues
+`.env` holds **deployment settings and credentials only**:
 
-If Edge TTS fails to connect, you can:
+| Variable | Default | Purpose |
+|---|---|---|
+| `LLM_MODE` | `local` | `local` (Ollama) or `api` (OpenAI-compatible) |
+| `LLM_API_ENDPOINT` / `LLM_API_KEY` / `LLM_API_MODEL` | — | Endpoint, key, model for `api` mode |
+| `LLM_LOCAL_HOST` / `LLM_LOCAL_MODEL` | `http://localhost:11434` / `deepseek-r1:7b` | Local Ollama |
+| `API_HOST` / `API_PORT` | `127.0.0.1` / `8000` | Control API bind address |
+| `TASK_MAX_CONCURRENT` | `2` | Concurrent tasks in the engine |
+| `TASK_RESULT_TTL` | `86400` | Seconds to keep terminal task records; `0` keeps forever |
+| `FFMPEG_PATH` | empty | FFmpeg directory; empty uses system `PATH` |
+| `LOG_LEVEL` / `LOG_FILE` | `INFO` / `./logs/app.log` | Logging |
 
-1. Retry later.
-2. Check your network/proxy configuration.
-3. Use a different network or a mirror if your region blocks the service.
+> **Business settings are not in `.env`.** Language, voice, rate, chapter rules and output
+> strategy come from `data/system.db` (defaults) + `cache/config/system.json` (overrides).
+> Edit them in the GUI **System config** page or with `python fcgi-bin/cli.py config set …`;
+> they apply to new tasks immediately, no restart needed.
 
-**Note**: The system has a built-in automatic retry mechanism (exponential backoff, up to 5 retries), so most network issues recover automatically.
+### 2.6 Verify the installation
 
-### 8. Out of memory
+```bash
+python -m engine doctor --json   # dirs, permissions, DBs, ffmpeg, ports
+```
 
-If you run out of memory when running the local LLM:
-
-1. Use a smaller model (e.g., DeepSeek R1 1.5B).
-2. Switch to API mode.
-3. Increase system memory or use a GPU.
+`doctor` checks that the data/run/cache directories are writable, SQLite works, FFmpeg is
+executable and the default port is free.
 
 ---
 
-## Retry Mechanism Reference
+## 3. Deployment
 
-The system has a built-in intelligent retry mechanism that requires no manual configuration:
+v2 always runs as **two processes**: the Core engine (sole executor, sole writer of task
+state) and the Control API (serves the GUI and endpoints). Only how you supervise them
+differs between the two deployment styles below; functionality is identical.
 
-### TTS Request Retries
-- **Maximum retries**: 5
-- **Retry strategy**: Exponential backoff (1s, 2s, 4s, 8s, 16s, max 30s)
-- **Applicable scenarios**: Network timeout, connection failure, transient faults
+### 3.1 Local deployment (personal machine / development)
 
-### LLM Request Retries
-- **Maximum retries**: 3
-- **Retry strategy**: Exponential backoff (1s, 2s, 4s, max 10s)
-- **Applicable scenarios**: Local Ollama connection failure, transient API faults
+Run one process per terminal:
 
-### Retry Log Example
-```
-WARNING - Attempt 1 failed: Connection timeout, retrying in 1.0s...
-WARNING - Attempt 2 failed: Connection timeout, retrying in 2.0s...
-INFO - TTS generation succeeded (attempt 3)
-```
-
-### Dependency Notes
-The retry mechanism is implemented using the `tenacity` library and is already included in `requirements.txt`:
 ```bash
-pip install "tenacity>=8.2.3"
+# Terminal 1: Core engine (foreground; Ctrl+C = graceful stop)
+python -m engine run
+
+# Terminal 2: Control API (also serves the GUI)
+python fcgi-bin/api.py
+```
+
+Open <http://127.0.0.1:8000/>. Health checks:
+
+```bash
+python -m engine status                      # pid / port / task counters
+curl -s http://127.0.0.1:8000/fcgi-bin/api/status
+```
+
+- The engine listens on `127.0.0.1:39300` by default and shifts to a free port when occupied;
+  the actual port and token are written to `run/engine.json`.
+- The engine is **single-instance**: a second `python -m engine run` exits immediately (code 2).
+- Ad-hoc background run (debug only): `nohup python -m engine run > logs/engine.log 2>&1 &`.
+
+### 3.2 API deployment (long-lived / serving the HTTP API)
+
+The API has **no built-in authentication** — bind it to loopback or a private interface, and
+put Nginx / an internal gateway in front when exposing it. **Never** expose the engine command
+channel `127.0.0.1:39300`.
+
+**Linux — systemd (recommended).** Unit templates ship in [`scripts/systemd/`](../scripts/systemd/):
+`ga-sprite-birds-core.{user,system}.service` and `ga-sprite-birds-api.{user,system}.service`.
+
+User-level (no root; starts with your login session):
+
+```bash
+mkdir -p ~/.config/systemd/user
+cp scripts/systemd/ga-sprite-birds-core.user.service ~/.config/systemd/user/ga-sprite-birds-core.service
+cp scripts/systemd/ga-sprite-birds-api.user.service  ~/.config/systemd/user/ga-sprite-birds-api.service
+systemctl --user daemon-reload
+systemctl --user enable --now ga-sprite-birds-core ga-sprite-birds-api
+
+systemctl --user status ga-sprite-birds-core
+journalctl --user -u ga-sprite-birds-core -f
+```
+
+To keep user services running after logout: `sudo loginctl enable-linger "$USER"`.
+
+System-level (starts at boot, independent of login):
+
+```bash
+sudo cp scripts/systemd/ga-sprite-birds-core.system.service /etc/systemd/system/ga-sprite-birds-core.service
+sudo cp scripts/systemd/ga-sprite-birds-api.system.service  /etc/systemd/system/ga-sprite-birds-api.service
+# edit User/Group/WorkingDirectory/ExecStart inside the units first
+sudo systemctl daemon-reload
+sudo systemctl enable --now ga-sprite-birds-core ga-sprite-birds-api
+
+systemctl status ga-sprite-birds-core
+journalctl -u ga-sprite-birds-core -f
+```
+
+The units auto-restart on failure (`Restart=on-failure`) and stop gracefully (the current
+chapter finishes and checkpoints first). Directory permissions, reverse proxy, upgrade &
+rollback are covered in [docs/deploy/README.md](../docs/deploy/README.md).
+
+**Windows — NSSM** (keeps the working directory, restarts on crash):
+
+```powershell
+nssm install GASpriteBirds-Core "C:\path\to\python.exe" "-m engine run"
+nssm set GASpriteBirds-Core AppDirectory "C:\path\to\repo"
+nssm install GASpriteBirds-API "C:\path\to\python.exe" "fcgi-bin/api.py"
+nssm set GASpriteBirds-API AppDirectory "C:\path\to\repo"
+nssm start GASpriteBirds-Core; nssm start GASpriteBirds-API
 ```
 
 ---
 
-## Uninstallation
+## 4. GUI build (development only)
+
+Releases ship a prebuilt single-file `index.html` at the repository root. To work on the
+frontend:
 
 ```bash
-# Remove the Conda environment
-conda deactivate
-conda env remove -n ga-sprite-birds
+cd gui
+npm install
+npm run dev      # Vite dev server on :5173, proxies /fcgi-bin to the API
+npm run build    # writes the single-file ../index.html
+```
 
-# Remove the project files
-cd ..
-rm -rf ga-sprite-birds
+> **Windows + network shares**: `vite build` loads a native rollup module that fails on
+> SMB/UNC paths. Build on a local disk and copy the resulting `index.html` back.
+
+---
+
+## 5. Troubleshooting
+
+**`python -m engine run` exits immediately with code 2?**
+An instance is already running (single-instance lock). Check `python -m engine status`, or stop it first.
+
+**API answers 503 with code 3004?**
+The engine is not running, or the port/token does not match. Start the engine first; the API reads its address from `run/engine.json`.
+
+**DB integrity / WAL warnings?**
+Run `python -m engine doctor` to check `tasks.db` integrity. Keep `data/` on a local disk; SQLite WAL is unreliable on SMB network drives.
+
+**Voice preview plays nothing?**
+Preview uses Edge TTS and needs internet; the first synthesis per voice takes a few seconds (cached under `cache/tts/preview/`).
+
+**How do I run the tests?**
+
+```bash
+python -m pytest tests    # integration tests skip when the engine is unreachable
 ```
 
 ---
 
-## Optional: Running API Tests
+## Next steps
 
-After installation, you can run API tests to verify that the system works correctly.
-
-### Run Unit Tests (Recommended)
-
-Unit tests do not require starting the server and are fast:
-
-```bash
-# Run all unit tests
-pytest tests/unit -v
-
-# Run a specific test
-pytest tests/unit/test_upload.py -v
-```
-
-### Run Integration Tests
-
-Integration tests require the API server to be started first:
-
-```bash
-# Terminal 1: Start the API server
-bash api.sh
-
-# Terminal 2: Run the integration tests
-# They default to http://localhost:8000.
-pytest tests/integration -v
-```
-
-### Generate a Test Report (Optional)
-
-```bash
-# Install the test report tools
-pip install pytest-html pytest-cov
-
-# Generate an HTML test report
-pytest --html=report.html --self-contained-html
-
-# Generate a test coverage report
-pytest --cov=ga_birds --cov=fcgi-bin --cov-report=html
-```
-
-See [tests/README.md](../tests/README.md) for details.
-
----
-
-## Next Steps
-
-After installation, please read [../README.md](../README.md) to learn how to use the system.
-
----
-
-**Author:** adam
-**Email:** dev@ebf.hk
-**Website:** http://ebf.cc
-**Source:** https://github.com/ga-sprite-birds/main
+- Usage: [English README](../README.md) · [中文 README](README.zh.md)
+- API endpoints: [docs/api.md](../docs/api.md)
+- Operations detail: [docs/deploy/README.md](../docs/deploy/README.md)

@@ -7,7 +7,7 @@ Thank you for your interest in `GA Sprite Birds`. This document explains how to 
 - Author: `adam`
 - Email: `dev@ebf.hk`
 - Website: <http://ebf.cc>
-- GitHub Source: <https://github.com/ga-sprite-birds/main>
+- GitHub Source: <https://github.com/tiger-sprite/ga-sprite-birds>
 
 ## 1. How to Contribute
 
@@ -281,7 +281,7 @@ Please maintain professional, respectful, and constructive communication. When d
 **Author**: `adam`  
 **Email**: `dev@ebf.hk`  
 **Website**: <http://ebf.cc>  
-**GitHub Source**: <https://github.com/ga-sprite-birds/main>  
+**GitHub Source**: <https://github.com/tiger-sprite/ga-sprite-birds>  
 **Last updated**: 2026-10-23
 
 ---

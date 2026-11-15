@@ -76,6 +76,9 @@ export function clearAudioTask(taskId) {
   return request({
     url: `/task/${taskId}`,
     method: "delete",
+    // The confirmation says chapter audio is removed. The API defaults to
+    // preserving artifacts, so make the user's explicit choice explicit here.
+    params: { delete_outputs: true },
     // The view handles 404 and other clear failures with a friendly message.
     silent: true,
   })
@@ -95,9 +98,23 @@ export function getTaskStatus(taskId, options = {}) {
 
 export function getApiStatus(options = {}) {
   return request({
-    url: "/api/status",
+    url: "/status",
     method: "get",
     silent: options.silent,
+  })
+}
+
+export function cancelAudio(taskId) {
+  return request({
+    url: `/task/${taskId}/cancel`,
+    method: "post",
+  })
+}
+
+export function retryAudio(taskId) {
+  return request({
+    url: `/task/${taskId}/retry`,
+    method: "post",
   })
 }
 
