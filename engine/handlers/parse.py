@@ -13,75 +13,10 @@ from engine.store import TaskStore
 from ga_birds.Common.i18n import set_locale
 
 SUPPORTED_INPUT_EXTENSIONS = {".txt", ".md", ".pdf"}
-LEAD_IN_TITLE = "导读篇"
-LEAD_IN_SAMPLE_CHARS = 6000
 
 
 class ParseError(ValueError):
     """A parse error safe to return to the command client."""
-
-
-def _has_front_matter(chapters: list[dict[str, Any]]) -> bool:
-    from ga_birds.Audio.audio_exporter import AudioExporter
-
-    return any(
-        AudioExporter.front_matter_marker(chapter.get("title") or "")
-        for chapter in chapters
-    )
-
-
-async def _generate_lead_in(
-    chapters: list[dict[str, Any]],
-    snapshot: dict[str, Any],
-) -> str | None:
-    """Generate a lead-in chapter with the LLM when the source has none.
-
-    The requested length scales with the source size; the caller decides
-    whether to prepend it as chapter ``0``.
-    """
-    if _has_front_matter(chapters):
-        return None
-
-    from ga_birds.LLM import LLMManager
-
-    total_chars = sum(len(chapter.get("content") or "") for chapter in chapters)
-    target_chars = min(500, max(80, total_chars // 300))
-    sample = "\n\n".join(
-        chapter.get("content") or "" for chapter in chapters
-    )[:LEAD_IN_SAMPLE_CHARS]
-    if not sample.strip():
-        return None
-
-    llm = LLMManager()
-    language = str(snapshot.get("LANGUAGE", "zh_CN"))
-    if language.lower().startswith("en"):
-        system_prompt = "You are an audiobook editor who writes engaging lead-ins."
-        prompt = f"""Write an English lead-in of about {target_chars} words for the book below.
-Requirements:
-1. Summarize the theme, core ideas, or story arc.
-2. Highlight what makes it worth reading, without spoiling the ending.
-3. Natural tone, suitable to open an audiobook.
-4. Output only the lead-in text - no title, no bullet points, no explanation.
-
-Book excerpt:
-{sample}
-"""
-    else:
-        system_prompt = "你是有声书编辑，擅长撰写吸引人的导读。"
-        prompt = f"""请根据下面的书籍内容，写一段约 {target_chars} 字的中文导读。
-要求：
-1. 概括全书主题、核心观点或故事梗概；
-2. 点出主要看点，但不要剧透结局；
-3. 语气自然，适合作为有声书的开篇朗读；
-4. 直接输出导读正文，不要标题、不要分点、不要任何说明。
-
-书籍内容节选：
-{sample}
-"""
-
-    result = await asyncio.to_thread(llm.generate, prompt, system_prompt)
-    text = (result or "").strip()
-    return text or None
 
 
 def _parse_sync(file_path: Path) -> list[dict[str, Any]]:
@@ -139,19 +74,6 @@ async def run_parse(store: TaskStore, task_id: str) -> dict[str, Any]:
         )
         logger.exception("Parse failed for task {}", task_id)
         raise ParseError(str(exc)) from exc
-
-    if chapters and bool(snapshot.get("CHAPTER_LEAD_IN_ENABLED", False)):
-        try:
-            lead_in = await _generate_lead_in(chapters, snapshot)
-        except Exception as exc:  # LLM unavailable / failed: keep parsing usable
-            logger.warning("Lead-in generation skipped for task {}: {}", task_id, exc)
-            lead_in = None
-        if lead_in:
-            chapters = [
-                {"index": 0, "title": LEAD_IN_TITLE, "content": lead_in},
-                *chapters,
-            ]
-            logger.info("Generated lead-in chapter for task {}", task_id)
 
     if not chapters:
         message = "No chapters found in source file"

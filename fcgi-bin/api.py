@@ -185,6 +185,10 @@ async def api_status(
                 "enable_llm": config_service.get("ENABLE_LLM"),
                 "prosody_mode": config_service.get("TTS_PROSODY_MODE"),
                 "language": config_service.get("LANGUAGE"),
+                "chapter_intro_outro": config_service.get("CHAPTER_INTRO_OUTRO"),
+                "chapter_lead_in_enabled": config_service.get(
+                    "CHAPTER_LEAD_IN_ENABLED"
+                ),
             },
         }
     )

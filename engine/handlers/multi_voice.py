@@ -32,6 +32,7 @@ async def generate_multi_voice_chapters(
     rate: float | None,
     output_path: str | None,
     source_name: str | None,
+    intro_outro_enabled: bool | None = None,
     should_pause: PauseCheck,
     should_cancel: CancelCheck,
 ) -> dict[str, Any]:
@@ -140,7 +141,7 @@ async def generate_multi_voice_chapters(
                 intro, outro = None, None
             else:
                 intro, outro = ChapterProcessor.prepare_intro_outro(
-                    file_index, chapter["title"]
+                    file_index, chapter["title"], enabled=intro_outro_enabled
                 )
             parser = DialogueParser(llm_manager, characters)
             segments = await asyncio.to_thread(

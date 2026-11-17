@@ -20,7 +20,8 @@ class ChapterProcessor:
     @staticmethod
     def prepare_intro_outro(
         chapter_index: int,
-        chapter_title: str
+        chapter_title: str,
+        enabled: Optional[bool] = None,
     ) -> Tuple[Optional[str], Optional[str]]:
         """
         Prepare the intro and outro text
@@ -32,7 +33,9 @@ class ChapterProcessor:
         Returns:
             (intro, outro) tuple, or (None, None) if not enabled
         """
-        if not ConfigManager.is_chapter_intro_outro_enabled():
+        if enabled is None:
+            enabled = ConfigManager.is_chapter_intro_outro_enabled()
+        if not enabled:
             logger.debug(t("chapter.intro_outro_disabled"))
             return None, None
 

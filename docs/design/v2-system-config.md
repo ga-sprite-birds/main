@@ -104,6 +104,7 @@ project/
 | key | 类型 | 默认 | 校验 |
 |---|---|---|---|
 | CHAPTER_INTRO_OUTRO | bool | true | |
+| CHAPTER_LEAD_IN_ENABLED | bool | false | 无导读时由 LLM 依正文长度生成导读，作为第 0 章（000）|
 | CHAPTER_INTRO_TEMPLATE | string | 第{index}章开始 | 仅允许 {index}/{title} |
 | CHAPTER_OUTRO_TEMPLATE | string | 本章播讲完毕 | |
 | CHAPTER_INTRO_OUTRO_PAUSE | float | 1.0 | ≥0 |
@@ -111,6 +112,8 @@ project/
 | CHAPTER_MIN_LENGTH | int | 10 | ≥0 |
 | CHAPTER_KEEP_TITLE | bool | true | |
 | CHAPTER_NORMALIZE_ENABLED | bool | true | |
+
+> 说明：`CHAPTER_LEAD_IN_ENABLED` 开启后，生成阶段若任务已含导读（命中 `OUTPUT_FRONT_MATTER_MARKERS`）则直接使用；否则由 LLM 依据正文长度生成一段导读（约 `正文长度/300`，80–500 字），作为第 0 章输出。LLM 不可用时跳过导读、不阻断生成。该开关与 `CHAPTER_INTRO_OUTRO` 都可被「音频生成」面板的本次参数覆盖，仅影响当前生成。
 
 > 注：`CHAPTER_REGEX_PATTERNS` 默认两条，按**原始字符串**存储，避免 JSON 破坏 `\u4e00`：
 > `^第\s*[零一二三四五六七八九十百千万0-9]+\s*[章回卷节](?![\u4e00-\u9fff])`

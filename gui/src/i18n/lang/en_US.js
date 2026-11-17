@@ -29,6 +29,8 @@ export default {
         voice: "Voice",
         voicePreview: "Preview",
         enableLlm: "Enable LLM colloquialization",
+        chapterIntroOutro: "Chapter intro/outro",
+        chapterLeadIn: "Lead-in chapter",
         prosodyMode: "Pauses & tone",
         prosodyModeOff: "Original",
         prosodyModePause: "Punctuation pauses",

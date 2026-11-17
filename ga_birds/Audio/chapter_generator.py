@@ -71,6 +71,7 @@ async def generate_single_voice_chapter(
     source_name: Optional[str] = None,
     display_index: Optional[int] = None,
     is_front_matter: bool = False,
+    intro_outro_enabled: Optional[bool] = None,
 ) -> ChapterAudioResult:
     """
     Generate one chapter with a single voice.
@@ -106,7 +107,7 @@ async def generate_single_voice_chapter(
         intro, outro = None, None
     else:
         intro, outro = ChapterProcessor.prepare_intro_outro(
-            file_index, chapter_title
+            file_index, chapter_title, enabled=intro_outro_enabled
         )
     final_content = ChapterProcessor.combine_content_with_intro_outro(
         content, intro, outro

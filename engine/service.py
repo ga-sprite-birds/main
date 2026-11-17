@@ -245,6 +245,19 @@ class EngineService:
         if enable_llm is not None and type(enable_llm) is not bool:
             raise ControlError(1001, "enable_llm must be boolean")
         options["enable_llm"] = enable_llm
+
+        chapter_intro_outro = payload.get("chapter_intro_outro")
+        if chapter_intro_outro is not None and type(chapter_intro_outro) is not bool:
+            raise ControlError(1001, "chapter_intro_outro must be boolean")
+        options["chapter_intro_outro"] = chapter_intro_outro
+
+        chapter_lead_in_enabled = payload.get("chapter_lead_in_enabled")
+        if (
+            chapter_lead_in_enabled is not None
+            and type(chapter_lead_in_enabled) is not bool
+        ):
+            raise ControlError(1001, "chapter_lead_in_enabled must be boolean")
+        options["chapter_lead_in_enabled"] = chapter_lead_in_enabled
         rate = payload.get("rate")
         if rate is not None:
             if type(rate) not in (int, float) or not 0.5 <= float(rate) <= 2.0:

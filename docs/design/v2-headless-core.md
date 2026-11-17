@@ -136,6 +136,8 @@ GUI / CLI ───────────────► Control API(api.py) �
 - **Scheduler**：按 `TASK_MAX_CONCURRENT` 调度 `queued → running`；提供 pause/cancel/retry。
 - **Handlers**：`parse / generate / merge / export`，调用 `ga_birds` 业务；章节级循环，每章完成写 checkpoint + 事件。
 - **parse 为后台任务**：`task.parse` 命令只把任务入队并立即返回（`phase=parsing`），由引擎的 parse worker 执行；完成后 `phase=ready`，失败 `phase=parse_failed`；客户端轮询 `phase` 判断进度。
+- **导读生成**：若 `CHAPTER_LEAD_IN_ENABLED`（可被本次生成参数 `chapter_lead_in_enabled` 覆盖）开启且任务无导读章节，generate 阶段调用 LLM 生成导读并作为第 0 章（`000-导读篇`）插入；LLM 不可用时跳过，不阻断生成。
+- **片头片尾按次覆盖**：`CHAPTER_INTRO_OUTRO` 可被本次生成参数 `chapter_intro_outro` 覆盖，仅影响本次生成。
 - **单实例锁**：`run/engine.lock`（fcntl，Windows 用 msvcrt 兼容），防重复消费。
 - **优雅退出**（SIGTERM/SIGINT）：停止收新命令 → 当前章节安全点/checkpoint → 保存 → 释放锁 → 退出；超 grace 强杀并记录，不留孤儿。
 - **恢复**（见 §12）。

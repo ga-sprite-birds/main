@@ -9,6 +9,7 @@ from typing import Any
 from loguru import logger
 
 import config
+from engine.handlers.lead_in import LEAD_IN_TITLE, generate_lead_in, has_front_matter
 from engine.store import TaskStore
 from ga_birds.Common.i18n import set_locale
 
@@ -89,6 +90,28 @@ async def _run_with_snapshot(
         store.add_event(task_id, "task.failed", {"error": message})
         return {"error": message}
 
+    # Optional lead-in chapter (导读). Per-task option overrides the snapshot.
+    lead_in_option = options.get("chapter_lead_in_enabled")
+    lead_in_enabled = bool(
+        snapshot.get("CHAPTER_LEAD_IN_ENABLED", False)
+        if lead_in_option is None
+        else lead_in_option
+    )
+    if lead_in_enabled and not has_front_matter(chapters):
+        try:
+            lead_in_text = await generate_lead_in(
+                chapters, str(snapshot.get("LANGUAGE", "zh_CN"))
+            )
+        except Exception as exc:  # LLM unavailable / failed: keep generating
+            logger.warning("Lead-in generation skipped for task {}: {}", task_id, exc)
+            lead_in_text = None
+        if lead_in_text:
+            store.insert_chapter(
+                task_id, index=0, title=LEAD_IN_TITLE, content=lead_in_text
+            )
+            chapters = store.list_chapters(task_id)
+            logger.info("Generated lead-in chapter for task {}", task_id)
+
     selected_indexes = options.get("chapter_indexes")
     available = {int(chapter["chapter_index"]) for chapter in chapters}
     if selected_indexes is not None:
@@ -113,6 +136,12 @@ async def _run_with_snapshot(
         snapshot.get("ENABLE_LLM")
         if options.get("enable_llm") is None
         else options.get("enable_llm")
+    )
+    intro_outro_option = options.get("chapter_intro_outro")
+    intro_outro_enabled = bool(
+        snapshot.get("CHAPTER_INTRO_OUTRO", True)
+        if intro_outro_option is None
+        else intro_outro_option
     )
     voice = options.get("voice")
     rate = options.get("rate")
@@ -153,6 +182,7 @@ async def _run_with_snapshot(
             rate=rate,
             output_path=output_path,
             source_name=source_name,
+            intro_outro_enabled=intro_outro_enabled,
             should_pause=should_pause,
             should_cancel=should_cancel,
         )
@@ -208,6 +238,7 @@ async def _run_with_snapshot(
                 source_name=source_name,
                 display_index=file_index,
                 is_front_matter=file_index == 0,
+                intro_outro_enabled=intro_outro_enabled,
             )
             store.update_chapter(
                 task_id,

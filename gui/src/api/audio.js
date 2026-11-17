@@ -43,6 +43,8 @@ export function generateAudio(taskId, options = {}) {
       voice: options.voice || undefined,
       output_path: options.outputPath || undefined,
       enable_llm: options.enableLlm,
+      chapter_intro_outro: options.chapterIntroOutro,
+      chapter_lead_in_enabled: options.chapterLeadIn,
       rate: options.rate,
       prosody_mode: options.prosodyMode || undefined,
       language: options.language,

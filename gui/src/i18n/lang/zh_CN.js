@@ -29,6 +29,8 @@ export default {
         voice: "音色",
         voicePreview: "试听",
         enableLlm: "启用 LLM 口语化",
+        chapterIntroOutro: "启用章节片头片尾",
+        chapterLeadIn: "启动导读篇",
         prosodyMode: "停顿与语气",
         prosodyModeOff: "原始效果",
         prosodyModePause: "仅按标点停顿",

@@ -572,6 +572,38 @@ class TaskStore:
                 task_id, "task.parsed", {"total_chapters": len(chapter_list)}
             )
 
+    def insert_chapter(
+        self,
+        task_id: str,
+        *,
+        index: int,
+        title: str,
+        content: str | None = None,
+    ) -> None:
+        """Insert one chapter if it does not exist, then refresh total_chapters."""
+        now = utc_now_iso()
+        with self._lock, self._conn():
+            self._conn().execute(
+                """
+                INSERT OR IGNORE INTO task_chapters (
+                  task_id, chapter_index, title, status, content, audio_path,
+                  error, attempts, started_at, finished_at, created_at, updated_at
+                )
+                VALUES (?, ?, ?, 'pending', ?, NULL, NULL, 0, NULL, NULL, ?, ?)
+                """,
+                (task_id, int(index), str(title), content, now, now),
+            )
+            self._conn().execute(
+                """
+                UPDATE tasks
+                SET total_chapters = (
+                  SELECT COUNT(*) FROM task_chapters WHERE task_id = ?
+                ), updated_at = ?
+                WHERE task_id = ?
+                """,
+                (task_id, now, task_id),
+            )
+
     def list_chapters(self, task_id: str) -> list[dict[str, Any]]:
         with self._lock:
             rows = self._conn().execute(

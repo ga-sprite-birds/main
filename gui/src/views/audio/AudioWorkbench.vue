@@ -71,10 +71,13 @@
               />
             </el-select>
           </el-form-item>
-          <el-form-item>
-            <el-checkbox v-model="enableLlm">{{ $t("audio.enableLlm") }}</el-checkbox>
-          </el-form-item>
         </el-form>
+
+        <div class="option-toggles">
+          <el-checkbox v-model="enableLlm">{{ $t("audio.enableLlm") }}</el-checkbox>
+          <el-checkbox v-model="chapterIntroOutro">{{ $t("audio.chapterIntroOutro") }}</el-checkbox>
+          <el-checkbox v-model="chapterLeadIn">{{ $t("audio.chapterLeadIn") }}</el-checkbox>
+        </div>
         <p class="form-hint">{{ $t("audio.prosodyHint") }}</p>
 
         <div class="action-row">
@@ -213,6 +216,8 @@
               controls
               preload="none"
               :src="getChapterAudioUrl(taskId, row.index, row.completed_at)"
+              @play="handleAudioPlay"
+              @ended="handleAudioEnded"
             />
             <span v-else class="muted">{{ row.error || $t("audio.waitingAudio") }}</span>
           </template>
@@ -235,7 +240,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue"
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { useI18n } from "vue-i18n"
 import { ElMessage, ElMessageBox } from "element-plus"
 import {
@@ -271,12 +276,34 @@ const { mapStatus, mapChapterStatus, statusTagType, formatDate } = useTaskDispla
 const appTitle = import.meta.env.VITE_APP_TITLE || "GA Sprite Birds"
 const uploadQueue = []
 const uploading = ref(false)
-const outputPath = ref("")
-const voice = ref("zh-CN-YunxiNeural")
-const prosodyMode = ref("off")
-const enableLlm = ref(true)
+
+// Remember the last-used generation options so new tasks reuse them.
+// System config only supplies defaults when the user has no saved choice.
+const GENERATION_OPTIONS_KEY = "audio_generation_options"
+
+function readSavedGenerationOptions() {
+  try {
+    const raw = localStorage.getItem(GENERATION_OPTIONS_KEY)
+    const parsed = raw ? JSON.parse(raw) : null
+    return parsed && typeof parsed === "object" ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+const savedGenerationOptions = readSavedGenerationOptions()
+const hasSaved = (key) => Object.prototype.hasOwnProperty.call(savedGenerationOptions, key)
+
+const outputPath = ref(hasSaved("outputPath") ? String(savedGenerationOptions.outputPath ?? "") : "")
+const voice = ref(hasSaved("voice") ? String(savedGenerationOptions.voice ?? "") : "zh-CN-YunxiNeural")
+const prosodyMode = ref(hasSaved("prosodyMode") ? String(savedGenerationOptions.prosodyMode ?? "off") : "off")
+const enableLlm = ref(hasSaved("enableLlm") ? Boolean(savedGenerationOptions.enableLlm) : true)
+const chapterIntroOutro = ref(hasSaved("chapterIntroOutro") ? Boolean(savedGenerationOptions.chapterIntroOutro) : true)
+const chapterLeadIn = ref(hasSaved("chapterLeadIn") ? Boolean(savedGenerationOptions.chapterLeadIn) : false)
+let applyingDefaults = false
 const taskId = ref("")
 const statusData = ref(null)
+const currentAudio = ref(null)
 const apiOnline = ref(false)
 const busyAction = ref("")
 const pollTimer = ref(null)
@@ -464,6 +491,8 @@ async function startChapters(indexes) {
       outputPath: outputPath.value.trim(),
       prosodyMode: prosodyMode.value,
       enableLlm: enableLlm.value,
+      chapterIntroOutro: chapterIntroOutro.value,
+      chapterLeadIn: chapterLeadIn.value,
       language: locale.value,
       chapterIndexes: indexes,
     })
@@ -535,8 +564,31 @@ function invertSelection() {
   })
 }
 
+function handleAudioPlay(event) {
+  const element = event.target
+  // Single-playback rule: starting one chapter pauses whatever is playing.
+  if (currentAudio.value && currentAudio.value !== element) {
+    currentAudio.value.pause()
+  }
+  currentAudio.value = element
+}
+
+function handleAudioEnded(event) {
+  if (currentAudio.value === event.target) {
+    currentAudio.value = null
+  }
+}
+
+function stopCurrentAudio() {
+  if (currentAudio.value) {
+    currentAudio.value.pause()
+    currentAudio.value = null
+  }
+}
+
 function resetTaskView() {
   stopPolling()
+  stopCurrentAudio()
   statusRequestId += 1
   taskId.value = ""
   statusData.value = null
@@ -590,9 +642,30 @@ async function loadDefaults() {
     const status = await getApiStatus({ silent: true })
     apiOnline.value = true
     const defaults = status?.defaults || {}
-    if (defaults.voice) voice.value = defaults.voice
-    if (defaults.prosody_mode) prosodyMode.value = defaults.prosody_mode
-    if (typeof defaults.enable_llm === "boolean") enableLlm.value = defaults.enable_llm
+    applyingDefaults = true
+    try {
+      if (!hasSaved("voice") && defaults.voice) voice.value = defaults.voice
+      if (!hasSaved("prosodyMode") && defaults.prosody_mode) {
+        prosodyMode.value = defaults.prosody_mode
+      }
+      if (!hasSaved("enableLlm") && typeof defaults.enable_llm === "boolean") {
+        enableLlm.value = defaults.enable_llm
+      }
+      if (
+        !hasSaved("chapterIntroOutro") &&
+        typeof defaults.chapter_intro_outro === "boolean"
+      ) {
+        chapterIntroOutro.value = defaults.chapter_intro_outro
+      }
+      if (
+        !hasSaved("chapterLeadIn") &&
+        typeof defaults.chapter_lead_in_enabled === "boolean"
+      ) {
+        chapterLeadIn.value = defaults.chapter_lead_in_enabled
+      }
+    } finally {
+      applyingDefaults = false
+    }
   } catch (error) {
     apiOnline.value = false
   }
@@ -666,6 +739,7 @@ async function loadTask(id) {
   if (!id) return
 
   stopPolling()
+  stopCurrentAudio()
   taskId.value = id
   selectionInitializedFor.value = ""
   localStorage.setItem(AUDIO_TASK_STORAGE_KEY, id)
@@ -711,16 +785,54 @@ function stopPolling() {
   }
 }
 
+function persistGenerationOptions() {
+  try {
+    localStorage.setItem(
+      GENERATION_OPTIONS_KEY,
+      JSON.stringify({
+        outputPath: outputPath.value,
+        voice: voice.value,
+        prosodyMode: prosodyMode.value,
+        enableLlm: enableLlm.value,
+        chapterIntroOutro: chapterIntroOutro.value,
+        chapterLeadIn: chapterLeadIn.value,
+      }),
+    )
+  } catch {
+    /* storage unavailable: keep the current session only */
+  }
+}
+
+watch(
+  [outputPath, voice, prosodyMode, enableLlm, chapterIntroOutro, chapterLeadIn],
+  () => {
+    if (applyingDefaults) return
+    persistGenerationOptions()
+  },
+  { flush: "sync" },
+)
+
 onMounted(() => {
   loadDefaults()
   const savedTaskId = localStorage.getItem(AUDIO_TASK_STORAGE_KEY)
   if (savedTaskId) loadTask(savedTaskId)
 })
 
-onBeforeUnmount(stopPolling)
+onBeforeUnmount(() => {
+  stopPolling()
+  stopCurrentAudio()
+})
 </script>
 
 <style scoped>
+.option-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 24px;
+  margin-top: 14px;
+}
+
 .audio-page {
   display: flex;
   flex-direction: column;
@@ -789,7 +901,7 @@ onBeforeUnmount(stopPolling)
 
 .option-form {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 260px 220px 160px;
+  grid-template-columns: minmax(0, 1fr) 260px 220px;
   gap: 14px;
   align-items: end;
   margin-top: 16px;
