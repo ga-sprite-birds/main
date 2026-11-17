@@ -33,6 +33,7 @@ export default {
             TTS_PROSODY_MODE: "Pause and prosody mode",
             TTS_PROSODY_MAX_UNIT_CHARS: "Maximum characters per prosody unit",
             CHAPTER_INTRO_OUTRO: "Enable chapter intro and outro",
+            CHAPTER_LEAD_IN_ENABLED: "Generate lead-in chapter",
             CHAPTER_INTRO_TEMPLATE: "Intro template",
             CHAPTER_OUTRO_TEMPLATE: "Outro template",
             CHAPTER_INTRO_OUTRO_PAUSE: "Intro/outro pause (seconds)",
@@ -68,7 +69,8 @@ export default {
             TTS_PROSODY_MAX_UNIT_CHARS: "Maximum characters per speech unit; only used in pause / prosody mode. Over-long sentences are split again at commas and colons.",
             OUTPUT_STRATEGY: "How output sub-folders are organised: by role, by model, or by date.",
             OUTPUT_DUPLICATE_HANDLING: "What to do when the target file already exists.",
-            CHARACTER_ANALYSIS_MODE: "How characters are analysed: auto relies on built-in rules, hybrid additionally uses an LLM for dialogue attribution."
+            CHARACTER_ANALYSIS_MODE: "How characters are analysed: auto relies on built-in rules, hybrid additionally uses an LLM for dialogue attribution.",
+            CHAPTER_LEAD_IN_ENABLED: "When enabled: reuse the file's own front matter (导读/前言) if present; otherwise the LLM writes a lead-in sized to the content and it is emitted as chapter 000."
         },
         option: {
             LANGUAGE: {

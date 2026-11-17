@@ -32,9 +32,9 @@ app.use(router);
 app.use(pinia);
 app.use(i18n);
 
-// 主题持久化（已内置在 theme store 中）
+// 主题持久化 + 绑定系统明暗变化监听（跟随系统）
 const themeStore = useThemeStore();
-themeStore.applyTheme();
+themeStore.init();
 
 // 监听语言变化并持久化到 localStorage
 watch(

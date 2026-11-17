@@ -7,6 +7,16 @@ export default {
     footer: {
         managementSystem: "Audio Narration System",
     },
+    header: {
+        checking: "Checking",
+        checkingTip: "Checking service status…",
+        running: "Running",
+        runningTip: "Service and engine are running",
+        engineDown: "Engine offline",
+        engineDownTip: "API is reachable but the Core engine is not running",
+        offline: "Offline",
+        offlineTip: "Cannot reach the Control API",
+    },
     audio: {
         title: "Convert text into chapter audio",
         apiOnline: "Service connected",
@@ -131,6 +141,8 @@ export default {
         loadFailed: "Failed to load configuration. Make sure the Core engine is running.",
         overridden: "Overridden",
         defaultValue: "Default",
+        on: "On",
+        off: "Off",
         pathPlaceholder: "Leave empty to use the default path",
         emptySection: "No configuration items in this section",
         preview: "Preview",

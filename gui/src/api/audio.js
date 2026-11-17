@@ -104,6 +104,15 @@ export function getApiStatus(options = {}) {
   })
 }
 
+export function getEngineStatus(options = {}) {
+  return request({
+    url: "/engine",
+    method: "get",
+    timeout: 8000,
+    silent: options.silent !== false,
+  })
+}
+
 export function cancelAudio(taskId) {
   return request({
     url: `/task/${taskId}/cancel`,

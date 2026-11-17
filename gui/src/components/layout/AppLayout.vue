@@ -1,11 +1,7 @@
 <template>
   <el-container class="app-layout">
     <!-- ── Header ────────────────────────────────────────── -->
-    <Header
-      header-fixed
-      :sidebar-width="sidebarWidth"
-      @open-theme-drawer="themeDrawerVisible = true"
-    />
+    <Header header-fixed :sidebar-width="sidebarWidth" />
 
     <el-container class="layout-body">
       <!-- ── Sidebar ──────────────────────────────────────── -->
@@ -38,14 +34,11 @@
 
     <!-- ── Footer ──────────────────────────────────────────── -->
     <Footer />
-
-    <!-- ── 主题设置抽屉 ──────────────────────────────────── -->
-    <ThemeSettingsDrawer v-model:visible="themeDrawerVisible" />
   </el-container>
 </template>
 
 <script setup>
-import { computed, ref } from "vue"
+import { computed } from "vue"
 import { useRoute } from "vue-router"
 import { useAppStore } from "@/store/modules/app.js"
 import { useThemeStore } from "@/store/modules/theme.js"
@@ -53,15 +46,12 @@ import { useThemeStore } from "@/store/modules/theme.js"
 import Header from "@/components/layout/Header.vue"
 import Sidebar from "@/components/layout/Sidebar.vue"
 import Footer from "@/components/layout/Footer.vue"
-import ThemeSettingsDrawer from "@/components/layout/ThemeSettingsDrawer.vue"
 
 const route = useRoute()
 const appStore = useAppStore()
 const themeStore = useThemeStore()
 const isClassicTheme = computed(() => themeStore.themeAppearance === "photoshop-cs3")
 const mainBackground = computed(() => (isClassicTheme.value ? "var(--theme-workspace-bg)" : "var(--theme-page-bg)"))
-
-const themeDrawerVisible = ref(false)
 
 const sidebarWidth = 200
 const sidebarCollapsedWidth = 64

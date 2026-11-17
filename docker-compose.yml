@@ -9,6 +9,8 @@ services:
       # Inside the container the API must listen on all interfaces.
       API_HOST: 0.0.0.0
       API_PORT: "8000"
+      # Use the ffmpeg installed in the image (ignore any host-specific path in .env).
+      FFMPEG_PATH: ""
     init: true
     ports:
       - "8000:8000"

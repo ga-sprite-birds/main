@@ -7,6 +7,16 @@ export default {
     footer: {
         managementSystem: "音频朗读系统",
     },
+    header: {
+        checking: "检查中",
+        checkingTip: "正在检查服务状态…",
+        running: "运行中",
+        runningTip: "服务与引擎运行正常",
+        engineDown: "引擎未运行",
+        engineDownTip: "API 正常，但 Core 引擎未运行",
+        offline: "离线",
+        offlineTip: "无法连接 Control API",
+    },
     audio: {
         title: "文本转高质量章节音频",
         apiOnline: "服务已连接",
@@ -131,6 +141,8 @@ export default {
         loadFailed: "配置加载失败，请确认 Core 引擎已启动",
         overridden: "已覆盖",
         defaultValue: "默认值",
+        on: "开启",
+        off: "关闭",
         pathPlaceholder: "留空使用默认路径",
         emptySection: "该分组暂无配置项",
         preview: "试听",

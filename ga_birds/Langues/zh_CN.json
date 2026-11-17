@@ -502,6 +502,7 @@
       "TTS_PROSODY_MODE": "停顿与语气模式",
       "TTS_PROSODY_MAX_UNIT_CHARS": "语气单元最大字符数",
       "CHAPTER_INTRO_OUTRO": "启用章节片头片尾",
+      "CHAPTER_LEAD_IN_ENABLED": "启动导读篇",
       "CHAPTER_INTRO_TEMPLATE": "片头模板",
       "CHAPTER_OUTRO_TEMPLATE": "片尾模板",
       "CHAPTER_INTRO_OUTRO_PAUSE": "片头片尾停顿时长（秒）",
@@ -537,7 +538,8 @@
       "TTS_PROSODY_MAX_UNIT_CHARS": "单个语音单元的最大字符数，只在「仅停顿」「停顿 + 语气」模式下生效；句子过长时会优先在逗号、顿号、冒号处再切分。",
       "OUTPUT_STRATEGY": "输出子目录的划分方式：按角色、按模型或按日期建目录。",
       "OUTPUT_DUPLICATE_HANDLING": "目标文件已存在时的处理方式。",
-      "CHARACTER_ANALYSIS_MODE": "角色分析的执行方式：自动按内置规则判断，混合模式额外借助 LLM 识别对白归属。"
+      "CHARACTER_ANALYSIS_MODE": "角色分析的执行方式：自动按内置规则判断，混合模式额外借助 LLM 识别对白归属。",
+      "CHAPTER_LEAD_IN_ENABLED": "开启后：文件自带导读（导读/前言等前置内容）则直接使用；没有导读时由 LLM 依据正文长度生成一段导读，并作为第 0 章（000）输出。"
     },
     "option": {
       "LANGUAGE": {

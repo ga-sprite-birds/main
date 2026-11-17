@@ -17,25 +17,28 @@
     <!-- 右侧操作区 -->
     <div class="header-right" :class="{ 'header-right-classic': isClassicTheme }">
       <div class="header-actions">
-        <!-- 明暗模式切换 -->
-        <el-tooltip :content="isDark ? $t('theme.switchToLight') : $t('theme.switchToDark')" placement="bottom">
+        <!-- 明暗模式：浅色 / 深色 / 跟随系统 -->
+        <el-dropdown trigger="click" @command="setThemeMode">
           <el-button
             class="theme-toggle-btn"
-            :icon="isDark ? Sunny : Moon"
+            :icon="themeModeIcon"
             circle
-            @click="themeStore.toggleThemeMode()"
+            :title="themeModeLabel"
           />
-        </el-tooltip>
-
-        <!-- 主题设置入口 -->
-        <el-tooltip :content="$t('theme.settings')" placement="bottom">
-          <el-button
-            class="theme-toggle-btn"
-            :icon="Setting"
-            circle
-            @click="emit('openThemeDrawer')"
-          />
-        </el-tooltip>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="light" :disabled="themeStore.themeMode === 'light'">
+                {{ $t("theme.light") }}
+              </el-dropdown-item>
+              <el-dropdown-item command="dark" :disabled="themeStore.themeMode === 'dark'">
+                {{ $t("theme.dark") }}
+              </el-dropdown-item>
+              <el-dropdown-item command="system" :disabled="themeStore.themeMode === 'system'">
+                {{ $t("theme.system") }}
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
 
         <!-- 语言切换 -->
         <el-dropdown trigger="click" @command="switchLang">
@@ -60,37 +63,55 @@
           </template>
         </el-dropdown>
 
-        <el-tag class="api-chip" effect="plain">FastAPI</el-tag>
+        <!-- 服务状态（API + Core 引擎） -->
+        <el-tooltip :content="serviceStatus.tooltip" placement="bottom">
+          <el-tag class="api-chip" :type="serviceStatus.type" effect="plain">
+            {{ serviceStatus.text }}
+          </el-tag>
+        </el-tooltip>
       </div>
     </div>
   </el-header>
 </template>
 
 <script setup>
-import { computed } from "vue"
+import { computed, onMounted, onUnmounted, ref } from "vue"
 import { useThemeStore } from "@/store/modules/theme.js"
 import { useI18n } from "vue-i18n"
 import { supportedLanguages } from "@/i18n/languages.js"
-import { Setting, Sunny, Moon } from "@element-plus/icons-vue"
+import { Monitor, Sunny, Moon } from "@element-plus/icons-vue"
+import { getEngineStatus } from "@/api/audio.js"
 
-const emit = defineEmits(["openThemeDrawer"])
-
-const props = defineProps({
+defineProps({
   headerFixed: { type: Boolean, default: true },
   sidebarWidth: { type: Number, default: 200 },
 })
 
 const themeStore = useThemeStore()
-const { locale } = useI18n({ useScope: "global" })
+const { t, locale } = useI18n({ useScope: "global" })
 
 const appTitle = import.meta.env.VITE_APP_TITLE || "GA Sprite Birds"
 const headerHeight = 60
-const isDark = computed(() => themeStore.isDark)
 const isClassicTheme = computed(() => themeStore.themeAppearance === "photoshop-cs3")
 
 // Header 统一消费归一化后的壳层 token
 const headerBg = computed(() => "var(--theme-header-bg)")
 const headerTextColor = computed(() => "var(--theme-header-text)")
+
+// ── 明暗模式 ──────────────────────────────────────────────
+const themeModeIcon = computed(() => {
+  if (themeStore.themeMode === "system") return Monitor
+  return themeStore.isDark ? Sunny : Moon
+})
+
+const themeModeLabel = computed(() => {
+  const keyByMode = { light: "theme.light", dark: "theme.dark", system: "theme.system" }
+  return t(keyByMode[themeStore.themeMode] || "theme.system")
+})
+
+function setThemeMode(mode) {
+  themeStore.setThemeMode(mode)
+}
 
 // ── 多语言 ────────────────────────────────────────────────
 const currentLocale = computed(() => locale.value)
@@ -102,6 +123,40 @@ const currentLangShort = computed(() => {
 function switchLang(newLocale) {
   locale.value = newLocale
 }
+
+// ── 服务状态（API + Core 引擎） ────────────────────────────
+const serviceState = ref("checking")
+let serviceTimer = null
+
+async function refreshServiceStatus() {
+  try {
+    await getEngineStatus()
+    serviceState.value = "running"
+  } catch (error) {
+    // Reached the API but the engine is down → HTTP error with a response;
+    // no response at all → the API itself is unreachable.
+    serviceState.value = error?.response ? "engineDown" : "offline"
+  }
+}
+
+const serviceStatus = computed(() => {
+  const map = {
+    checking: { type: "info", text: t("header.checking"), tooltip: t("header.checkingTip") },
+    running: { type: "success", text: t("header.running"), tooltip: t("header.runningTip") },
+    engineDown: { type: "warning", text: t("header.engineDown"), tooltip: t("header.engineDownTip") },
+    offline: { type: "danger", text: t("header.offline"), tooltip: t("header.offlineTip") },
+  }
+  return map[serviceState.value] || map.checking
+})
+
+onMounted(() => {
+  refreshServiceStatus()
+  serviceTimer = setInterval(refreshServiceStatus, 10000)
+})
+
+onUnmounted(() => {
+  if (serviceTimer) clearInterval(serviceTimer)
+})
 </script>
 <style scoped>
 .layout-header {

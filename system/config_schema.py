@@ -118,6 +118,12 @@ CONFIG_SECTIONS: tuple[ConfigSectionDefinition, ...] = (
         (
             _item("CHAPTER_INTRO_OUTRO", "bool", True),
             _item(
+                "CHAPTER_LEAD_IN_ENABLED",
+                "bool",
+                False,
+                description=True,
+            ),
+            _item(
                 "CHAPTER_INTRO_TEMPLATE",
                 "string",
                 "第{index}章开始",

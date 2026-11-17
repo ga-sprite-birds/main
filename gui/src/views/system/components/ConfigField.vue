@@ -215,7 +215,11 @@ const numberMax = computed(() => {
 
 const formattedDefault = computed(() => {
   const value = props.item.default
-  return Array.isArray(value) ? JSON.stringify(value) : String(value)
+  if (Array.isArray(value)) return JSON.stringify(value)
+  if (typeof value === "boolean") {
+    return value ? t("configPage.on") : t("configPage.off")
+  }
+  return String(value)
 })
 
 // 多选列表的候选项：默认值 + 当前值 + 用户已创建的其它值。
@@ -234,13 +238,13 @@ const listOptions = computed(() => {
 })
 
 const rangeText = computed(() => {
-  if (props.item.ge !== null && props.item.ge !== undefined) {
-    return `≥ ${props.item.ge}${props.item.le !== null ? ` / ≤ ${props.item.le}` : ""}`
-  }
-  if (props.item.gt !== null && props.item.gt !== undefined) {
-    return `> ${props.item.gt}${props.item.lt ? ` / < ${props.item.lt}` : ""}`
-  }
-  return ""
+  const has = (value) => value !== null && value !== undefined
+  const parts = []
+  if (has(props.item.ge)) parts.push(`≥ ${props.item.ge}`)
+  else if (has(props.item.gt)) parts.push(`> ${props.item.gt}`)
+  if (has(props.item.le)) parts.push(`≤ ${props.item.le}`)
+  else if (has(props.item.lt)) parts.push(`< ${props.item.lt}`)
+  return parts.join(" / ")
 })
 
 // 后端下发 i18n key（config.desc.<KEY> / config.option.<KEY>.<值>），

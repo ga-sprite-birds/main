@@ -5,9 +5,6 @@
         <p class="eyebrow">{{ appTitle }}</p>
         <h1>{{ $t("audio.title") }}</h1>
       </div>
-      <el-tag :type="serviceReady ? 'success' : 'info'" effect="plain">
-        {{ serviceReady ? $t("audio.apiOnline") : $t("audio.apiPending") }}
-      </el-tag>
     </section>
 
     <section class="workspace-grid">
