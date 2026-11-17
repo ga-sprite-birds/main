@@ -36,7 +36,7 @@ v2-headless-core： engine（每个任务开始时读配置）  ── 唯一写
 
 1. **契约优先**：遵循 `.augment/rules/imported/`（`task-system.md` / `api.md` / `python.md` / `sql.md` / `language.md`）。**非 Python 部分（php/vue/vite）忽略。**
 2. **入口**：
-   - `fcgi-bin/api.py` —— 唯一 API 入口；**本版无 policy**，只有 `/fcgi-bin/api/*`。
+   - `python -m server run`（`server/` 包）—— 唯一 API 入口；**本版无 policy**，只有 `/fcgi-bin/api/*`。
    - `fcgi-bin/cli.py` —— CLI，作为 Core 的客户端。
    - `engine/` —— Core 引擎，`python -m engine run`（系统层 systemd / 手动）。
 3. **响应**：`{ code: 0 成功, msg, data }`；错误码分段 1000~4999（见 `api.md`）。
@@ -101,7 +101,7 @@ v2-headless-core： engine（每个任务开始时读配置）  ── 唯一写
 - 命令通道：**localhost HTTP + token + 运行时发现文件**（跨平台，不用 UDS）。
 - Core 包名：`engine/`；入口 `python -m engine run`。
 - 状态库：`data/tasks.db`（WAL），**engine 单写 / API 只读**。
-- API 结构：`fcgi-bin/api.py` 唯一，**无 policy**。
+- API 结构：`python -m server run`（`server/` 包）唯一，**无 policy**。
 - 端口：默认 `39300`，占用顺延。
 - 运行时目录：可配置（开发 `run/`；systemd `RuntimeDirectory`）。
 - 清理：定期自动 + `cli.py clean`（引擎执行 `task.cleanup`）。
@@ -137,7 +137,7 @@ v2-headless-core： engine（每个任务开始时读配置）  ── 唯一写
 | 0 骨架 | `system/response.py`、`system/db.py`、`system/config.py` | 单测 + `engine doctor` |
 | 1 配置 | `system/config_schema.py`（7 组 45 项）、`ConfigService`、`routers/system_config.py`、`routers/tts.py` | `tests/unit/test_config_service.py`、`test_system_config.py`（23 项，含跨实例热重载） |
 | 2 引擎 | `engine/`（store/scheduler/service/handlers/lock/runtime/ops）、`tasks.db` 迁移 | `test_engine_store.py`、`test_engine_service.py` |
-| 3 薄 API + CLI | `fcgi-bin/api.py`、`fcgi-bin/cli.py`、`services/control/`、`services/task_query_service.py` | `test_api_v2.py`（19 项契约测试） |
+| 3 薄 API + CLI | `server/`（Control API 启动器）、`fcgi-bin/api.py`、`fcgi-bin/cli.py`、`services/control/`、`services/task_query_service.py` | `test_api_v2.py`（19 项契约测试） |
 | 4 GUI | `views/policy/system/config.vue` + `ConfigField.vue`、路由、侧栏 7 组、i18n、单文件构建 | `vite build` 通过（1715 模块）+ 配置 API 端到端 |
 | 5 收尾 | `.env` 瘦身、`docs/deploy/`（systemd + 运维）、`docs/api.md`、README 重写、测试迁移 | `pytest tests` 94 passed |
 

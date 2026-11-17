@@ -105,6 +105,9 @@ async def _run_with_snapshot(
     else:
         requested = set(available)
 
+    # Display numbering: front matter = 0, real chapters = 1..N.
+    display_indexes = AudioExporter.display_index_map(chapters)
+
     prosody_mode = _normalize_prosody(options.get("prosody_mode"), snapshot)
     enable_llm = bool(
         snapshot.get("ENABLE_LLM")
@@ -189,6 +192,7 @@ async def _run_with_snapshot(
         )
         store.heartbeat(task_id)
         try:
+            file_index = display_indexes.get(chapter_index, chapter_index)
             result = await generate_single_voice_chapter(
                 chapter_index=chapter_index,
                 chapter_title=chapter["title"],
@@ -202,6 +206,8 @@ async def _run_with_snapshot(
                 audio_exporter=audio_exporter,
                 prosody_mode=prosody_mode,
                 source_name=source_name,
+                display_index=file_index,
+                is_front_matter=file_index == 0,
             )
             store.update_chapter(
                 task_id,

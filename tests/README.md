@@ -60,7 +60,8 @@ pytest tests/unit/test_upload.py::test_upload_with_file -v
 
 ```bash
 # 步骤 1: 启动 API 服务器（新终端）
-bash api.sh
+python -m engine run   # 终端 A
+python -m server run   # 终端 B
 
 # 步骤 2: 运行集成测试（另一个终端）
 # 默认连接 http://localhost:8000；可用 API_BASE_URL 覆盖
@@ -164,7 +165,8 @@ pytest --cov=ga_birds --cov=fcgi-bin --cov-report=html
 **解决**：
 ```bash
 # 启动 API 服务器
-bash api.sh
+python -m engine run   # 终端 A
+python -m server run   # 终端 B
 ```
 
 ### **Q2: 测试超时**

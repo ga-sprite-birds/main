@@ -1,0 +1,23 @@
+services:
+  ga-sprite-birds:
+    build: .
+    image: ga-sprite-birds:2
+    # Keep .env for deployment settings + LLM credentials (gitignored).
+    env_file:
+      - .env
+    environment:
+      # Inside the container the API must listen on all interfaces.
+      API_HOST: 0.0.0.0
+      API_PORT: "8000"
+    init: true
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./run:/app/run
+      - ./cache:/app/cache
+      - ./output:/app/output
+      - ./logs:/app/logs
+      - ./uploads:/app/uploads
+      - ./models:/app/models
+    restart: unless-stopped

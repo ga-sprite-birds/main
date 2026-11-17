@@ -96,19 +96,51 @@ class AudioExporter:
 
         return output_path
 
+    @staticmethod
+    def _strip_chapter_prefix(title: str) -> str:
+        return re.sub(
+            r"^第[0-9零一二三四五六七八九十百千]+章[\s:：、,，.．-]*",
+            "",
+            (title or "").strip(),
+        )
+
+    @classmethod
+    def front_matter_marker(cls, title: str) -> Optional[str]:
+        """Return the matched front-matter marker for a title, if any."""
+        clean = cls._strip_chapter_prefix(title)
+        for marker in config.OUTPUT_FRONT_MATTER_MARKERS:
+            if marker and clean.startswith(marker):
+                return marker
+        return None
+
     @classmethod
     def get_filename_parts(cls, index: int, title: str):
         """Return the numeric prefix and title used in the output filename."""
-        clean = re.sub(
-            r"^第[0-9零一二三四五六七八九十百千]+章[\s:：、,，.．-]*",
-            "",
-            title.strip(),
-        )
-        for marker in config.OUTPUT_FRONT_MATTER_MARKERS:
-            if clean.startswith(marker):
-                canonical = marker if marker.endswith("篇") else f"{marker}篇"
-                return 0, canonical
+        marker = cls.front_matter_marker(title)
+        if marker is not None:
+            canonical = marker if marker.endswith("篇") else f"{marker}篇"
+            return 0, canonical
         return index, title
+
+    @classmethod
+    def display_index_map(cls, chapters) -> dict:
+        """Map task chapter_index -> display index for filenames and intros.
+
+        Front matter (导读/前言/...) is 0; the remaining chapters are numbered
+        1..N in reading order, so 导读 = 000, first chapter = 001, and so on.
+        The task's own chapter_index is left untouched.
+        """
+        mapping: dict[int, int] = {}
+        counter = 0
+        for chapter in chapters:
+            index = int(chapter["chapter_index"])
+            title = chapter.get("title") or ""
+            if cls.front_matter_marker(title) is not None:
+                mapping[index] = 0
+            else:
+                counter += 1
+                mapping[index] = counter
+        return mapping
 
     @staticmethod
     def get_source_stem(source_name: Optional[str]) -> Optional[str]:

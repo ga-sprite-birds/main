@@ -69,6 +69,8 @@ async def generate_single_voice_chapter(
     audio_exporter,
     prosody_mode: Optional[str] = None,
     source_name: Optional[str] = None,
+    display_index: Optional[int] = None,
+    is_front_matter: bool = False,
 ) -> ChapterAudioResult:
     """
     Generate one chapter with a single voice.
@@ -97,13 +99,21 @@ async def generate_single_voice_chapter(
     elif enable_llm:
         logger.warning(t("api.chapter_llm_fallback", index=chapter_index))
 
-    intro, outro = ChapterProcessor.prepare_intro_outro(chapter_index, chapter_title)
+    # Filenames and "第N章开始" intros use the display index (front matter is 0,
+    # real chapters are 1..N); the task's chapter_index stays as the stable id.
+    file_index = display_index if display_index is not None else chapter_index
+    if is_front_matter:
+        intro, outro = None, None
+    else:
+        intro, outro = ChapterProcessor.prepare_intro_outro(
+            file_index, chapter_title
+        )
     final_content = ChapterProcessor.combine_content_with_intro_outro(
         content, intro, outro
     )
 
     audio_path = audio_exporter.get_output_path(
-        index=chapter_index,
+        index=file_index,
         title=chapter_title,
         role="default",
         custom_base_path=output_dir,

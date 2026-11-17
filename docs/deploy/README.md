@@ -31,7 +31,7 @@ v2 是**两个进程**：
 python -m engine run
 
 # 终端 2：Control API
-python fcgi-bin/api.py
+python -m server run
 
 # 另开终端做健康检查
 python -m engine status          # pid / port / 任务计数
@@ -142,3 +142,23 @@ location / {
 ```
 
 **不要**把 `127.0.0.1:39300`（引擎命令通道）暴露出去。
+
+---
+
+## 5. Docker
+
+仓库自带 `Dockerfile` + `docker-compose.yml`，在一个容器内同时运行 Core 引擎与 Control API（共享 loopback，API 可访问引擎命令通道）。
+
+```bash
+cp .env.example .env          # 配置 LLM 凭据
+docker compose up -d --build
+# GUI: http://127.0.0.1:8000/
+docker compose logs -f
+docker compose down
+```
+
+- 持久化：`./data ./run ./cache ./output ./logs ./uploads ./models`（bind mount）。
+- 容器内 `API_HOST=0.0.0.0`；宿主机只映射 `8000`，引擎命令通道 `127.0.0.1:39300` 不暴露。
+- 需要水平拆分时，可改成 engine / api 两个服务，并用 `network_mode: service:engine` 让 API 共享引擎的 loopback。
+
+> 服务器部署以 **venv** 为主；conda 是开发环境，不作为服务器运行时。

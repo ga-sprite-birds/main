@@ -44,15 +44,15 @@ def test_front_matter_uses_zero_prefix_and_normalized_title(tmp_path, monkeypatc
         )
         assert output.name == expected
 
-    # A normal chapter keeps its existing sequence and title.
+    # Callers pass the display index: the first real chapter is 001, not 002.
     normal = exporter.get_output_path(
-        index=2,
+        index=1,
         title="第1章 示例章节",
         role="default",
         custom_base_path=str(tmp_path),
         source_name="book.md",
     )
-    assert normal.name.startswith("002-第1章")
+    assert normal.name.startswith("001-第1章")
 
     # A chapter that merely mentions 导读 is not front matter.
     assert AudioExporter.get_filename_parts(
@@ -103,3 +103,22 @@ def test_front_matter_markers_are_configurable(monkeypatch):
         2,
         "第1章 示例章节",
     )
+
+
+@pytest.mark.unit
+def test_display_index_map_puts_front_matter_at_zero():
+    chapters = [
+        {"chapter_index": 1, "title": "第0章 导读篇"},
+        {"chapter_index": 2, "title": "第1章 安拉的花园"},
+        {"chapter_index": 3, "title": "第2章 我不想当商人"},
+    ]
+    assert AudioExporter.display_index_map(chapters) == {1: 0, 2: 1, 3: 2}
+
+
+@pytest.mark.unit
+def test_display_index_map_without_front_matter_starts_at_one():
+    chapters = [
+        {"chapter_index": 1, "title": "第1章 开始"},
+        {"chapter_index": 2, "title": "第2章 继续"},
+    ]
+    assert AudioExporter.display_index_map(chapters) == {1: 1, 2: 2}

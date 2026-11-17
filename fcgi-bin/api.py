@@ -526,17 +526,3 @@ async def gui_history_fallback(full_path: str) -> Any:
             headers={"Cache-Control": "no-store"},
         )
     return _gui_response()
-
-
-if __name__ == "__main__":
-    import uvicorn
-
-    from system.logging_setup import configure_logging
-
-    configure_logging("api")
-    uvicorn.run(
-        app,
-        host=settings.API_HOST,
-        port=settings.API_PORT,
-        log_level=settings.LOG_LEVEL.lower(),
-    )

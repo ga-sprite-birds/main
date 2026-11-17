@@ -1,5 +1,7 @@
-# Production template. Adjust User/Group/WorkingDirectory/ExecStart and the
-# ReadWritePaths to match your install location before enabling.
+# Production template (virtualenv). Adjust User/Group/WorkingDirectory/ExecStart
+# and the ReadWritePaths to match your install location before enabling.
+# Conda is a development environment; not recommended for servers. If needed:
+#   ExecStart=/home/<user>/miniconda3/envs/ga-sprite-birds/bin/python -m engine run
 [Unit]
 Description=GA Sprite Birds Core Engine
 Documentation=file:///opt/ga-sprite-birds/docs/deploy/README.md

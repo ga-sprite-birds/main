@@ -45,12 +45,36 @@ python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\act
 pip install -r requirements.txt
 ```
 
-Start the engine and the API, then open <http://127.0.0.1:8000/>:
+**Quick start** — `utils/quick/` launches the Core engine and the Control API together (and opens the GUI):
 
 ```bash
-python -m engine run        # terminal 1 — Core engine
-python fcgi-bin/api.py      # terminal 2 — Control API + GUI
+bash utils/quick/linux-run.sh        # Linux
+./utils/quick/mac-run.command        # macOS
 ```
+
+On Windows, start the two processes manually (see the install guide).
+
+**Or run separately**, one process per terminal:
+
+```bash
+python -m engine run              # terminal 1 — Core engine
+python -m server run     # terminal 2 — Control API + GUI
+```
+
+The FastAPI application lives in `fcgi-bin/api.py`; `python -m server run` is its
+launcher (the `server/` package: host/port + uvicorn). If the API port is occupied,
+it picks the next free port and prints a warning; pass `--strict-port` to fail instead.
+
+**Or run with Docker** (engine + API in one container):
+
+```bash
+cp .env.example .env          # set LLM credentials
+docker compose up -d --build
+# open http://127.0.0.1:8000/
+```
+
+The shipped units/scripts use a **venv** for servers; conda is a development convenience.
+
 
 **Documentation navigation**
 
@@ -73,7 +97,7 @@ python fcgi-bin/api.py      # terminal 2 — Control API + GUI
 GUI / CLI / HTTP clients
         │
         ▼
-Control API (fcgi-bin/api.py)          Core engine (python -m engine run)
+Control API (python -m server run)            Core engine (python -m engine run)
 · accepts uploads, serves the GUI      · the only executor
 · forwards commands (idempotent)  ───▶ · the only writer of task state
 · read-only task queries          ◀─── · per-chapter checkpoints, recovery
@@ -102,7 +126,7 @@ Control API (fcgi-bin/api.py)          Core engine (python -m engine run)
 
 ### 3.3 API mode — for services & integrations
 
-`fcgi-bin/api.py` exposes the same capabilities as `/fcgi-bin/api/*` for remote clients and
+The Control API (`python -m server run`) exposes the same capabilities as `/fcgi-bin/api/*` for remote clients and
 the web GUI:
 
 - Step-by-step endpoints with JSON bodies: `upload → parse → generate → status/download`.
@@ -134,7 +158,7 @@ other can do.
 
 ```bash
 python -m engine run        # terminal 1 — Core engine (Ctrl+C = graceful stop)
-python fcgi-bin/api.py      # terminal 2 — Control API + GUI
+python -m server run      # terminal 2 — Control API + GUI
 ```
 
 Engine status / discovery: `python -m engine status` (PID, port, task counters). The engine

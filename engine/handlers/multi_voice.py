@@ -86,6 +86,8 @@ async def generate_multi_voice_chapters(
     tts_manager = TTSManager()
     audio_exporter = AudioExporter()
     audio_merger = AudioMerger()
+    # Display numbering: front matter = 0, real chapters = 1..N.
+    display_indexes = AudioExporter.display_index_map(chapters)
 
     generated: list[int] = []
     failed: list[dict[str, Any]] = []
@@ -133,9 +135,13 @@ async def generate_multi_voice_chapters(
                     )
                     colloquialized_content = None
 
-            intro, outro = ChapterProcessor.prepare_intro_outro(
-                chapter_index, chapter["title"]
-            )
+            file_index = display_indexes.get(chapter_index, chapter_index)
+            if file_index == 0:
+                intro, outro = None, None
+            else:
+                intro, outro = ChapterProcessor.prepare_intro_outro(
+                    file_index, chapter["title"]
+                )
             parser = DialogueParser(llm_manager, characters)
             segments = await asyncio.to_thread(
                 parser.parse_chapter, content, chapter_index
@@ -144,7 +150,7 @@ async def generate_multi_voice_chapters(
                 segments, intro, outro
             )
             audio_path = audio_exporter.get_output_path(
-                index=chapter_index,
+                index=file_index,
                 title=chapter["title"],
                 role="multi",
                 custom_base_path=output_path,

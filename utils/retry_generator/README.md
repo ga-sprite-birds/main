@@ -82,7 +82,7 @@ echo '开始重试失败章节...'
 
 # 批次1：第67-86章（20章）
 echo '执行批次 1/7...'
-bash cli.sh -i debug/ga.pdf --start 67 --end 86
+python fcgi-bin/cli.py -i debug/ga.pdf --start 67 --end 86
 if [ $? -ne 0 ]; then
     echo '❌ 批次1失败，是否继续？(y/n)'
     read -r response
@@ -103,10 +103,10 @@ fi
 ============================================================
 
 批次1：第67-86章（20章）
-bash cli.sh -i debug/ga.pdf --start 67 --end 86
+python fcgi-bin/cli.py -i debug/ga.pdf --start 67 --end 86
 
 批次2：第87-106章（20章）
-bash cli.sh -i debug/ga.pdf --start 87 --end 106
+python fcgi-bin/cli.py -i debug/ga.pdf --start 87 --end 106
 ```
 
 ### 直接执行模式 (`exec`)

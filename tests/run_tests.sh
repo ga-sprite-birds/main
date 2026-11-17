@@ -42,7 +42,8 @@ case $TEST_TYPE in
         echo "（需要先启动 API 服务器）"
         echo ""
         echo "请确保已在另一个终端运行："
-        echo "  bash api.sh"
+        echo "  python -m engine run   # 终端 A"
+        echo "  python -m server run   # 终端 B"
         echo ""
         read -p "按 Enter 继续，或 Ctrl+C 取消..."
         "${PYTHON_BIN}" -m pytest tests/integration -v -m integration
@@ -59,7 +60,8 @@ case $TEST_TYPE in
         echo ""
         echo -e "${YELLOW}2. 集成测试${NC}"
         echo "请确保已在另一个终端运行："
-        echo "  bash api.sh"
+        echo "  python -m engine run   # 终端 A"
+        echo "  python -m server run   # 终端 B"
         echo ""
         read -p "按 Enter 继续，或 Ctrl+C 取消..."
         "${PYTHON_BIN}" -m pytest tests/integration -v -m integration

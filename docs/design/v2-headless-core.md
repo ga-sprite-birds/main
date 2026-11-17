@@ -146,7 +146,7 @@ GUI / CLI ───────────────► Control API(api.py) �
 
 ## 7. API 层（薄）
 
-- **入口**：`fcgi-bin/api.py`（唯一；本版**无 policy**）。
+- **入口**：`python -m server run`（`server/` 包，加载 `fcgi-bin/api.py` 的 app；本版**无 policy**）。
 - 路由只做：收参（Pydantic）→ 构造命令发给 Core / 只读查 tasks.db → 统一响应。
 - **禁止**：import `Audio/LLM/Parser`、任务循环、写 task 状态。
 - 路由集：`upload / parse / generate / pause / resume / cancel / delete / retry / status / chapter / events / system-config / tts-voices / GUI`。
@@ -201,7 +201,7 @@ After=network.target ga-sprite-birds-core.service
 
 [Service]
 WorkingDirectory=/opt/ga-sprite-birds
-ExecStart=/opt/ga-sprite-birds/.venv/bin/python fcgi-bin/api.py
+ExecStart=/opt/ga-sprite-birds/.venv/bin/python -m server run
 Restart=on-failure
 User=ga
 
@@ -212,7 +212,7 @@ WantedBy=multi-user.target
 ### 10.2 手动临时启动
 ```bash
 python -m engine run          # 前台常驻引擎
-python fcgi-bin/api.py        # 另开终端启动 API
+python -m server run        # 另开终端启动 API
 ```
 
 ---

@@ -51,7 +51,7 @@ project/
 └── .env                        # 仅部署级/密钥
 ```
 
-- **入口**：`fcgi-bin/api.py` 唯一入口，所有 API 走它；本版**没有 policy**，不建 `/fcgi-bin/policy/*`。
+- **入口**：`python -m server run`（`server/` 包，加载 `fcgi-bin/api.py` 的 app）是唯一入口；本版**没有 policy**，不建 `/fcgi-bin/policy/*`。
 - **路由前缀**：统一 `/fcgi-bin/api/*`。
 - **响应结构**：统一 `{code, msg, data}`，`code=0` 成功（见 `api.md`）。
 

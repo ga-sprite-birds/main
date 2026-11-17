@@ -1,6 +1,6 @@
 # Control API 参考（v2）
 
-所有业务接口挂在 `/fcgi-bin/api` 前缀下。`fcgi-bin/api.py` 只是薄控制面：
+所有业务接口挂在 `/fcgi-bin/api` 前缀下。Control API 由 `python -m server run` 启动（`server/` 包），FastAPI 应用在 `fcgi-bin/api.py`，只是薄控制面：
 **不执行任务**，只做参数校验、命令转发、只读查询。
 
 - 上传与命令转发 → Core 引擎（localhost HTTP + Bearer token）

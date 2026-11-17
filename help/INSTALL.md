@@ -117,15 +117,36 @@ differs between the two deployment styles below; functionality is identical.
 
 ### 3.1 Local deployment (personal machine / development)
 
-Run one process per terminal:
+**Quick start** — `utils/quick/` launches the engine and the API together:
+
+```bash
+bash utils/quick/linux-run.sh        # Linux
+./utils/quick/mac-run.command        # macOS
+```
+
+It reuses an engine that is already running, picks a free API port if the default
+is taken, and opens the GUI when ready.
+
+On Windows, start the two processes manually:
+
+```powershell
+python -m engine run        # terminal 1
+python -m server run        # terminal 2
+```
+
+**Run separately** — one process per terminal:
 
 ```bash
 # Terminal 1: Core engine (foreground; Ctrl+C = graceful stop)
 python -m engine run
 
 # Terminal 2: Control API (also serves the GUI)
-python fcgi-bin/api.py
+python -m server run
 ```
+
+`python -m server run` auto-switches to a free port and prints a warning when the
+requested port is occupied; add `--strict-port` for a fixed port (used by the shipped
+systemd units, Docker and reverse-proxy setups).
 
 Open <http://127.0.0.1:8000/>. Health checks:
 
@@ -185,10 +206,28 @@ rollback are covered in [docs/deploy/README.md](../docs/deploy/README.md).
 ```powershell
 nssm install GASpriteBirds-Core "C:\path\to\python.exe" "-m engine run"
 nssm set GASpriteBirds-Core AppDirectory "C:\path\to\repo"
-nssm install GASpriteBirds-API "C:\path\to\python.exe" "fcgi-bin/api.py"
+nssm install GASpriteBirds-API "C:\path\to\python.exe" "-m server run --strict-port"
 nssm set GASpriteBirds-API AppDirectory "C:\path\to\repo"
 nssm start GASpriteBirds-Core; nssm start GASpriteBirds-API
 ```
+
+**Docker (all platforms).** The repo ships a `Dockerfile` + `docker-compose.yml` that
+run the engine and the API in one container (they share loopback):
+
+```bash
+cp .env.example .env          # set LLM credentials
+docker compose up -d --build
+# GUI: http://127.0.0.1:8000/
+docker compose logs -f
+docker compose down
+```
+
+Persistent data lives in the bind-mounted `./data`, `./run`, `./cache`, `./output`,
+`./logs`, `./uploads`, `./models`. The engine command channel (`127.0.0.1:39300`)
+is never exposed.
+
+> For servers and the shipped systemd units, use a **venv**. Conda is a development
+> convenience; the units only show it as a commented alternative.
 
 ---
 

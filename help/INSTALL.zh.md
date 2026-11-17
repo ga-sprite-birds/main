@@ -110,15 +110,33 @@ v2 始终是**两个进程**：Core 引擎（唯一执行者、任务状态唯�
 
 ### 3.1 本地部署（个人机器 / 开发）
 
-每个进程一个终端：
+**快速启动** —— `utils/quick/` 一条命令同时拉起引擎和 API：
+
+```bash
+bash utils/quick/linux-run.sh        # Linux
+./utils/quick/mac-run.command        # macOS
+```
+
+它会复用已在运行的引擎；若默认端口被占会自动挑一个空闲端口，并在就绪后打开界面。
+
+Windows 下请手动启动两个进程：
+
+```powershell
+python -m engine run        # 终端 1
+python -m server run        # 终端 2
+```
+
+**或者分别运行**，每个进程一个终端：
 
 ```bash
 # 终端 1：Core 引擎（前台；Ctrl+C 优雅停止）
 python -m engine run
 
 # 终端 2：Control API（同时托管 GUI）
-python fcgi-bin/api.py
+python -m server run
 ```
+
+`python -m server run` 在端口被占用时会自动顺延并打印警告；加 `--strict-port` 则固定端口、占用即报错（自带的 systemd 单元、Docker、反向代理都使用它）。
 
 打开 <http://127.0.0.1:8000/>。健康检查：
 
@@ -173,10 +191,24 @@ unit 会失败自动重启（`Restart=on-failure`），并优雅停止（当前�
 ```powershell
 nssm install GASpriteBirds-Core "C:\path\to\python.exe" "-m engine run"
 nssm set GASpriteBirds-Core AppDirectory "C:\path\to\repo"
-nssm install GASpriteBirds-API "C:\path\to\python.exe" "fcgi-bin/api.py"
+nssm install GASpriteBirds-API "C:\path\to\python.exe" "-m server run --strict-port"
 nssm set GASpriteBirds-API AppDirectory "C:\path\to\repo"
 nssm start GASpriteBirds-Core; nssm start GASpriteBirds-API
 ```
+
+**Docker（全平台）。** 仓库自带 `Dockerfile` + `docker-compose.yml`，在一个容器内同时运行引擎与 API（共享 loopback）：
+
+```bash
+cp .env.example .env          # 配置 LLM 凭据
+docker compose up -d --build
+# GUI: http://127.0.0.1:8000/
+docker compose logs -f
+docker compose down
+```
+
+持久化数据在 bind mount 的 `./data`、`./run`、`./cache`、`./output`、`./logs`、`./uploads`、`./models`。引擎命令通道（`127.0.0.1:39300`）不对外暴露。
+
+> 服务器部署与自带 systemd 单元使用 **venv**。conda 仅是开发便利，单元里只作为注释示例。
 
 ---
 

@@ -92,7 +92,7 @@ class CommandGenerator:
             lines.extend([
                 f"# 批次{i}：第{start}-{end}章（{count}章）",
                 f"echo '执行批次 {i}/{len(batches)}...'",
-                f"bash cli.sh -i {self.input_file} --start {start} --end {end}",
+                f"python fcgi-bin/cli.py -i {self.input_file} --start {start} --end {end}",
                 "if [ $? -ne 0 ]; then",
                 f"    echo '❌ 批次{i}失败，是否继续？(y/n)'",
                 "    read -r response",
@@ -136,7 +136,7 @@ class CommandGenerator:
             count = end - start + 1
             lines.extend([
                 f"批次{i}：第{start}-{end}章（{count}章）",
-                f"bash cli.sh -i {self.input_file} --start {start} --end {end}",
+                f"python fcgi-bin/cli.py -i {self.input_file} --start {start} --end {end}",
                 ""
             ])
         

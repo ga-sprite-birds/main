@@ -39,12 +39,34 @@ python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\act
 pip install -r requirements.txt
 ```
 
-启动引擎和 API，打开 <http://127.0.0.1:8000/>：
+**快速启动** —— `utils/quick/` 会把 Core 引擎和 Control API 一起拉起（并自动打开界面）：
 
 ```bash
-python -m engine run        # 终端 1 — Core 引擎
-python fcgi-bin/api.py      # 终端 2 — Control API + GUI
+bash utils/quick/linux-run.sh        # Linux
+./utils/quick/mac-run.command        # macOS
 ```
+
+Windows 下请按安装指南手动启动两个进程。
+
+**或者分别运行**，每个进程一个终端：
+
+```bash
+python -m engine run              # 终端 1 — Core 引擎
+python -m server run     # 终端 2 — Control API + GUI
+```
+
+FastAPI 应用在 `fcgi-bin/api.py`；`python -m server run` 是它的启动器（`server/` 包：host/port + uvicorn）。API 端口被占用时会自动顺延并打印警告；加 `--strict-port` 则改为直接报错。
+
+**或用 Docker 运行**（引擎 + API 在同一个容器内）：
+
+```bash
+cp .env.example .env          # 配置 LLM 凭据
+docker compose up -d --build
+# 打开 http://127.0.0.1:8000/
+```
+
+服务器部署使用 **venv**；conda 仅作开发便利，不作为服务器环境。
+
 
 **文档导航**
 
@@ -67,7 +89,7 @@ python fcgi-bin/api.py      # 终端 2 — Control API + GUI
 GUI / CLI / HTTP 客户端
         │
         ▼
-Control API（fcgi-bin/api.py）          Core 引擎（python -m engine run）
+Control API（python -m server run）            Core 引擎（python -m engine run）
 · 接收上传、托管 GUI                    · 唯一的任务执行者
 · 转发命令（幂等）                 ───▶ · 任务状态的唯一写者
 · 只读查询任务状态                 ◀─── · 章节级 checkpoint、崩溃恢复
@@ -91,7 +113,7 @@ Control API（fcgi-bin/api.py）          Core 引擎（python -m engine run）
 
 ### 3.3 API 模式 —— 面向服务与集成
 
-`fcgi-bin/api.py` 以 `/fcgi-bin/api/*` 暴露同样的能力，供远程客户端与 Web 界面使用：
+Control API（`python -m server run`）以 `/fcgi-bin/api/*` 暴露同样的能力，供远程客户端与 Web 界面使用：
 
 - 分步端点 + JSON 请求体：`upload → parse → generate → status/下载`。
 - 统一响应信封 `{"code", "msg", "data"}`；事件流按 `event_id` 游标增量拉取。
@@ -119,7 +141,7 @@ Control API（fcgi-bin/api.py）          Core 引擎（python -m engine run）
 
 ```bash
 python -m engine run        # 终端 1 — Core 引擎（Ctrl+C 优雅停止）
-python fcgi-bin/api.py      # 终端 2 — Control API + GUI
+python -m server run      # 终端 2 — Control API + GUI
 ```
 
 引擎状态：`python -m engine status`（PID、端口、任务计数）。默认监听 `127.0.0.1:39300`，端口和 token 写入 `run/engine.json`。

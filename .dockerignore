@@ -1,0 +1,29 @@
+.git
+.gitignore
+.gitattributes
+.venv
+venv/
+ENV/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+node_modules/
+gui/node_modules/
+
+# Runtime data (mounted as volumes at run time)
+data/
+run/
+cache/
+output/
+logs/
+uploads/
+models/
+debug/
+
+# Secrets
+.env
+
+*.log

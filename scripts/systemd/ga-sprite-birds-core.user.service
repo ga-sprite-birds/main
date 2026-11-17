@@ -1,5 +1,7 @@
 # Personal/dev template (runs as the invoking user, no root).
-# Adjust WorkingDirectory and ExecStart to your project path and Python.
+# Primary: a project virtualenv. Adjust %h/... to your checkout location.
+# Conda is a development environment; if you must, replace ExecStart with:
+#   ExecStart=%h/miniconda3/envs/ga-sprite-birds/bin/python -m engine run
 [Unit]
 Description=GA Sprite Birds Core Engine
 Documentation=https://github.com/tiger-sprite/ga-sprite-birds
@@ -8,11 +10,11 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=/web/ga-sprite-birds
-ExecStart=/home/adam/miniconda3/envs/ga-sprite-birds/bin/python -m engine run
+WorkingDirectory=%h/ga-sprite-birds
+ExecStart=%h/ga-sprite-birds/.venv/bin/python -m engine run
 Restart=on-failure
 RestartSec=5
-# Graceful shutdown: let the engine finish the current chapter / checkpoint.
+# Graceful stop: let the current chapter finish and checkpoint.
 TimeoutStopSec=60
 KillSignal=SIGTERM
 Environment=PYTHONUNBUFFERED=1

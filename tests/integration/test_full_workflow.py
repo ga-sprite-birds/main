@@ -2,7 +2,7 @@
 
 Start both processes first:
     python -m engine run
-    python fcgi-bin/api.py
+    python -m server run
 
 The tests skip themselves when the API is unreachable, so they are safe to run
 in a normal ``pytest`` session without a server.

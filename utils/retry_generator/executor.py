@@ -5,6 +5,7 @@ Command executor - directly executes retry commands
 """
 
 import subprocess
+import sys
 from typing import List, Tuple
 from pathlib import Path
 
@@ -59,7 +60,7 @@ class CommandExecutor:
             print(f"{'='*60}\n")
             
             cmd = [
-                'bash', 'cli.sh',
+                sys.executable, 'fcgi-bin/cli.py',
                 '-i', self.input_file,
                 '--start', str(start),
                 '--end', str(end)
