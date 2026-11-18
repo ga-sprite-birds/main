@@ -81,11 +81,20 @@ cp .env.example .env
 | `LLM_API_ENDPOINT` / `LLM_API_KEY` / `LLM_API_MODEL` | — | `api` 模式的地址、密钥、模型 |
 | `LLM_LOCAL_HOST` / `LLM_LOCAL_MODEL` | `http://localhost:11434` / `deepseek-r1:7b` | 本地 Ollama |
 | `API_HOST` / `API_PORT` | `127.0.0.1` / `8000` | Control API 绑定地址 |
+| `API_AUTH_ENABLED` / `API_AUTH_TOKEN` | `false` / 空 | 可选令牌鉴权；API 离开 loopback 时必须启用 |
+| `API_CORS_ENABLED` / `API_CORS_ORIGINS` | `false` / 空 | 默认关闭 CORS；需要时使用明确来源 |
+| `API_MAX_UPLOAD_SIZE` | `100` | 上传上限（MB）；`0` 不限 |
+| `API_MAX_JSON_BODY_SIZE` | `1` | JSON 请求体上限（MB）；`0` 不限 |
+| `API_LOCAL_READ_ROOTS` | 空 | `/upload?path=` 额外允许的根目录；uploads/ 始终允许 |
 | `TASK_MAX_CONCURRENT` | `2` | 引擎并发任务数 |
 | `TASK_RESULT_TTL` | `86400` | 终态任务记录保留秒数；`0` 永久保留 |
 | `FFMPEG_PATH` | 空 | FFmpeg 目录；空则使用系统 `PATH` |
 | `MODEL_CACHE_DIR` | `./cache/models` | 下载的模型缓存（与 `models/` 代码包分离） |
 | `LOG_LEVEL` / `LOG_FILE` | `INFO` / `./logs/app.log` | 日志 |
+
+> 路径安全：`/upload?path=` 只能访问 `API_UPLOAD_DIR` 及 `API_LOCAL_READ_ROOTS`；
+> `output_path` 必须位于 `OUTPUT_BASE_PATH` 内；文件名模板不能包含 `/`、`\` 或 `..`；
+> `character_template` 必须位于 `CHARACTER_CACHE_DIR` 内。符号链接逃逸和 `..` 穿越都会被拒绝。
 
 > **业务配置不在 `.env`。** 语言、音色、语速、章节规则、输出策略以及新的按次开关来自
 > `data/system.db`（默认值）+ `cache/config/system.json`（用户覆盖）。在 GUI「系统配置」页或

@@ -5,11 +5,13 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from pathlib import Path
 from typing import Any
 
 from engine.handlers.generate import run_generation
 from engine.handlers.parse import run_parse
 from engine.store import TaskStore
+from system.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +28,10 @@ class Scheduler:
         poll_seconds: float = 0.5,
         cleanup_ttl_seconds: int = 0,
         cleanup_interval_seconds: float = 3600.0,
+        upload_dir: str | Path | None = None,
     ) -> None:
         self.store = store
+        self.upload_dir = Path(upload_dir or settings.API_UPLOAD_DIR)
         self.max_concurrent = max(1, max_concurrent)
         self.grace_seconds = max(0.0, grace_seconds)
         self.poll_seconds = max(0.1, poll_seconds)
@@ -181,8 +185,12 @@ class Scheduler:
             result = self.store.cleanup_terminal_tasks(
                 self.cleanup_ttl_seconds, dry_run=False
             )
+            self.store.cleanup_command_log(self.cleanup_ttl_seconds)
+            self.store.cleanup_uploads(
+                self.upload_dir, self.cleanup_ttl_seconds
+            )
         except Exception:
-            logger.exception("Periodic task cleanup failed")
+            logger.exception("Periodic cleanup failed")
             return
         if result.get("removed_task_ids"):
             logger.info(

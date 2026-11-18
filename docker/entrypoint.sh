@@ -26,7 +26,21 @@ terminate() {
 }
 trap terminate TERM INT
 
-wait "$SERVER_PID"
-STATUS=$?
+# Supervise both processes. Docker/tini reaps, but it does not restart one
+# process if the other dies; this loop makes the container fail as a unit.
+while true; do
+    if ! kill -0 "$ENGINE_PID" 2>/dev/null; then
+        wait "$ENGINE_PID"
+        STATUS=$?
+        break
+    fi
+    if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+        wait "$SERVER_PID"
+        STATUS=$?
+        break
+    fi
+    sleep 1
+done
+
 terminate
 exit "$STATUS"

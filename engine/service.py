@@ -13,6 +13,11 @@ from engine.scheduler import Scheduler
 from engine.store import TaskStore
 from models.task import task_view
 from system.config import settings
+from system.paths import (
+    PathSafetyError,
+    ensure_under,
+    validate_output_path,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +114,11 @@ class EngineService:
                 "data": {"command": command},
             }
         body = dict(payload or {})
+        # Make task creation idempotent even if a client crashes between the
+        # side effect and command_log persistence. create_task has a unique
+        # idempotency_key index, so a retry returns the original task.
+        if command == "task.add" and not body.get("idempotency_key"):
+            body["idempotency_key"] = command_id
         payload_hash = hashlib.sha256(
             json.dumps(body, ensure_ascii=False, sort_keys=True).encode("utf-8")
         ).hexdigest()
@@ -126,6 +136,17 @@ class EngineService:
                     }
                 if existing["result"] is not None:
                     return existing["result"]
+                if existing["result"] is None and command != "task.add":
+                    return {
+                        "code": 3001,
+                        "msg": (
+                            "command was interrupted before completion; "
+                            "retry with a new command_id"
+                        ),
+                        "data": {"command_id": command_id},
+                    }
+            else:
+                self.store.begin_command(command_id, command, payload_hash)
 
             try:
                 data = self._dispatch(command, body)
@@ -197,8 +218,15 @@ class EngineService:
                 )
             params["file_path"] = str(Path(file_path).expanduser().resolve())
         output_path = params.get("output_path")
-        if output_path is not None and not isinstance(output_path, str):
-            raise ControlError(1001, "output_path must be a string")
+        if output_path is not None:
+            if not isinstance(output_path, str):
+                raise ControlError(1001, "output_path must be a string")
+            try:
+                params["output_path"] = str(
+                    validate_output_path(output_path, config_output_root())
+                )
+            except PathSafetyError as exc:
+                raise ControlError(1001, str(exc)) from exc
         task = self.store.create_task(
             task_type,
             params,
@@ -238,8 +266,15 @@ class EngineService:
             raise ControlError(1001, "voice must be a non-empty string")
         options["voice"] = voice
         output_path = payload.get("output_path")
-        if output_path is not None and not isinstance(output_path, str):
-            raise ControlError(1001, "output_path must be a string")
+        if output_path is not None:
+            if not isinstance(output_path, str):
+                raise ControlError(1001, "output_path must be a string")
+            try:
+                output_path = str(
+                    validate_output_path(output_path, config_output_root())
+                )
+            except PathSafetyError as exc:
+                raise ControlError(1001, str(exc)) from exc
         options["output_path"] = output_path
         enable_llm = payload.get("enable_llm")
         if enable_llm is not None and type(enable_llm) is not bool:
@@ -283,17 +318,22 @@ class EngineService:
             raise ControlError(1001, "multi_voice must be boolean")
         options["multi_voice"] = bool(multi_voice)
         character_template = payload.get("character_template")
-        if character_template is not None and not isinstance(
-            character_template, str
-        ):
-            raise ControlError(1001, "character_template must be a path string")
+        if character_template is not None:
+            if not isinstance(character_template, str):
+                raise ControlError(1001, "character_template must be a path string")
+            try:
+                character_template = str(
+                    ensure_under(settings.CHARACTER_CACHE_DIR, character_template)
+                )
+            except PathSafetyError as exc:
+                raise ControlError(1001, str(exc)) from exc
         options["character_template"] = character_template
         return options
 
     def _task_generate(self, payload: dict[str, Any]) -> dict[str, Any]:
         task = self._require_task(payload.get("task_id"))
-        if task["status"] in ("running", "queued"):
-            raise ControlError(3003, "Task is already running or queued")
+        if task.get("phase") == "parsing" or task["status"] in ("running", "queued"):
+            raise ControlError(3003, "Task is busy or parsing")
         if task["status"] == "paused":
             raise ControlError(3003, "Use task.resume for a paused task")
         if not self.store.list_chapters(task["task_id"]):
@@ -330,7 +370,10 @@ class EngineService:
         task = self._require_task(payload.get("task_id"))
         if task["status"] != "paused":
             raise ControlError(3003, "Only a paused task can be resumed")
-        queued = self.store.resume_paused_task(task["task_id"])
+        try:
+            queued = self.store.resume_paused_task(task["task_id"])
+        except ValueError as exc:
+            raise ControlError(3003, "Task state changed; retry the request") from exc
         self.scheduler.wake()
         return task_view(queued, self.store.list_chapters(task["task_id"]))
 
@@ -340,10 +383,24 @@ class EngineService:
             self.scheduler.request_cancel(task["task_id"])
             result = {"task_id": task["task_id"], "cancel_requested": True}
         elif task["status"] in ("pending", "queued", "paused"):
-            result = task_view(
-                self.store.force_cancel(task["task_id"]),
-                self.store.list_chapters(task["task_id"]),
+            cancelled = self.store.force_cancel(
+                task["task_id"], expected_status=task["status"]
             )
+            if cancelled is None:
+                current = self.store.require_task(task["task_id"])
+                if current["status"] == "running":
+                    self.scheduler.request_cancel(task["task_id"])
+                    result = {
+                        "task_id": task["task_id"],
+                        "cancel_requested": True,
+                    }
+                else:
+                    raise ControlError(3003, "Task state changed; retry the request")
+            else:
+                result = task_view(
+                    cancelled,
+                    self.store.list_chapters(task["task_id"]),
+                )
         else:
             raise ControlError(
                 3003, f"Task status {task['status']} cannot be canceled"
@@ -377,20 +434,25 @@ class EngineService:
         if task["status"] == "running":
             raise ControlError(3003, "Cancel the running task before removing it")
         delete_outputs = payload.get("delete_outputs") is True
+        output_root = task_output_root(task)
         audio_paths = [
             chapter["audio_path"]
             for chapter in self.store.list_chapters(task["task_id"])
             if chapter.get("audio_path")
         ]
-        removed = self.store.transition(
-            task["task_id"],
-            "removed",
-            phase="removed",
-            event_type="task.removed",
-        )
+        try:
+            removed = self.store.transition(
+                task["task_id"],
+                "removed",
+                phase="removed",
+                event_type="task.removed",
+                expected_status=task["status"],
+            )
+        except ValueError as exc:
+            raise ControlError(3003, "Task state changed; retry the request") from exc
         if delete_outputs:
             for path in audio_paths:
-                _remove_audio_and_text(path)
+                _remove_audio_and_text(path, output_root)
         return task_view(removed, self.store.list_chapters(task["task_id"]))
 
     def _task_chapter_remove(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -408,7 +470,9 @@ class EngineService:
                 {"chapter_index": index},
             )
         if chapter.get("audio_path"):
-            _remove_audio_and_text(str(chapter["audio_path"]))
+            _remove_audio_and_text(
+                str(chapter["audio_path"]), task_output_root(task)
+            )
         self.store.reset_chapter(task["task_id"], index)
         task = self.store.require_task(task["task_id"])
         if task["status"] in ("succeeded", "failed", "canceled"):
@@ -422,19 +486,28 @@ class EngineService:
         dry_run = payload.get("dry_run") is True
         delete_outputs = payload.get("delete_outputs") is True
         preview = self.store.cleanup_terminal_tasks(ttl, dry_run=True)
-        artifacts: dict[str, list[str]] = {}
+        artifacts: dict[str, tuple[str, list[str]]] = {}
         if delete_outputs and not dry_run:
             for task_id in preview["removed_task_ids"]:
-                artifacts[task_id] = [
-                    chapter["audio_path"]
-                    for chapter in self.store.list_chapters(task_id)
-                    if chapter.get("audio_path")
-                ]
+                task = self.store.get_task(task_id)
+                if task is None:
+                    continue
+                artifacts[task_id] = (
+                    task_output_root(task),
+                    [
+                        chapter["audio_path"]
+                        for chapter in self.store.list_chapters(task_id)
+                        if chapter.get("audio_path")
+                    ],
+                )
         result = self.store.cleanup_terminal_tasks(ttl, dry_run=dry_run)
         if delete_outputs and not dry_run:
             for task_id in result["removed_task_ids"]:
-                for audio_path in artifacts.get(task_id, []):
-                    _remove_audio_and_text(audio_path)
+                root, paths = artifacts.get(task_id, (None, []))
+                if root is None:
+                    continue
+                for audio_path in paths:
+                    _remove_audio_and_text(audio_path, root)
         return result
 
     def _config_get(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -462,8 +535,23 @@ class EngineService:
             ) from exc
 
 
-def _remove_audio_and_text(audio_path: str) -> None:
+def task_output_root(task: Mapping[str, Any]) -> str:
+    """Return the output root that was active for a task."""
+    import config
+
+    snapshot = task.get("params", {}).get("config_snapshot") or {}
+    return str(snapshot.get("OUTPUT_BASE_PATH") or config.OUTPUT_BASE_PATH)
+
+
+def config_output_root() -> str:
+    import config
+
+    return str(config.OUTPUT_BASE_PATH)
+
+
+def _remove_audio_and_text(audio_path: str, output_root: str) -> None:
     path = Path(audio_path)
+    root = Path(output_root).expanduser().resolve(strict=False)
     candidates = [
         path,
         path.with_suffix(".txt"),
@@ -473,9 +561,17 @@ def _remove_audio_and_text(audio_path: str) -> None:
     ]
     for candidate in candidates:
         try:
-            candidate.unlink(missing_ok=True)
+            resolved = candidate.expanduser().resolve(strict=False)
+            resolved.relative_to(root)
+        except (OSError, ValueError):
+            logger.warning(
+                "Refusing to remove artifact outside output root: %s", candidate
+            )
+            continue
+        try:
+            resolved.unlink(missing_ok=True)
         except OSError:
-            logger.warning("Unable to remove task artifact %s", candidate)
+            logger.warning("Unable to remove task artifact %s", resolved)
 
 
 def _iso_to_epoch(value: str) -> float:

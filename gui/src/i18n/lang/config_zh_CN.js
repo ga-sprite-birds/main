@@ -125,7 +125,7 @@ export default {
             out_of_range: "配置值超出允许范围",
             invalid_enum: "配置值不在可选范围内",
             invalid_voice: "TTS 音色 ShortName 不存在",
-            invalid_length: "配置值长度不足",
+            invalid_length: "配置值长度无效",
             invalid_path: "输出路径无效",
             invalid_regex: "章节正则表达式无效",
             invalid_template: "模板包含不支持的字段或格式",

@@ -202,7 +202,6 @@ class LLMManager:
         # Safety check: if the filtered text is empty or too short, return the original
         if not filtered or len(filtered) < 10:
             logger.warning(t("llm.filter_empty"))
-            logger.debug(t("llm.filter_original_preview", text=original_text[:200]))
             return original_text.strip()
 
         logger.debug(t("llm.filter_strategy2", length=len(filtered)))
@@ -345,18 +344,16 @@ class LLMManager:
 2. 在 </think> 之后输出改写结果
 3. 只输出改写后的文本，不要有任何说明"""
 
-        logger.debug(t("llm.original_preview", text=text[:100]))
+        logger.debug("LLM input length: {}", len(text))
 
         result = self.generate(prompt, system_prompt)
 
         logger.debug(t("llm.raw_output_length", length=len(result)))
-        logger.debug(t("llm.raw_output_preview", text=result[:200]))
 
         # Filter the thinking-process tags
         filtered_result = self._filter_think_tags(result)
 
         logger.debug(t("llm.filtered_output_length", length=len(filtered_result)))
-        logger.debug(t("llm.filtered_preview", text=filtered_result[:100]))
 
         if not filtered_result.strip():
             logger.warning(t("llm.empty_result_fallback"))

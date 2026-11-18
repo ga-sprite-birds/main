@@ -210,8 +210,11 @@ def test_upload_requires_a_source(client):
 
 
 @pytest.mark.unit
-def test_upload_rejects_missing_path(client):
-    payload = client.post(f"{API}/upload", params={"path": "/nope/missing.txt"}).json()
+def test_upload_rejects_missing_path(client, tmp_path, monkeypatch):
+    monkeypatch.setattr(api.settings, "API_UPLOAD_DIR", tmp_path)
+    payload = client.post(
+        f"{API}/upload", params={"path": str(tmp_path / "missing.txt")}
+    ).json()
 
     assert payload["code"] == 3002
 
@@ -363,3 +366,42 @@ def test_idempotent_upload_reuses_the_same_stored_path(
     assert len(payloads) == 2
     assert payloads[0]["file_path"] == payloads[1]["file_path"]
     assert payloads[0]["source_name"] == payloads[1]["source_name"]
+
+
+@pytest.mark.unit
+def test_api_auth_requires_bearer_or_cookie(client, control, monkeypatch):
+    token = "audit-token-0123456789abcdef"
+    monkeypatch.setattr(api.settings, "API_AUTH_ENABLED", True)
+    monkeypatch.setattr(api.settings, "API_AUTH_TOKEN", token)
+
+    denied = client.get(f"{API}/tasks")
+    assert denied.status_code == 401
+    assert denied.json()["code"] == 2001
+
+    allowed = client.get(
+        f"{API}/tasks", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert allowed.status_code == 200
+    assert allowed.json()["code"] == 0
+
+    header_allowed = client.get(
+        f"{API}/tasks", headers={"X-API-Token": token}
+    )
+    assert header_allowed.status_code == 200
+
+    client.cookies.set(api.API_TOKEN_COOKIE, token)
+    try:
+        cookie_allowed = client.get(f"{API}/tasks")
+        assert cookie_allowed.status_code == 200
+    finally:
+        client.cookies.clear()
+
+
+@pytest.mark.unit
+def test_upload_rejects_path_outside_read_roots(client, control):
+    payload = client.post(
+        f"{API}/upload", params={"path": "/etc/hosts.txt"}
+    ).json()
+
+    assert payload["code"] == 1000
+    assert control.calls == []

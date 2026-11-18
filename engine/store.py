@@ -5,14 +5,16 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Iterable, Literal, Mapping
+from typing import Any, Iterable, Mapping
 
 from engine.migrations import migrate_tasks_db
 from engine.models import (
     TERMINAL_STATUSES,
+    InvalidTransitionError,
     TaskNotFoundError,
     ensure_transition,
 )
@@ -242,8 +244,11 @@ class TaskStore:
         queued: bool = False,
         started: bool = False,
         finished: bool = False,
+        expected_status: str | None = None,
     ) -> dict[str, Any]:
         task = self.require_task(task_id)
+        if expected_status is not None and task["status"] != expected_status:
+            raise InvalidTransitionError(task_id, task["status"], status or "")
         if status is not None:
             ensure_transition(task_id, task["status"], status)
         now = utc_now_iso()
@@ -284,15 +289,23 @@ class TaskStore:
             assignments.append("finished_at = ?")
             values.append(now)
         values.append(task_id)
+        where = "task_id = ?"
+        if expected_status is not None:
+            where += " AND status = ?"
+            values.append(expected_status)
         with self._lock, self._conn():
-            self._conn().execute(
+            cursor = self._conn().execute(
                 f"""
                 UPDATE tasks
                 SET {", ".join(assignments)}
-                WHERE task_id = ?
+                WHERE {where}
                 """,
                 values,
             )
+            if cursor.rowcount != 1:
+                raise InvalidTransitionError(
+                    task_id, task["status"], status or ""
+                )
         return self.require_task(task_id)
 
     def transition(
@@ -304,6 +317,7 @@ class TaskStore:
         error: Any = _UNSET,
         result: Any = _UNSET,
         event_type: str | None = None,
+        expected_status: str | None = None,
     ) -> dict[str, Any]:
         updated = self.update_task(
             task_id,
@@ -311,6 +325,7 @@ class TaskStore:
             phase=phase,
             error=error,
             result=result,
+            expected_status=expected_status,
         )
         if event_type:
             self.add_event(task_id, event_type, {"status": target})
@@ -468,16 +483,18 @@ class TaskStore:
         params = dict(task["params"])
         params.pop("control", None)
         with self._lock, self._conn():
-            self._conn().execute(
+            cursor = self._conn().execute(
                 """
                 UPDATE tasks
                 SET status = 'queued', phase = 'generation_resume',
                     queued_at = ?, error = NULL, finished_at = NULL,
                     updated_at = ?, params_json = ?
-                WHERE task_id = ?
+                WHERE task_id = ? AND status = 'paused'
                 """,
                 (now, now, _json(params), task_id),
             )
+            if cursor.rowcount != 1:
+                raise InvalidTransitionError(task_id, task["status"], "queued")
             self._conn().execute(
                 """
                 UPDATE task_chapters
@@ -490,22 +507,34 @@ class TaskStore:
             self._insert_event_unlocked(task_id, "task.resumed", {})
         return self.require_task(task_id)
 
-    def force_cancel(self, task_id: str) -> dict[str, Any]:
-        """Cancel a pending, queued, or paused task immediately."""
+    def force_cancel(
+        self,
+        task_id: str,
+        *,
+        expected_status: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Cancel a pending, queued, or paused task immediately.
+
+        Returns None when another actor changed the state first (for example,
+        the scheduler claimed a queued task as running).
+        """
         task = self.require_task(task_id)
-        if task["status"] not in ("pending", "queued", "paused"):
-            ensure_transition(task_id, task["status"], "canceled")
+        current = expected_status or task["status"]
+        if current not in ("pending", "queued", "paused"):
+            ensure_transition(task_id, current, "canceled")
         now = utc_now_iso()
         with self._lock, self._conn():
-            self._conn().execute(
+            cursor = self._conn().execute(
                 """
                 UPDATE tasks
                 SET status = 'canceled', phase = 'canceled', error = NULL,
                     finished_at = ?, updated_at = ?
-                WHERE task_id = ?
+                WHERE task_id = ? AND status = ?
                 """,
-                (now, now, task_id),
+                (now, now, task_id, current),
             )
+            if cursor.rowcount != 1:
+                return None
             self._insert_event_unlocked(task_id, "task.canceled", {})
         return self.require_task(task_id)
 
@@ -679,7 +708,7 @@ class TaskStore:
                 {
                     "chapter_index": chapter_index,
                     "chapter_status": status,
-                    "audio_path": audio_path,
+                    "has_audio": bool(audio_path),
                     "error": error if status == "failed" else None,
                 },
             )
@@ -895,6 +924,33 @@ class TaskStore:
         item["result"] = _decode(item.pop("result_json"), None)
         return item
 
+    def begin_command(
+        self,
+        command_id: str,
+        command: str,
+        payload_hash: str,
+    ) -> None:
+        """Persist an in-progress marker before dispatching a command.
+
+        A crash after this point leaves ``status='in_progress'`` with no result.
+        Retries of non-additive commands are rejected instead of risking a
+        duplicate side effect; ``task.add`` is safe to retry because it has a
+        unique idempotency key.
+        """
+        now = utc_now_iso()
+        with self._lock, self._conn():
+            self._conn().execute(
+                """
+                INSERT INTO command_log (
+                  command_id, command, payload_hash, status, result_json,
+                  created_at, updated_at
+                )
+                VALUES (?, ?, ?, 'in_progress', NULL, ?, ?)
+                ON CONFLICT(command_id) DO NOTHING
+                """,
+                (command_id, command, payload_hash, now, now),
+            )
+
     def record_command(
         self,
         command_id: str,
@@ -964,6 +1020,77 @@ class TaskStore:
                 task_ids,
             )
         return {"removed_task_ids": task_ids, "count": len(task_ids), "dry_run": False}
+
+    def referenced_source_paths(self) -> set[str]:
+        """Return resolved source paths still referenced by any task."""
+        with self._lock:
+            rows = self._conn().execute(
+                "SELECT params_json FROM tasks LIMIT 100000"
+            ).fetchall()
+        paths: set[str] = set()
+        for row in rows:
+            params = _decode(row["params_json"], {})
+            if not isinstance(params, dict):
+                continue
+            value = params.get("file_path")
+            if isinstance(value, str) and value:
+                try:
+                    paths.add(str(Path(value).expanduser().resolve(strict=False)))
+                except OSError:
+                    continue
+        return paths
+
+    def cleanup_uploads(self, upload_dir: str | Path, ttl_seconds: int) -> int:
+        """Remove orphan upload files older than the TTL."""
+        if ttl_seconds <= 0:
+            return 0
+        root = Path(upload_dir).expanduser().resolve(strict=False)
+        if not root.is_dir():
+            return 0
+        cutoff = time.time() - ttl_seconds
+        referenced = self.referenced_source_paths()
+        removed = 0
+        for path in root.iterdir():
+            if not path.is_file():
+                continue
+            try:
+                resolved = path.resolve(strict=False)
+                if str(resolved) in referenced or path.stat().st_mtime >= cutoff:
+                    continue
+                path.unlink()
+                removed += 1
+            except OSError:
+                continue
+        return removed
+
+    def cleanup_command_log(self, ttl_seconds: int, *, dry_run: bool = False) -> int:
+        """Remove old idempotency records so command_log cannot grow forever."""
+        if ttl_seconds <= 0:
+            return 0
+        cutoff = (
+            datetime.now(timezone.utc) - timedelta(seconds=ttl_seconds)
+        ).isoformat(timespec="seconds").replace("+00:00", "Z")
+        with self._lock:
+            rows = self._conn().execute(
+                """
+                SELECT command_id
+                FROM command_log
+                WHERE updated_at < ?
+                ORDER BY updated_at ASC
+                LIMIT 1000
+                """,
+                (cutoff,),
+            ).fetchall()
+        command_ids = [row["command_id"] for row in rows]
+        if dry_run or not command_ids:
+            return len(command_ids)
+        placeholders = ",".join("?" for _ in command_ids)
+        with self._lock, self._conn():
+            self._conn().execute(
+                f"DELETE FROM command_log WHERE command_id IN ({placeholders})",
+                command_ids,
+            )
+        return len(command_ids)
 
     def schema_version(self) -> int:
         with self._lock:

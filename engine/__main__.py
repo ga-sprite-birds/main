@@ -39,6 +39,11 @@ async def run_core(
     configure_logging("engine")
     run_dir.mkdir(parents=True, exist_ok=True)
     data_dir.mkdir(parents=True, exist_ok=True)
+    for path in (run_dir, data_dir):
+        try:
+            os.chmod(path, 0o700)
+        except OSError:
+            pass
     lock = InstanceLock(run_dir / "engine.lock")
     try:
         lock.acquire()

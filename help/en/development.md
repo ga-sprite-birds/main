@@ -84,11 +84,22 @@ cp .env.example .env
 | `LLM_API_ENDPOINT` / `LLM_API_KEY` / `LLM_API_MODEL` | — | Endpoint, key, model for `api` mode |
 | `LLM_LOCAL_HOST` / `LLM_LOCAL_MODEL` | `http://localhost:11434` / `deepseek-r1:7b` | Local Ollama |
 | `API_HOST` / `API_PORT` | `127.0.0.1` / `8000` | Control API bind address |
+| `API_AUTH_ENABLED` / `API_AUTH_TOKEN` | `false` / empty | Optional token auth; enable when the API leaves loopback |
+| `API_CORS_ENABLED` / `API_CORS_ORIGINS` | `false` / empty | CORS is off by default; use an explicit origin list if needed |
+| `API_MAX_UPLOAD_SIZE` | `100` | Upload cap (MB); `0` unlimited |
+| `API_MAX_JSON_BODY_SIZE` | `1` | JSON body cap (MB); `0` unlimited |
+| `API_LOCAL_READ_ROOTS` | empty | Extra allowed roots for `/upload?path=`; uploads/ is always allowed |
 | `TASK_MAX_CONCURRENT` | `2` | Concurrent tasks in the engine |
 | `TASK_RESULT_TTL` | `86400` | Seconds to keep terminal task records; `0` keeps forever |
 | `FFMPEG_PATH` | empty | FFmpeg directory; empty uses system `PATH` |
 | `MODEL_CACHE_DIR` | `./cache/models` | Downloaded model cache (kept out of the `models/` code package) |
 | `LOG_LEVEL` / `LOG_FILE` | `INFO` / `./logs/app.log` | Logging |
+
+> Path safety: `/upload?path=` is restricted to `API_UPLOAD_DIR` plus
+> `API_LOCAL_READ_ROOTS`; `output_path` must stay under `OUTPUT_BASE_PATH`; the
+> output filename template cannot contain `/`, `\` or `..`; and
+> `character_template` must stay under `CHARACTER_CACHE_DIR`. Symlink escapes and
+> `..` traversal are rejected.
 
 > **Business settings are not in `.env`.** Language, voice, rate, chapter rules, output strategy
 > and the new per-task toggles come from `data/system.db` (defaults) + `cache/config/system.json`

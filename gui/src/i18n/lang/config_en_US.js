@@ -125,7 +125,7 @@ export default {
             out_of_range: "Configuration value is out of range",
             invalid_enum: "Configuration value is not an allowed option",
             invalid_voice: "TTS voice ShortName does not exist",
-            invalid_length: "Configuration value is too short",
+            invalid_length: "Configuration value length is invalid",
             invalid_path: "Invalid output path",
             invalid_regex: "Invalid chapter regular expression",
             invalid_template: "Template contains unsupported fields or formatting",

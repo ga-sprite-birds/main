@@ -45,8 +45,8 @@ class ChapterProcessor:
         )
         outro = ConfigManager.get_chapter_outro_template()
 
-        logger.debug(t("chapter.intro_text", text=intro))
-        logger.debug(t("chapter.outro_text", text=outro))
+        logger.debug("Chapter intro length: {}", len(intro))
+        logger.debug("Chapter outro length: {}", len(outro))
 
         return intro, outro
 

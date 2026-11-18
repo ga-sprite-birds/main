@@ -132,16 +132,16 @@ v2-headless-core： engine（每个任务开始时读配置）  ── 唯一写
 
 ## 7. 实施状态（v2 落地记录）
 
-五个 Phase 全部完成，`pytest tests/unit` 全绿（101 项）；真实链路集成测试见 `tests/integration/`。
+五个 Phase 全部完成，`pytest tests/unit` 全绿（107 项）；真实链路集成测试见 `tests/integration/`。
 
 | Phase | 落地物 | 验证方式 |
 |-------|--------|----------|
 | 0 骨架 | `system/response.py`、`system/db.py`、`system/config.py` | 单测 + `engine doctor` |
-| 1 配置 | `system/config_schema.py`（7 组 46 项）、`ConfigService`、`routers/system_config.py`、`routers/tts.py` | `tests/unit/test_config_service.py`、`test_system_config.py`（26 项，含跨实例热重载） |
+| 1 配置 | `system/config_schema.py`（7 组 46 项）、`ConfigService`、`routers/system_config.py`、`routers/tts.py` | `tests/unit/test_config_service.py`、`test_system_config.py`（28 项，含跨实例热重载） |
 | 2 引擎 | `engine/`（store/scheduler/service/handlers/lock/runtime/ops）、`tasks.db` 迁移 | `test_engine_store.py`、`test_engine_service.py` |
-| 3 薄 API + CLI | `server/`（Control API 启动器）、`fcgi-bin/api.py`、`fcgi-bin/cli.py`、`services/control/`、`services/task_query_service.py` | `test_api_v2.py`（20 项契约测试） |
+| 3 薄 API + CLI | `server/`（Control API 启动器）、`fcgi-bin/api.py`、`fcgi-bin/cli.py`、`services/control/`、`services/task_query_service.py` | `test_api_v2.py`（22 项契约测试） |
 | 4 GUI | `gui/src/views/system/` + `ConfigField.vue`、路由 `/system/config`、侧栏 7 组、i18n、单文件构建 | `vite build` 通过 + 配置 API 端到端 |
-| 5 收尾 | `.env` 瘦身、部署文档（systemd + 运维）、[API 参考](../api.md)、README 重写、测试迁移 | `pytest tests/unit` 101 passed |
+| 5 收尾 | `.env` 瘦身、部署文档（systemd + 运维）、[API 参考](../api.md)、README 重写、测试迁移 | `pytest tests/unit` 107 passed |
 
 ### 验收证据
 

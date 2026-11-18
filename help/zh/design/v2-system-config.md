@@ -56,6 +56,8 @@ project/
 ```
 
 - **入口**：`python -m server run`（`server/` 包，加载 `fcgi-bin/api.py` 的 app）是唯一入口；本版**没有 policy**，不建 `/fcgi-bin/policy/*`。
+- **API 安全**：可选 `API_AUTH_ENABLED` / `API_AUTH_TOKEN`（Bearer、X-API-Token 或 GUI Cookie）；CORS 默认关闭。非 loopback 部署必须启用鉴权。
+- **路径安全**：本地输入路径限制在 `API_UPLOAD_DIR` + `API_LOCAL_READ_ROOTS`；任务输出路径必须在 `OUTPUT_BASE_PATH` 内；角色模板必须在 `CHARACTER_CACHE_DIR` 内。
 - **路由前缀**：统一 `/fcgi-bin/api/*`。
 - **响应结构**：统一 `{code, msg, data}`，`code=0` 成功（见 `api.md`）。
 
@@ -130,7 +132,7 @@ project/
 | OUTPUT_STRATEGY | enum | by_role | by_role / by_model / by_date |
 | OUTPUT_FORMAT | enum | mp3 | mp3 / m4a / wav |
 | OUTPUT_BITRATE | int | 192 | 建议 128 / 192 / 320 |
-| OUTPUT_FILENAME_TEMPLATE | string | {index:03d}-{title}.{format} | 仅允许 {index}/{title}/{role}/{date}/{format} |
+| OUTPUT_FILENAME_TEMPLATE | string | {index:03d}-{title}.{format} | 仅允许 {index}/{title}/{role}/{date}/{format}；禁止 `/`、`\` 与 `..` |
 | OUTPUT_FRONT_MATTER_MARKERS | list[str] | ["导读","前言"] | 前置内容识别标记（用于跳过非正文） |
 | OUTPUT_KEEP_TEMP_FILES | bool | false | |
 | OUTPUT_DUPLICATE_HANDLING | enum | rename | overwrite / rename / skip |
@@ -316,7 +318,8 @@ CREATE TABLE schema_meta (
 ## 附录：`.env` 保留清单（部署级/密钥）
 
 - LLM：`LLM_MODE`、`LLM_API_ENDPOINT / KEY / MODEL`、`LLM_LOCAL_HOST / MODEL`、`LLM_SYSTEM_PROMPT`
-- API：`API_HOST / PORT / DEBUG / CORS_ENABLED / CORS_ORIGINS / MAX_UPLOAD_SIZE / UPLOAD_DIR`
+- API：`API_HOST / PORT / DEBUG / UPLOAD_DIR / MAX_UPLOAD_SIZE / MAX_JSON_BODY_SIZE / LOCAL_READ_ROOTS`
+- API 安全：`API_AUTH_ENABLED / API_AUTH_TOKEN / CORS_ENABLED / CORS_ORIGINS`，`API_BIND_HOST`（仅 compose）
 - 任务：`TASK_MAX_CONCURRENT / GRACE_SECONDS / RESULT_TTL / CACHE_DIR`
 - 路径与依赖：`FFMPEG_PATH`、`CORE_DIR`、`DATA_DIR`、`CACHE_DIR`、`RUN_DIR`、`MODEL_CACHE_DIR`、`CHARACTER_CACHE_DIR`、`TTS_VOICE_CATALOG_CACHE`
 - 日志：`LOG_LEVEL / FORMAT / FILE / MAX_FILE_SIZE / BACKUP_COUNT / CONSOLE`

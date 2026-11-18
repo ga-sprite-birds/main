@@ -5,6 +5,19 @@
 All business endpoints live under the `/fcgi-bin/api` prefix. The Control API is started by `python -m server run` (the `server/` package); the FastAPI app lives in `fcgi-bin/api.py` and is a thin control plane:
 **it does not execute tasks** — it only validates parameters, forwards commands, and serves read-only queries.
 
+## Authentication
+
+API auth is optional and controlled by deployment settings:
+
+- `API_AUTH_ENABLED=true` requires a token on every `/fcgi-bin/api/*` route except `/fcgi-bin/api/status`.
+- `API_AUTH_TOKEN` must be at least 16 characters (random values recommended).
+- Clients send `Authorization: Bearer <token>` or `X-API-Token: <token>`.
+- The GUI key button stores the token locally and sets the `ga_api_token` cookie for direct audio/download URLs.
+- Missing/invalid credentials return HTTP `401` + `code 2001`.
+- `GET /fcgi-bin/api/status` stays public for health checks.
+
+Do not expose the API beyond loopback without auth. The shipped Docker compose binds to `127.0.0.1` by default; set `API_BIND_HOST=0.0.0.0` only with auth enabled.
+
 - Uploads and command forwarding → Core engine (localhost HTTP + Bearer token)
 - Status/events/list/chapters → read-only `data/tasks.db` (`PRAGMA query_only=ON`)
 - System config → `ConfigService` (`data/system.db` defaults + `cache/config/system.json` overrides)
@@ -23,8 +36,8 @@ Unified response envelope:
 | `3000~3999` | Business errors (task not found, invalid state, illegal transition, idempotency conflict) |
 | `4000~4999` | System errors (internal exception, config read/write failure) |
 
-Special HTTP statuses: engine not running → `503` + `code 3004`; unknown routes such as docs/Swagger → `404` + `code 3002`; a corrupted/unreadable `data/tasks.db` → HTTP `200` + `code 4001`.
-All other business errors are returned as HTTP `200` + non-zero `code`; the frontend only needs to inspect the envelope.
+Special HTTP statuses: API auth failure → HTTP `401` + `code 2001`; engine not running → `503` + `code 3004`; unknown routes such as docs/Swagger → `404` + `code 3002`; a corrupted/unreadable `data/tasks.db` → HTTP `200` + `code 4001`.
+All other business errors are returned as HTTP `200` + non-zero `code`; the frontend only needs to inspect the envelope. Sensitive API JSON responses are sent with `Cache-Control: no-store`.
 
 ---
 
@@ -64,8 +77,9 @@ curl -X POST "http://127.0.0.1:8000/fcgi-bin/api/upload" \
 ```
 
 - The client filename is stripped of paths (`..\..\evil\a.txt` → `a.txt`) before being written to `API_UPLOAD_DIR/<uuid>_<name>`.
+- `path` must resolve inside `API_UPLOAD_DIR` or one of `API_LOCAL_READ_ROOTS`; outside paths return `code 1000` (path traversal is rejected).
 - Extension allowlist: `.txt` / `.md` / `.pdf`; anything else returns `code 1000`.
-- Exceeding `API_MAX_UPLOAD_SIZE` (MB; 0 means unlimited) returns `code 1003`.
+- Exceeding `API_MAX_UPLOAD_SIZE` (MB; 0 means unlimited) returns `code 1003`, including when the file is referenced through `path`.
 - On success returns the task view (`task_id`, `status`, `phase`, …).
 
 ### `POST /fcgi-bin/api/parse`
@@ -105,8 +119,8 @@ The engine parses chapters in the background. On success the task reaches `phase
 | `enable_llm` / `multi_voice` | Boolean |
 | `chapter_intro_outro` | Whether this run uses chapter intro/outro; omit to use the task snapshot (system config) |
 | `chapter_lead_in_enabled` | Whether this run generates/uses a lead-in chapter; omit to use the task snapshot (system config) |
-| `output_path` | Optional output root for this run |
-| `character_template` | Path to the character voice template (used with `multi_voice`) |
+| `output_path` | Optional output root for this run; must resolve inside `OUTPUT_BASE_PATH` |
+| `character_template` | Path to the character voice template (used with `multi_voice`); must resolve inside `CHARACTER_CACHE_DIR` |
 
 Any out-of-range field is rejected at the model layer with `1001` and never enters the engine queue. `chapter_intro_outro` / `chapter_lead_in_enabled` apply to this run only and are **not written back to system config**.
 
@@ -140,7 +154,7 @@ Returns the task view with `Cache-Control: no-store`.
   "error":null,"created_at":"...","queued_at":"...","started_at":"...",
   "finished_at":null,"heartbeat_at":"...","control":{"pause_requested":false},
   "chapters":[{"index":1,"title":"Chapter 1","status":"succeeded",
-               "audio_path":"...","error":null,"completed_at":"..."}]
+               "has_audio":true,"error":null,"completed_at":"..."}]
 }}
 ```
 

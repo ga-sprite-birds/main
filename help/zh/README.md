@@ -42,12 +42,19 @@ GA Sprite Birds 把书籍或长文本变成有声书：自动拆分章节，可�
 git clone https://github.com/tiger-sprite/ga-sprite-birds.git
 cd ga-sprite-birds
 cp .env.example .env                  # 配置 LLM 凭据与部署参数
+mkdir -p data run cache output logs uploads
+sudo chown -R 1000:1000 data run cache output logs uploads
 docker compose up -d --build
 # 打开 http://127.0.0.1:8000/
 # 8000 被占用时：API_HOST_PORT=18080 docker compose up -d --build
 ```
 
 - 持久化数据：`./data`、`./run`、`./cache`、`./output`、`./logs`、`./uploads`。
+- 镜像以非 root 的 `app` 用户运行（默认 `1000:1000`）；首次启动前先 `chown` 绑定目录，
+  宿主机 UID/GID 不同时设置 `APP_UID`/`APP_GID` 并重建。
+- 默认只发布到 `127.0.0.1`。局域网访问需设置 `API_BIND_HOST=0.0.0.0`，并启用
+  `API_AUTH_ENABLED=true` + `API_AUTH_TOKEN`；GUI 顶部钥匙按钮保存令牌。
+- CORS 默认关闭；需要时配置明确的来源列表。
 - `models/` 是镜像内的 Python 代码包；模型缓存写到 `./cache/models`。
 - Docker 与宿主机引擎不能同时共用 `data/`、`run/`（单实例锁）。
 - 引擎命令通道（`127.0.0.1:39300`）不对外暴露。

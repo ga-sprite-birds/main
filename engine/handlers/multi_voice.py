@@ -13,6 +13,7 @@ from loguru import logger
 
 from engine.store import TaskStore
 from system.config import settings
+from system.paths import PathSafetyError, ensure_under
 
 PauseCheck = Callable[[], bool]
 CancelCheck = Callable[[], bool]
@@ -59,6 +60,13 @@ async def generate_multi_voice_chapters(
         if template_value
         else settings.CHARACTER_CACHE_DIR / f"{source_stem}_characters.json"
     )
+    try:
+        template_path = ensure_under(settings.CHARACTER_CACHE_DIR, template_path)
+    except PathSafetyError as exc:
+        message = f"Character template is outside CHARACTER_CACHE_DIR: {exc}"
+        store.update_task(task_id, status="failed", phase="failed", error=message)
+        store.add_event(task_id, "task.failed", {"error": message})
+        return {"error": message}
     if not template_path.is_file():
         message = f"Character template not found: {template_path}"
         store.update_task(task_id, status="failed", phase="failed", error=message)

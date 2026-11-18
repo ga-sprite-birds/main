@@ -157,7 +157,7 @@ class TaskQueryService:
             connection.close()
         total = int(total_row["total"]) if total_row else 0
         return {
-            "list": [_task(row) for row in rows],
+            "list": [task_view(_task(row), None) for row in rows],
             "total": total,
             "page": page,
             "page_size": page_size,
@@ -191,7 +191,13 @@ class TaskQueryService:
         events = []
         for row in rows:
             item = dict(row)
-            item["payload"] = _decode(item.pop("payload_json"), {})
+            payload = _decode(item.pop("payload_json"), {})
+            if isinstance(payload, dict):
+                # Older rows may contain absolute artifact paths.
+                old_path = payload.pop("audio_path", None)
+                if old_path is not None and "has_audio" not in payload:
+                    payload["has_audio"] = bool(old_path)
+            item["payload"] = payload
             events.append(item)
         return events
 

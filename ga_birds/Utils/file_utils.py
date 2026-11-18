@@ -18,6 +18,9 @@ from ga_birds.Common.i18n import t
 
 # File extensions accepted by the loader and the upload endpoint
 SUPPORTED_INPUT_EXTENSIONS = {".txt", ".md", ".pdf"}
+# Defense in depth for direct/path-based inputs that bypass the API upload cap.
+MAX_INPUT_BYTES = 512 * 1024 * 1024
+MAX_PDF_PAGES = 5000
 
 
 def get_unique_filename(path: Path) -> Path:
@@ -126,6 +129,10 @@ def read_file(file_path: str) -> str:
         raise FileNotFoundError(t("file.file_not_found", path=file_path))
 
     suffix = path.suffix.lower()
+    if path.stat().st_size > MAX_INPUT_BYTES:
+        raise ValueError(
+            f"Input file is too large: {path.stat().st_size} > {MAX_INPUT_BYTES} bytes"
+        )
 
     if suffix in ('.txt', '.md'):
         content = read_text_file(file_path)
@@ -152,6 +159,10 @@ def extract_pdf_text(file_path: str) -> str:
     """
     try:
         reader = PdfReader(file_path)
+        if len(reader.pages) > MAX_PDF_PAGES:
+            raise ValueError(
+                f"PDF has too many pages ({len(reader.pages)} > {MAX_PDF_PAGES})"
+            )
         text_parts = []
 
         for page_num, page in enumerate(reader.pages, 1):
@@ -264,7 +275,7 @@ def clean_text_for_tts(text: str) -> str:
         # Remove all punctuation and check whether any content remains
         text_without_punctuation = re.sub(r'[，。！？；：、,.!?;:\s…—\-\.\*]+', '', cleaned)
         if not text_without_punctuation:
-            logger.debug(t("file.text_only_punctuation", text=repr(text)))
+            logger.debug("Text contains only punctuation; dropping it")
             return ""
 
     return cleaned

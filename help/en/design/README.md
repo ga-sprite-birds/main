@@ -132,16 +132,16 @@ In addition to each document's own acceptance checklist, all of the following mu
 
 ## 7. Implementation status (v2 delivery record)
 
-All five phases are complete; `pytest tests/unit` is green (101 tests); real end-to-end integration tests live under `tests/integration/`.
+All five phases are complete; `pytest tests/unit` is green (107 tests); real end-to-end integration tests live under `tests/integration/`.
 
 | Phase | Deliverables | Verification |
 |-------|--------|----------|
 | 0 Skeleton | `system/response.py`, `system/db.py`, `system/config.py` | Unit tests + `engine doctor` |
-| 1 Config | `system/config_schema.py` (7 sections, 46 items), `ConfigService`, `routers/system_config.py`, `routers/tts.py` | `tests/unit/test_config_service.py`, `test_system_config.py` (26 tests, including cross-instance hot reload) |
+| 1 Config | `system/config_schema.py` (7 sections, 46 items), `ConfigService`, `routers/system_config.py`, `routers/tts.py` | `tests/unit/test_config_service.py`, `test_system_config.py` (28 tests, including cross-instance hot reload) |
 | 2 Engine | `engine/` (store/scheduler/service/handlers/lock/runtime/ops), `tasks.db` migrations | `test_engine_store.py`, `test_engine_service.py` |
-| 3 Thin API + CLI | `server/` (Control API launcher), `fcgi-bin/api.py`, `fcgi-bin/cli.py`, `services/control/`, `services/task_query_service.py` | `test_api_v2.py` (20 contract tests) |
+| 3 Thin API + CLI | `server/` (Control API launcher), `fcgi-bin/api.py`, `fcgi-bin/cli.py`, `services/control/`, `services/task_query_service.py` | `test_api_v2.py` (22 contract tests) |
 | 4 GUI | `gui/src/views/system/` + `ConfigField.vue`, route `/system/config`, 7 sidebar groups, i18n, single-file build | `vite build` passes + config API end-to-end |
-| 5 Wrap-up | Slim `.env`, deployment docs (systemd + operations), [API reference](../api.md), README rewrite, test migration | `pytest tests/unit` 101 passed |
+| 5 Wrap-up | Slim `.env`, deployment docs (systemd + operations), [API reference](../api.md), README rewrite, test migration | `pytest tests/unit` 107 passed |
 
 ### Acceptance evidence
 

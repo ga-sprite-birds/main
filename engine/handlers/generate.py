@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any
 
 from loguru import logger
@@ -12,6 +11,7 @@ import config
 from engine.handlers.lead_in import LEAD_IN_TITLE, generate_lead_in, has_front_matter
 from engine.store import TaskStore
 from ga_birds.Common.i18n import set_locale
+from system.paths import PathSafetyError, validate_output_path
 
 PauseCheck = Callable[[], bool]
 CancelCheck = Callable[[], bool]
@@ -146,6 +146,24 @@ async def _run_with_snapshot(
     voice = options.get("voice")
     rate = options.get("rate")
     output_path = options.get("output_path") or params.get("output_path")
+    if output_path:
+        try:
+            output_path = str(
+                validate_output_path(
+                    output_path,
+                    snapshot.get("OUTPUT_BASE_PATH") or config.OUTPUT_BASE_PATH,
+                )
+            )
+        except PathSafetyError as exc:
+            message = f"Invalid output path: {exc}"
+            store.update_task(
+                task_id,
+                status="failed",
+                phase="failed",
+                error=message,
+            )
+            store.add_event(task_id, "task.failed", {"error": message})
+            return {"error": message}
     source_name = params.get("source_name") or params.get("filename")
 
     llm_manager = None

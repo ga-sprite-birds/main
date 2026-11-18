@@ -156,13 +156,22 @@ def doctor_report(run_dir: str | Path | None = None) -> dict[str, Any]:
         )
 
     try:
-        add(
-            "engine_port",
-            "ok" if port_is_available("127.0.0.1", 39300) else "warn",
-            "39300 is available"
-            if port_is_available("127.0.0.1", 39300)
-            else "39300 is occupied; the engine will use the next free port",
+        running_engine_port = bool(
+            discovery
+            and process_alive(int(discovery["pid"]))
+            and int(discovery["port"]) == 39300
         )
+        available = port_is_available("127.0.0.1", 39300)
+        if running_engine_port:
+            add("engine_port", "ok", "39300 is used by the running engine")
+        elif available:
+            add("engine_port", "ok", "39300 is available")
+        else:
+            add(
+                "engine_port",
+                "warn",
+                "39300 is occupied; the engine will use the next free port",
+            )
     except Exception as exc:
         add("engine_port", "warn", str(exc))
 

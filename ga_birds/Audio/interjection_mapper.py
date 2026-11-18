@@ -131,7 +131,7 @@ class InterjectionMapper:
         # Preserve original quotes
         converted_text = f"{leading_quotes}{interjection}{trailing_quotes}"
 
-        logger.debug(f"Punctuation conversion: {repr(text)} → {repr(converted_text)}")
+        logger.debug("Punctuation conversion: {} -> {}", len(text), len(converted_text))
 
         return converted_text, True
 

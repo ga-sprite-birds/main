@@ -40,6 +40,17 @@
           </template>
         </el-dropdown>
 
+        <!-- API token（启用 API 鉴权时使用） -->
+        <el-tooltip :content="$t('header.apiToken')" placement="bottom">
+          <el-button
+            class="token-toggle-btn"
+            :icon="Key"
+            circle
+            :style="{ color: headerTextColor }"
+            @click="editApiToken"
+          />
+        </el-tooltip>
+
         <!-- 语言切换 -->
         <el-dropdown trigger="click" @command="switchLang">
           <el-button
@@ -79,8 +90,10 @@ import { computed, onMounted, onUnmounted, ref } from "vue"
 import { useThemeStore } from "@/store/modules/theme.js"
 import { useI18n } from "vue-i18n"
 import { supportedLanguages } from "@/i18n/languages.js"
-import { Monitor, Sunny, Moon } from "@element-plus/icons-vue"
+import { Monitor, Sunny, Moon, Key } from "@element-plus/icons-vue"
+import { ElMessage, ElMessageBox } from "element-plus"
 import { getEngineStatus } from "@/api/audio.js"
+import request, { getApiToken, setApiToken } from "@/utils/request.js"
 
 defineProps({
   headerFixed: { type: Boolean, default: true },
@@ -122,6 +135,51 @@ const currentLangShort = computed(() => {
 
 function switchLang(newLocale) {
   locale.value = newLocale
+}
+
+// ── API token ─────────────────────────────────────────────
+async function editApiToken() {
+  const current = getApiToken()
+  let value
+  try {
+    const result = await ElMessageBox.prompt(
+      t("header.apiTokenPrompt"),
+      t("header.apiTokenTitle"),
+      {
+        inputValue: current,
+        inputType: "password",
+        inputPlaceholder: t("header.apiTokenPlaceholder"),
+        confirmButtonText: t("configPage.save"),
+        cancelButtonText: t("header.apiTokenCancel"),
+        inputValidator: (input) => {
+          const token = String(input || "").trim()
+          if (!token || token.length >= 16) return true
+          return t("header.apiTokenTooShort")
+        },
+      },
+    )
+    value = result.value
+  } catch {
+    return
+  }
+
+  const token = String(value || "").trim()
+  if (!token) {
+    setApiToken("")
+    ElMessage.success(t("header.apiTokenCleared"))
+    return
+  }
+
+  setApiToken(token)
+  try {
+    // /system-config is API-only and does not require the Core engine, so it
+    // validates the token even while the engine is down.
+    await request.get("/system-config", { silent: true })
+    ElMessage.success(t("header.apiTokenSaved"))
+  } catch {
+    setApiToken(current)
+    ElMessage.error(t("header.apiTokenInvalid"))
+  }
 }
 
 // ── 服务状态（API + Core 引擎） ────────────────────────────
@@ -271,6 +329,25 @@ onUnmounted(() => {
   font-size: 13px;
   letter-spacing: 0;
   line-height: 1;
+}
+
+.token-toggle-btn {
+  --el-button-bg-color: transparent;
+  --el-button-border-color: transparent;
+  --el-button-hover-bg-color: rgba(255, 255, 255, 0.15);
+  --el-button-hover-border-color: transparent;
+  --el-button-text-color: inherit;
+  --el-button-hover-text-color: inherit;
+}
+
+.layout-header-classic .token-toggle-btn {
+  --el-button-bg-color: var(--theme-control-bg);
+  --el-button-border-color: var(--theme-border-dark);
+  --el-button-hover-bg-color: var(--theme-hover-bg);
+  --el-button-hover-border-color: var(--theme-border-dark);
+  --el-button-text-color: var(--theme-text-color);
+  --el-button-hover-text-color: var(--theme-text-color);
+  box-shadow: inset 1px 1px 0 var(--theme-border-light);
 }
 
 </style>

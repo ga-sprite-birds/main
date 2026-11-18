@@ -56,6 +56,8 @@ project/
 ```
 
 - **Entry point**: `python -m server run` (the `server/` package, loading the app from `fcgi-bin/api.py`) is the only entry point; this version has **no policy** and creates no `/fcgi-bin/policy/*`.
+- **API security**: optional `API_AUTH_ENABLED` / `API_AUTH_TOKEN` (Bearer, X-API-Token, or GUI cookie); CORS is off by default. Non-loopback deployment requires auth.
+- **Path safety**: local input paths are restricted to `API_UPLOAD_DIR` + `API_LOCAL_READ_ROOTS`; task output paths stay under `OUTPUT_BASE_PATH`; character templates stay under `CHARACTER_CACHE_DIR`.
 - **Route prefix**: all under `/fcgi-bin/api/*`.
 - **Response structure**: unified `{code, msg, data}`, `code=0` means success (see `api.md`).
 
@@ -130,7 +132,7 @@ Metadata: `key / section(menu) / type / default / options-or-range / validation`
 | OUTPUT_STRATEGY | enum | by_role | by_role / by_model / by_date |
 | OUTPUT_FORMAT | enum | mp3 | mp3 / m4a / wav |
 | OUTPUT_BITRATE | int | 192 | 128 / 192 / 320 recommended |
-| OUTPUT_FILENAME_TEMPLATE | string | {index:03d}-{title}.{format} | Only {index}/{title}/{role}/{date}/{format} allowed |
+| OUTPUT_FILENAME_TEMPLATE | string | {index:03d}-{title}.{format} | Only {index}/{title}/{role}/{date}/{format} allowed; no `/`, `\` or `..` |
 | OUTPUT_FRONT_MATTER_MARKERS | list[str] | ["导读","前言"] | Front-matter markers (used to skip non-body content) |
 | OUTPUT_KEEP_TEMP_FILES | bool | false | |
 | OUTPUT_DUPLICATE_HANDLING | enum | rename | overwrite / rename / skip |
@@ -316,7 +318,8 @@ Returns config grouped by menu:
 ## Appendix: `.env` keep-list (deployment/secrets)
 
 - LLM: `LLM_MODE`, `LLM_API_ENDPOINT / KEY / MODEL`, `LLM_LOCAL_HOST / MODEL`, `LLM_SYSTEM_PROMPT`
-- API: `API_HOST / PORT / DEBUG / CORS_ENABLED / CORS_ORIGINS / MAX_UPLOAD_SIZE / UPLOAD_DIR`
+- API: `API_HOST / PORT / DEBUG / UPLOAD_DIR / MAX_UPLOAD_SIZE / MAX_JSON_BODY_SIZE / LOCAL_READ_ROOTS`
+- API security: `API_AUTH_ENABLED / API_AUTH_TOKEN / CORS_ENABLED / CORS_ORIGINS`, `API_BIND_HOST` (compose only)
 - Tasks: `TASK_MAX_CONCURRENT / GRACE_SECONDS / RESULT_TTL / CACHE_DIR`
 - Paths/dependencies: `FFMPEG_PATH`, `CORE_DIR`, `DATA_DIR`, `CACHE_DIR`, `RUN_DIR`, `MODEL_CACHE_DIR`, `CHARACTER_CACHE_DIR`, `TTS_VOICE_CATALOG_CACHE`
 - Logging: `LOG_LEVEL / FORMAT / FILE / MAX_FILE_SIZE / BACKUP_COUNT / CONSOLE`

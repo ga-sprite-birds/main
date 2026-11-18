@@ -65,7 +65,7 @@ def task_view(
                 "index": int(chapter["chapter_index"]),
                 "title": chapter["title"],
                 "status": chapter["status"],
-                "audio_path": chapter.get("audio_path"),
+                "has_audio": bool(chapter.get("audio_path")),
                 "error": chapter.get("error"),
                 "started_at": chapter.get("started_at"),
                 "completed_at": chapter.get("finished_at"),

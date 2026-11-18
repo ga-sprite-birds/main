@@ -28,6 +28,7 @@ def test_source_stem_removes_extension_and_upload_prefix():
 @pytest.mark.unit
 def test_front_matter_uses_zero_prefix_and_normalized_title(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "OUTPUT_FRONT_MATTER_MARKERS", ["导读", "前言"])
+    monkeypatch.setattr(config, "OUTPUT_BASE_PATH", str(tmp_path))
     exporter = AudioExporter()
     exporter.strategy = "by_role"
 
@@ -61,7 +62,8 @@ def test_front_matter_uses_zero_prefix_and_normalized_title(tmp_path, monkeypatc
 
 
 @pytest.mark.unit
-def test_single_voice_output_is_inside_source_directory(tmp_path):
+def test_single_voice_output_is_inside_source_directory(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "OUTPUT_BASE_PATH", str(tmp_path))
     exporter = AudioExporter()
     exporter.strategy = "by_role"
 
@@ -78,7 +80,8 @@ def test_single_voice_output_is_inside_source_directory(tmp_path):
 
 
 @pytest.mark.unit
-def test_multi_voice_output_keeps_role_directory(tmp_path):
+def test_multi_voice_output_keeps_role_directory(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "OUTPUT_BASE_PATH", str(tmp_path))
     exporter = AudioExporter()
     exporter.strategy = "by_role"
 

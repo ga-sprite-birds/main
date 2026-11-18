@@ -15,6 +15,7 @@ from typing import Any
 
 from services.tts_service import InvalidVoiceError, TTSVoiceService
 from system.config import PROJECT_ROOT
+from system.paths import PathSafetyError, validate_filename_template
 from system.config_schema import (
     CONFIG_ITEMS,
     CONFIG_SECTION_MAP,
@@ -307,6 +308,13 @@ class ConfigService:
                 type(item) is str for item in value
             ):
                 self._raise_type(key, "list[str]")
+            if len(value) > 100:
+                raise ConfigValidationError(
+                    key,
+                    "config.error.invalid_length",
+                    1003,
+                    {"max_length": 100},
+                )
         else:
             raise ConfigError(4000, "config.error.unknown_schema_type", key=key)
 
@@ -336,6 +344,13 @@ class ConfigService:
             raise ConfigValidationError(key, "config.error.invalid_path", 1003)
         if definition.validate_regex:
             for pattern in value:
+                if len(pattern) > 500:
+                    raise ConfigValidationError(
+                        key,
+                        "config.error.invalid_regex",
+                        1007,
+                        {"pattern": pattern, "error": "pattern is too long"},
+                    )
                 try:
                     re.compile(pattern)
                 except re.error as exc:
@@ -372,6 +387,15 @@ class ConfigService:
                 1008,
                 {"allowed_fields": list(allowed_fields)},
             )
+        try:
+            validate_filename_template(value)
+        except PathSafetyError as exc:
+            raise ConfigValidationError(
+                key,
+                "config.error.invalid_template",
+                1008,
+                {"error": str(exc)},
+            ) from exc
 
     @staticmethod
     def _validate_cross_fields(values: Mapping[str, Any]) -> None:

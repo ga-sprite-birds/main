@@ -41,6 +41,8 @@ in one container (they share loopback, so the API can reach the engine command c
 
 ```bash
 cp .env.example .env          # configure LLM credentials
+mkdir -p data run cache output logs uploads
+sudo chown -R 1000:1000 data run cache output logs uploads
 docker compose up -d --build
 # GUI: http://127.0.0.1:8000/
 docker compose logs -f
@@ -48,9 +50,30 @@ docker compose down
 ```
 
 - Persistent data: `./data ./run ./cache ./output ./logs ./uploads` (bind mounts).
-- Inside the container `API_HOST=0.0.0.0`; the host port is `8000` by default and can be changed
-  with `API_HOST_PORT=18080 docker compose up -d --build`. The engine command channel
-  (`127.0.0.1:39300`) is never exposed.
+- Inside the container `API_HOST=0.0.0.0`; the compose file publishes to **127.0.0.1** by default.
+  Change the host port with `API_HOST_PORT=18080 docker compose up -d --build`.
+- For LAN access set `API_BIND_HOST=0.0.0.0` **and** enable auth:
+  ```env
+  API_BIND_HOST=0.0.0.0
+  API_AUTH_ENABLED=true
+  API_AUTH_TOKEN=<a long random token>
+  ```
+  Clients use `Authorization: Bearer <token>`; the GUI key button stores the token locally.
+- CORS is disabled by default. If a separate frontend origin needs it, set
+  `API_CORS_ENABLED=true` and an explicit `API_CORS_ORIGINS`; never use `*`.
+- The engine command channel (`127.0.0.1:39300`) is never exposed.
+- The image runs as the unprivileged `app` user (UID/GID `1000:1000` by default). Before the
+  first start, make the bind mounts writable by that user:
+  ```bash
+  mkdir -p data run cache output logs uploads
+  sudo chown -R 1000:1000 data run cache output logs uploads
+  ```
+  If your host user has a different UID/GID, set `APP_UID`/`APP_GID` in `.env` and rebuild with
+  `docker compose up -d --build`; compose passes them as build args.
+- The Docker daemon itself normally runs as root; the container process does not. Use rootless
+  Docker if you also want to isolate the daemon.
+- Compose drops all Linux capabilities and sets `no-new-privileges`; runtime files are `0600`
+  and volume directories are `0700`.
 - `models/` is the Python package inside the image; model caches are written to `./cache/models`.
 - Docker and a host engine **must not share** `data/` or `run/` at the same time (single-instance
   lock): stop the host `engine`/`server` before switching, or run compose from a separate
@@ -82,6 +105,10 @@ python -m server run
 `python -m server run` is optional for **CLI-only** use: the CLI talks to the engine directly.
 Start only `python -m engine run` when you do not need the GUI or HTTP API; start both processes
 when you do.
+
+API auth is optional but mandatory when binding beyond loopback. Set
+`API_AUTH_ENABLED=true` + `API_AUTH_TOKEN` in `.env`; clients use
+`Authorization: Bearer <token>`, and the GUI key button stores the token in the browser.
 
 Install FFmpeg first (`apt install ffmpeg`, `brew install ffmpeg`, or the Windows build) and verify
 with `ffmpeg -version`; alternatively set `FFMPEG_PATH`.
@@ -195,12 +222,12 @@ sudo systemctl start ga-sprite-birds-api
 
 | Path | Writer | Description |
 |------|--------|------|
-| `data/tasks.db` | Core only | Tasks, chapters, events, command idempotency log; WAL |
-| `data/system.db` | Core/API seed + migrations | Config defaults; both processes seed missing keys on first start |
+| `data/tasks.db` | Core only | Tasks, chapters, events, command idempotency log; WAL; mode `0600` |
+| `data/system.db` | Core/API seed + migrations | Config defaults; both processes seed missing keys on first start; mode `0600` |
 | `cache/config/system.json` | API / Core (atomic replace) | User overrides; both sides reload automatically based on the file signature |
 | `run/engine.json` | Core | Discovery file (host/port/token/pid), mode `0600` |
 | `run/engine.lock` | Core | Single-instance lock |
-| `uploads/` | API | Uploaded source files |
+| `uploads/` | API | Uploaded source files (directory `0700`, files `0600`) |
 | `output/` | Core | Generated audio and chapter text |
 | `logs/` | Both | Rotating per-process logs |
 

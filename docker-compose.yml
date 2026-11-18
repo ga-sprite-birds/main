@@ -1,6 +1,10 @@
 services:
   ga-sprite-birds:
-    build: .
+    build:
+      context: .
+      args:
+        APP_UID: "${APP_UID:-1000}"
+        APP_GID: "${APP_GID:-1000}"
     image: ga-sprite-birds:2
     # Keep .env for deployment settings + LLM credentials (gitignored).
     env_file:
@@ -14,8 +18,14 @@ services:
       # models/ is the Python package inside the image; keep model cache in the cache volume.
       MODEL_CACHE_DIR: /app/cache/models
     init: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    stop_grace_period: 90s
     ports:
-      - "${API_HOST_PORT:-8000}:8000"
+      # Default to loopback. Set API_BIND_HOST=0.0.0.0 only with API auth enabled.
+      - "${API_BIND_HOST:-127.0.0.1}:${API_HOST_PORT:-8000}:8000"
     volumes:
       - ./data:/app/data
       - ./run:/app/run

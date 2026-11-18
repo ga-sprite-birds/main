@@ -30,10 +30,16 @@ class Settings(BaseSettings):
     API_HOST: str = "127.0.0.1"
     API_PORT: int = Field(default=8000, ge=1, le=65535)
     API_DEBUG: bool = False
-    API_CORS_ENABLED: bool = True
-    API_CORS_ORIGINS: str = "*"
+    API_AUTH_ENABLED: bool = False
+    API_AUTH_TOKEN: str | None = None
+    API_CORS_ENABLED: bool = False
+    API_CORS_ORIGINS: str = ""
     API_MAX_UPLOAD_SIZE: int = Field(default=100, ge=0)
+    API_MAX_JSON_BODY_SIZE: int = Field(default=1, ge=0)
     API_UPLOAD_DIR: Path = PROJECT_ROOT / "uploads"
+    # Extra server-local roots that /upload?path= may read from. The uploads
+    # directory is always allowed; leave empty for uploads-only access.
+    API_LOCAL_READ_ROOTS: str = ""
 
     TASK_RESULT_TTL: int = Field(default=86400, ge=0)
     TASK_CACHE_DIR: Path = PROJECT_ROOT / "cache" / "tasks"

@@ -35,6 +35,8 @@ v2 始终由**两个进程**组成：
 
 ```bash
 cp .env.example .env          # 配置 LLM 凭据
+mkdir -p data run cache output logs uploads
+sudo chown -R 1000:1000 data run cache output logs uploads
 docker compose up -d --build
 # GUI: http://127.0.0.1:8000/
 docker compose logs -f
@@ -42,9 +44,30 @@ docker compose down
 ```
 
 - 持久化：`./data ./run ./cache ./output ./logs ./uploads`（bind mount）。
-- 容器内 `API_HOST=0.0.0.0`；默认映射宿主机 `8000`，可用
-  `API_HOST_PORT=18080 docker compose up -d --build` 改端口；引擎命令通道
-  `127.0.0.1:39300` 不暴露。
+- 容器内 `API_HOST=0.0.0.0`；compose 默认只发布到 **127.0.0.1**。可用
+  `API_HOST_PORT=18080 docker compose up -d --build` 改端口。
+- 局域网访问需同时设置 `API_BIND_HOST=0.0.0.0` 并启用鉴权：
+  ```env
+  API_BIND_HOST=0.0.0.0
+  API_AUTH_ENABLED=true
+  API_AUTH_TOKEN=<长随机令牌>
+  ```
+  客户端使用 `Authorization: Bearer <token>`；GUI 顶部钥匙按钮可保存令牌。
+- CORS 默认关闭。独立前端来源需要时再设置 `API_CORS_ENABLED=true` 和明确的
+  `API_CORS_ORIGINS`，不要使用 `*`。
+- 引擎命令通道 `127.0.0.1:39300` 不暴露。
+- 镜像以非 root 的 `app` 用户运行（默认 UID/GID `1000:1000`）。首次启动前，把宿主机绑定目录
+  改成该用户可写：
+  ```bash
+  mkdir -p data run cache output logs uploads
+  sudo chown -R 1000:1000 data run cache output logs uploads
+  ```
+  如果宿主机用户 UID/GID 不同，在 `.env` 设置 `APP_UID`/`APP_GID` 后重新执行
+  `docker compose up -d --build`；compose 会把它们作为构建参数传入。
+- Docker daemon 本身通常以 root 运行；容器内进程不是 root。若还想隔离 daemon，可使用
+  rootless Docker。
+- compose 丢弃全部 Linux capabilities 并启用 `no-new-privileges`；运行时文件为 `0600`，
+  卷目录为 `0700`。
 - `models/` 是镜像内的 Python 代码包；模型缓存写到 `./cache/models`。
 - Docker 与宿主机引擎**不能同时共用** `data/`、`run/`（单实例锁）：切换前先停宿主机
   `engine`/`server`，或在独立目录运行 compose。
@@ -74,6 +97,10 @@ python -m server run
 
 **只用 CLI 时，`python -m server run` 是可选的**：CLI 直接通过本地命令通道与引擎通信。
 不需要 GUI / HTTP API 时只启动 `python -m engine run`；需要时再同时启动两个进程。
+
+API 鉴权可选；但绑定到 loopback 之外时必须启用。在 `.env` 设置
+`API_AUTH_ENABLED=true` + `API_AUTH_TOKEN`；客户端使用 `Authorization: Bearer <token>`，
+GUI 顶部钥匙按钮会把令牌保存在浏览器。
 
 先安装 FFmpeg（`apt install ffmpeg`、`brew install ffmpeg` 或 Windows 构建），用
 `ffmpeg -version` 验证；也可以设置 `FFMPEG_PATH`。
@@ -186,12 +213,12 @@ sudo systemctl start ga-sprite-birds-api
 
 | 路径 | 写入者 | 说明 |
 |------|--------|------|
-| `data/tasks.db` | 仅 Core | 任务、章节、事件、命令幂等日志；WAL |
-| `data/system.db` | Core/API 种子 + 迁移 | 配置默认值；两个进程首次启动都会补齐缺失键 |
+| `data/tasks.db` | 仅 Core | 任务、章节、事件、命令幂等日志；WAL；权限 `0600` |
+| `data/system.db` | Core/API 种子 + 迁移 | 配置默认值；两个进程首次启动都会补齐缺失键；权限 `0600` |
 | `cache/config/system.json` | API / Core（原子替换） | 用户覆盖值；两边按文件签名自动重载 |
 | `run/engine.json` | Core | 发现文件（host/port/token/pid），权限 `0600` |
 | `run/engine.lock` | Core | 单实例锁 |
-| `uploads/` | API | 上传源文件 |
+| `uploads/` | API | 上传源文件（目录 `0700`，文件 `0600`） |
 | `output/` | Core | 生成的音频与章节文本 |
 | `logs/` | 两者 | 分文件滚动日志 |
 

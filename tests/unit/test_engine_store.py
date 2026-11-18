@@ -165,3 +165,40 @@ def test_reopen_generation_applies_new_options(tmp_path):
         assert generation["chapter_intro_outro"] is False
     finally:
         store.close()
+
+
+def test_force_cancel_does_not_steal_a_claimed_task(tmp_path):
+    store = make_store(tmp_path)
+    try:
+        task = store.create_task("audiobook", phase="ready")
+        store.replace_chapters(
+            task["task_id"], [{"index": 1, "title": "One", "content": "x"}]
+        )
+        store.queue_for_generation(task["task_id"])
+        assert store.claim_queued_task(task["task_id"]) is not None
+
+        assert (
+            store.force_cancel(task["task_id"], expected_status="queued") is None
+        )
+        assert store.require_task(task["task_id"])["status"] == "running"
+    finally:
+        store.close()
+
+
+def test_query_list_view_does_not_expose_internal_params(tmp_path):
+    from services.task_query_service import TaskQueryService
+
+    store = make_store(tmp_path)
+    try:
+        store.create_task(
+            "audiobook",
+            {"file_path": "/secret/book.txt", "output_path": "/secret/out"},
+            idempotency_key="secret-key",
+        )
+    finally:
+        store.close()
+
+    row = TaskQueryService(tmp_path / "data" / "tasks.db").list_tasks()["list"][0]
+    assert "params" not in row
+    assert "idempotency_key" not in row
+    assert "chapters" not in row

@@ -175,6 +175,8 @@ def test_setting_default_removes_override_and_reset_scopes(tmp_path):
         ("CHAPTER_REGEX_PATTERNS", ["["], 1007),
         ("CHAPTER_INTRO_TEMPLATE", "{speaker}", 1008),
         ("OUTPUT_FILENAME_TEMPLATE", "{index", 1008),
+        ("OUTPUT_FILENAME_TEMPLATE", "../../tasks.db", 1008),
+        ("CHAPTER_REGEX_PATTERNS", ["a" * 501], 1007),
         ("OUTPUT_BASE_PATH", "", 1003),
     ],
 )

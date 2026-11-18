@@ -4,6 +4,44 @@
 import axios from "axios";
 import { ElMessage } from "element-plus";
 
+export const API_TOKEN_STORAGE_KEY = "ga_api_token";
+export const API_TOKEN_COOKIE = "ga_api_token";
+
+export function getApiToken() {
+    try {
+        return localStorage.getItem(API_TOKEN_STORAGE_KEY) || "";
+    } catch {
+        return "";
+    }
+}
+
+function applyTokenCookie(token) {
+    if (typeof document === "undefined") return;
+    const secure = window.location.protocol === "https:" ? "; Secure" : "";
+    if (token) {
+        document.cookie = `${API_TOKEN_COOKIE}=${encodeURIComponent(token)}; Path=/; SameSite=Strict${secure}`;
+    } else {
+        document.cookie = `${API_TOKEN_COOKIE}=; Path=/; Max-Age=0; SameSite=Strict${secure}`;
+    }
+}
+
+export function setApiToken(token) {
+    const value = String(token || "").trim();
+    try {
+        if (value) {
+            localStorage.setItem(API_TOKEN_STORAGE_KEY, value);
+        } else {
+            localStorage.removeItem(API_TOKEN_STORAGE_KEY);
+        }
+    } catch {
+        // localStorage may be unavailable; the in-memory cookie still works.
+    }
+    applyTokenCookie(value);
+}
+
+// Keep direct <audio>/<a> requests authenticated (they cannot set headers).
+applyTokenCookie(getApiToken());
+
 const request = axios.create({
     baseURL: `${import.meta.env.VITE_API_BASE_URL || ""}${import.meta.env.VITE_API_PREFIX || ""}`,
     timeout: 30000,
@@ -12,6 +50,11 @@ const request = axios.create({
 // 请求拦截器
 request.interceptors.request.use(
     (config) => {
+        const token = getApiToken();
+        if (token && !config.headers?.Authorization) {
+            config.headers = config.headers || {};
+            config.headers.Authorization = `Bearer ${token}`;
+        }
         return config;
     },
     (error) => {

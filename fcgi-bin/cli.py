@@ -20,7 +20,6 @@ from typing import Any
 
 from services.config_service import ConfigValidationError
 from services.control.client import (
-    EngineClient,
     EngineCommandError,
     EngineUnavailable,
     EngineProtocolError,
@@ -159,18 +158,24 @@ def _add_and_run(args: argparse.Namespace, control: ControlService) -> dict[str,
     source = Path(args.input).expanduser()
     if not source.is_file():
         raise ValueError(f"Input file does not exist: {source}")
+    base_command_id = getattr(args, "command_id", None)
+
+    def command_id(step: str) -> str | None:
+        return f"{base_command_id}:{step}" if base_command_id else None
+
     task = control.add_task(
         {
             "file_path": str(source.resolve()),
             "output_path": args.output,
             "filename": source.name,
             "source_name": source.name,
-        }
+        },
+        command_id=command_id("add"),
     )
     task_id = task["task_id"]
     if not args.json:
         print(f"created {task_id}")
-    control.parse(task_id)
+    control.parse(task_id, command_id=command_id("parse"))
     subject = _wait_for_parse(control, task_id, as_json=args.json)
     if args.json:
         _print(subject, True)
@@ -180,7 +185,7 @@ def _add_and_run(args: argparse.Namespace, control: ControlService) -> dict[str,
             f"{subject.get('status')} phase={subject.get('phase')}"
         )
     options = _legacy_options(args)
-    control.generate(task_id, options)
+    control.generate(task_id, options, command_id=command_id("generate"))
     return _wait_for_task(
         control, task_id, follow=args.follow, as_json=args.json
     )

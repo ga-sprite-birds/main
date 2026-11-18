@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from system.config import PROJECT_ROOT
+from system.config import PROJECT_ROOT, settings
 from system.db import utc_now_iso
 
 logger = logging.getLogger(__name__)
@@ -52,8 +52,10 @@ class TTSVoiceService:
     ) -> None:
         if cache_ttl_seconds <= 0:
             raise ValueError("cache_ttl_seconds must be greater than zero")
-        self._cache_path = Path(cache_path) if cache_path else (
-            PROJECT_ROOT / "cache" / "tts" / "voices.json"
+        self._cache_path = (
+            Path(cache_path)
+            if cache_path
+            else settings.TTS_VOICE_CATALOG_CACHE
         )
         self._cache_ttl_seconds = cache_ttl_seconds
         self._fetcher = fetcher

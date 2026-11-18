@@ -5,6 +5,19 @@
 所有业务接口挂在 `/fcgi-bin/api` 前缀下。Control API 由 `python -m server run` 启动（`server/` 包），FastAPI 应用在 `fcgi-bin/api.py`，只是薄控制面：
 **不执行任务**，只做参数校验、命令转发、只读查询。
 
+## 鉴权
+
+API 鉴权可选，由部署配置控制：
+
+- `API_AUTH_ENABLED=true` 时，除 `/fcgi-bin/api/status` 外所有 `/fcgi-bin/api/*` 路由都要求令牌。
+- `API_AUTH_TOKEN` 至少 16 个字符（建议随机值）。
+- 客户端使用 `Authorization: Bearer <token>` 或 `X-API-Token: <token>`。
+- GUI 顶部的钥匙按钮会把令牌保存在本机，并写入 `ga_api_token` Cookie，供 `<audio>` / 下载等直连 URL 使用。
+- 令牌缺失或无效返回 HTTP `401` + `code 2001`。
+- `GET /fcgi-bin/api/status` 保持公开，用于健康检查。
+
+不要把 API 暴露到 loopback 之外而不启用鉴权。仓库的 Docker compose 默认只绑定 `127.0.0.1`；只有启用鉴权后才建议设置 `API_BIND_HOST=0.0.0.0`。
+
 - 上传与命令转发 → Core 引擎（localhost HTTP + Bearer token）
 - 状态/事件/列表/章节 → 只读 `data/tasks.db`（`PRAGMA query_only=ON`）
 - 系统配置 → `ConfigService`（`data/system.db` 默认值 + `cache/config/system.json` 覆盖）
@@ -23,8 +36,8 @@
 | `3000~3999` | 业务错误（任务不存在、状态非法、非法流转、幂等冲突） |
 | `4000~4999` | 系统错误（内部异常、配置读写失败） |
 
-特殊 HTTP 状态：引擎未运行 → `503` + `code 3004`；文档/Swagger 等未知路由 → `404` + `code 3002`；`data/tasks.db` 损坏或不可读 → HTTP `200` + `code 4001`。
-其余业务错误都以 HTTP `200` + 非零 `code` 返回，前端只需判断信封。
+特殊 HTTP 状态：API 鉴权失败 → HTTP `401` + `code 2001`；引擎未运行 → `503` + `code 3004`；文档/Swagger 等未知路由 → `404` + `code 3002`；`data/tasks.db` 损坏或不可读 → HTTP `200` + `code 4001`。
+其余业务错误都以 HTTP `200` + 非零 `code` 返回，前端只需判断信封。敏感查询响应统一带 `Cache-Control: no-store`。
 
 ---
 
@@ -64,8 +77,9 @@ curl -X POST "http://127.0.0.1:8000/fcgi-bin/api/upload" \
 ```
 
 - 客户端文件名会被剥离路径（`..\..\evil\a.txt` → `a.txt`）后落盘到 `API_UPLOAD_DIR/<uuid>_<name>`。
+- `path` 必须位于 `API_UPLOAD_DIR` 或 `API_LOCAL_READ_ROOTS` 之内；越界路径返回 `code 1000`（拒绝路径穿越）。
 - 扩展名白名单：`.txt` / `.md` / `.pdf`，否则 `code 1000`。
-- 超过 `API_MAX_UPLOAD_SIZE`（MB，0 表示不限）返回 `code 1003`。
+- 超过 `API_MAX_UPLOAD_SIZE`（MB，0 表示不限）返回 `code 1003`；通过 `path` 引用的大文件同样受限。
 - 成功后返回任务视图（`task_id`、`status`、`phase` …）。
 
 ### `POST /fcgi-bin/api/parse`
@@ -105,8 +119,8 @@ curl -X POST "http://127.0.0.1:8000/fcgi-bin/api/upload" \
 | `enable_llm` / `multi_voice` | 布尔 |
 | `chapter_intro_outro` | 本次生成是否启用章节片头片尾；省略时用任务快照（系统配置） |
 | `chapter_lead_in_enabled` | 本次生成是否生成/使用导读篇；省略时用任务快照（系统配置） |
-| `output_path` | 本次生成的输出根目录（可选） |
-| `character_template` | 角色音色模板路径（配合 `multi_voice` 使用） |
+| `output_path` | 本次生成的输出根目录（可选）；必须位于 `OUTPUT_BASE_PATH` 内 |
+| `character_template` | 角色音色模板路径（配合 `multi_voice` 使用）；必须位于 `CHARACTER_CACHE_DIR` 内 |
 
 任一字段越界在模型层直接返回 `1001`，不会进引擎队列。`chapter_intro_outro` / `chapter_lead_in_enabled` 只对本次生成生效，**不写回系统配置**。
 
@@ -140,7 +154,7 @@ curl -X POST "http://127.0.0.1:8000/fcgi-bin/api/upload" \
   "error":null,"created_at":"...","queued_at":"...","started_at":"...",
   "finished_at":null,"heartbeat_at":"...","control":{"pause_requested":false},
   "chapters":[{"index":1,"title":"第一章","status":"succeeded",
-               "audio_path":"...","error":null,"completed_at":"..."}]
+               "has_audio":true,"error":null,"completed_at":"..."}]
 }}
 ```
 

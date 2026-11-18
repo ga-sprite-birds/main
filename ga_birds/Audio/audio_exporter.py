@@ -16,6 +16,8 @@ from loguru import logger
 
 import config
 from ga_birds.Common.i18n import t
+from system.config import PROJECT_ROOT
+from system.paths import PathSafetyError, ensure_under, safe_filename
 
 
 class AudioExporter:
@@ -56,19 +58,35 @@ class AudioExporter:
         Returns:
             output file path
         """
-        # Use custom path or default path
-        base = Path(custom_base_path) if custom_base_path else self.base_path
+        # Use custom path or default path. Per-task overrides must stay under
+        # the configured output root; resolve symlinks before comparing.
+        output_root = self.base_path.expanduser().resolve(strict=False)
+        if custom_base_path:
+            base = Path(custom_base_path).expanduser()
+            if not base.is_absolute():
+                base = PROJECT_ROOT / base
+        else:
+            base = output_root
+        base = base.resolve(strict=False)
+        try:
+            base.relative_to(output_root)
+        except ValueError as exc:
+            raise PathSafetyError(
+                f"Output path is outside OUTPUT_BASE_PATH: {base}"
+            ) from exc
 
         # Keep each book in its own directory, even when the user supplies a
         # custom output base such as "abc".
         source_stem = self.get_source_stem(source_name)
         if source_stem:
+            source_stem = self._sanitize_filename(source_stem)
+            safe_filename(source_stem)
             base = base / source_stem
 
         # Determine subdirectory based on strategy. Single-voice output does
         # not need the redundant "default" directory.
         if self.strategy == "by_role":
-            subdir = base / role if role and role != "default" else base
+            subdir = base / safe_filename(role) if role and role != "default" else base
         elif self.strategy == "by_model":
             subdir = base / "edge-tts"
         elif self.strategy == "by_date":
@@ -76,9 +94,6 @@ class AudioExporter:
             subdir = base / date_str
         else:
             subdir = base
-
-        # Ensure subdirectory exists
-        subdir.mkdir(parents=True, exist_ok=True)
 
         # Generate filename. Front matter uses 000, but later chapter numbers
         # keep their existing sequence.
@@ -90,8 +105,13 @@ class AudioExporter:
             date=datetime.now().strftime("%Y%m%d"),
             format=self.format
         )
+        safe_filename(filename)
 
-        output_path = subdir / filename
+        output_path = (subdir / filename).resolve(strict=False)
+        ensure_under(output_root, output_path)
+
+        # Ensure subdirectory exists only after the path is validated.
+        subdir.mkdir(parents=True, exist_ok=True)
         logger.debug(t("audio.output_path_generated", path=output_path))
 
         return output_path
@@ -173,6 +193,9 @@ class AudioExporter:
         illegal_chars = ['<', '>', ':', '"', '/', '\\', '|', '?', '*']
         for char in illegal_chars:
             filename = filename.replace(char, '_')
+        # Remove control characters (including newlines) that could break logs
+        # or generated ffmpeg concat lists.
+        filename = re.sub(r"[\x00-\x1f\x7f]", "_", filename)
 
         # Limit length
         max_length = 100

@@ -15,6 +15,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 import hashlib
+import hmac
 import os
 import sqlite3
 from typing import Any, Optional
@@ -32,17 +33,35 @@ from models.api import (
     CommandMeta,
     GenerateRequest,
     ParseRequest,
-    TaskCommandRequest,
 )
 from routers import system_config, tts
 from services.config_service import ConfigService
 from services.control.client import EngineCommandError, EngineUnavailable
 from services.control.service import ControlService
-from system.config import settings
+from system.config import PROJECT_ROOT, settings
 from system.deps import get_config_service, get_control_service
+from system.paths import (
+    PathSafetyError,
+    ensure_under,
+    ensure_under_any,
+    resolve_path,
+    validate_output_path,
+)
 from system.response import fail, success
 
+NO_STORE = {"Cache-Control": "no-store"}
+API_TOKEN_COOKIE = "ga_api_token"
+UPLOAD_BODY_OVERHEAD_BYTES = 1024 * 1024
+
 SUPPORTED_INPUT_EXTENSIONS = {".txt", ".md", ".pdf"}
+
+if settings.API_AUTH_ENABLED:
+    _auth_token = (settings.API_AUTH_TOKEN or "").strip()
+    if len(_auth_token) < 16:
+        raise RuntimeError(
+            "API_AUTH_TOKEN must be set to at least 16 characters when "
+            "API_AUTH_ENABLED=true"
+        )
 
 app = FastAPI(
     title="GA Sprite Birds Control API",
@@ -55,11 +74,85 @@ if settings.API_CORS_ENABLED:
     origins = [item.strip() for item in settings.API_CORS_ORIGINS.split(",") if item.strip()]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=origins or ["http://127.0.0.1"],
+        allow_origins=origins or [
+            "http://127.0.0.1:5173",
+            "http://localhost:5173",
+        ],
         allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+
+def _request_token(request: Request) -> str:
+    authorization = request.headers.get("Authorization", "")
+    if authorization.lower().startswith("bearer "):
+        return authorization[7:].strip()
+    return (
+        request.headers.get("X-API-Token")
+        or request.cookies.get(API_TOKEN_COOKIE)
+        or ""
+    ).strip()
+
+
+@app.middleware("http")
+async def api_guard(request: Request, call_next):
+    """Enforce optional API auth, request-size limits and API cache policy."""
+    path = request.url.path
+    is_api = path.startswith("/fcgi-bin/api")
+    if is_api and request.method in {"POST", "PUT", "PATCH"}:
+        raw_length = request.headers.get("content-length")
+        if raw_length:
+            try:
+                length = int(raw_length)
+            except ValueError:
+                return JSONResponse(
+                    status_code=400,
+                    content=fail(1001, "Invalid Content-Length", {}),
+                    headers=NO_STORE,
+                )
+            is_upload = path == "/fcgi-bin/api/upload"
+            limit_mb = (
+                settings.API_MAX_UPLOAD_SIZE
+                if is_upload
+                else settings.API_MAX_JSON_BODY_SIZE
+            )
+            if limit_mb > 0:
+                limit = limit_mb * 1024 * 1024
+                if is_upload:
+                    limit += UPLOAD_BODY_OVERHEAD_BYTES
+                if length > limit:
+                    return JSONResponse(
+                        status_code=413,
+                        content=fail(
+                            1003,
+                            "Request body is too large",
+                            {"limit_mb": limit_mb},
+                        ),
+                        headers=NO_STORE,
+                    )
+
+    if (
+        is_api
+        and settings.API_AUTH_ENABLED
+        and request.method != "OPTIONS"
+        and path != "/fcgi-bin/api/status"
+    ):
+        expected = (settings.API_AUTH_TOKEN or "").strip()
+        if not expected or not hmac.compare_digest(
+            _request_token(request), expected
+        ):
+            return JSONResponse(
+                status_code=401,
+                content=fail(2001, "Unauthorized", {}),
+                headers=NO_STORE,
+            )
+
+    response = await call_next(request)
+    if is_api and path != "/fcgi-bin/api/tts/preview":
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
 
 app.include_router(system_config.router, prefix="/fcgi-bin/api")
 app.include_router(tts.router, prefix="/fcgi-bin/api")
@@ -138,9 +231,12 @@ def _control_error(exc: Exception) -> JSONResponse:
 
 
 def _ensure_dirs() -> None:
-    settings.DATA_DIR.mkdir(parents=True, exist_ok=True)
-    settings.RUN_DIR.mkdir(parents=True, exist_ok=True)
-    settings.API_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    for path in (settings.DATA_DIR, settings.RUN_DIR, settings.API_UPLOAD_DIR):
+        path.mkdir(parents=True, exist_ok=True)
+        try:
+            os.chmod(path, 0o700)
+        except OSError:
+            pass
 
 
 _ensure_dirs()
@@ -212,6 +308,35 @@ def _validate_source_name(name: str) -> str | None:
     return f"Unsupported file format: {suffix or name}"
 
 
+def _local_read_roots() -> list[Path]:
+    """Roots allowed for the server-local upload ``path`` query parameter."""
+    roots: list[Path] = [settings.API_UPLOAD_DIR]
+    for item in settings.API_LOCAL_READ_ROOTS.split(","):
+        value = item.strip()
+        if value:
+            roots.append(resolve_path(value))
+    return roots
+
+
+def _checked_output_path(value: str | None, config_service: ConfigService) -> str | None:
+    if value is None:
+        return None
+    try:
+        return str(
+            validate_output_path(value, config_service.get("OUTPUT_BASE_PATH"))
+        )
+    except PathSafetyError as exc:
+        raise ValueError(str(exc)) from exc
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 @app.post("/fcgi-bin/api/upload")
 async def upload_file(
     file: Optional[UploadFile] = File(None),
@@ -219,18 +344,40 @@ async def upload_file(
     output_path: Optional[str] = None,
     idempotency_key: Optional[str] = Header(default=None, alias="Idempotency-Key"),
     control: ControlService = Depends(get_control_service),
+    config_service: ConfigService = Depends(get_config_service),
 ) -> Any:
     """Store an upload, then create the task via the Core command channel."""
     uploaded_path: Path | None = None
+    temporary_path: Path | None = None
     try:
+        if output_path:
+            try:
+                output_path = _checked_output_path(output_path, config_service)
+            except ValueError as exc:
+                return fail(1000, str(exc), {"output_path": output_path})
         if path:
-            source = Path(path).expanduser()
+            try:
+                source = ensure_under_any(_local_read_roots(), path)
+            except PathSafetyError:
+                return fail(
+                    1000,
+                    "Source path is outside the allowed read roots",
+                    {"path": path},
+                )
             if not source.is_file():
                 return fail(3002, "Source file not found", {"path": path})
             error = _validate_source_name(source.name)
             if error:
                 return fail(
                     1000, error, {"allowed": sorted(SUPPORTED_INPUT_EXTENSIONS)}
+                )
+            if settings.API_MAX_UPLOAD_SIZE > 0 and source.stat().st_size > (
+                settings.API_MAX_UPLOAD_SIZE * 1024 * 1024
+            ):
+                return fail(
+                    1003,
+                    "Source file is too large",
+                    {"limit_mb": settings.API_MAX_UPLOAD_SIZE},
                 )
             file_path = source
             source_name = source.name
@@ -254,25 +401,49 @@ async def upload_file(
                 else uuid4().hex
             )
             file_path = settings.API_UPLOAD_DIR / f"{prefix}_{original_name}"
-            # 幂等重试会复用同一路径：失败时只清理本次新建的文件，避免删掉已有任务的源文件。
+            # Write to a temporary file first. An idempotent retry with the same
+            # key must never overwrite the source file of an existing task.
+            temporary_path = file_path.with_name(
+                f".{file_path.name}.{uuid4().hex}.upload"
+            )
             pre_existing = file_path.exists()
-            uploaded_path = None if pre_existing else file_path
             max_bytes = settings.API_MAX_UPLOAD_SIZE * 1024 * 1024
             written = 0
-            with open(file_path, "wb") as handle:
+            with open(temporary_path, "wb") as handle:
                 while True:
                     chunk = await file.read(1024 * 1024)
                     if not chunk:
                         break
                     written += len(chunk)
                     if max_bytes > 0 and written > max_bytes:
-                        file_path.unlink(missing_ok=True)
+                        temporary_path.unlink(missing_ok=True)
+                        temporary_path = None
                         return fail(
                             1003,
                             "Uploaded file is too large",
                             {"limit_mb": settings.API_MAX_UPLOAD_SIZE},
                         )
                     handle.write(chunk)
+            try:
+                os.chmod(temporary_path, 0o600)
+            except OSError:
+                pass
+
+            if pre_existing:
+                if _file_sha256(temporary_path) != _file_sha256(file_path):
+                    temporary_path.unlink(missing_ok=True)
+                    temporary_path = None
+                    return fail(
+                        1001,
+                        "Idempotency-Key was reused with different file content",
+                        {},
+                    )
+                temporary_path.unlink(missing_ok=True)
+                temporary_path = None
+            else:
+                os.replace(temporary_path, file_path)
+                temporary_path = None
+                uploaded_path = file_path
         else:
             return fail(1001, "file or path is required", {})
 
@@ -288,6 +459,8 @@ async def upload_file(
         )
         return success(task)
     except Exception as exc:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
         if uploaded_path is not None:
             uploaded_path.unlink(missing_ok=True)
         return _control_error(exc)
@@ -310,7 +483,19 @@ async def parse_text(
 async def generate_audio(
     request: GenerateRequest,
     control: ControlService = Depends(get_control_service),
+    config_service: ConfigService = Depends(get_config_service),
 ) -> Any:
+    try:
+        if request.output_path:
+            request.output_path = _checked_output_path(
+                request.output_path, config_service
+            )
+        if request.character_template:
+            ensure_under(
+                settings.CHARACTER_CACHE_DIR, request.character_template
+            )
+    except (ValueError, PathSafetyError) as exc:
+        return fail(1000, str(exc), {})
     options = request.model_dump(
         exclude={"task_id", "command_id", "language"},
         exclude_none=True,
@@ -469,6 +654,7 @@ async def get_chapter_audio(
     task_id: str,
     chapter_index: int,
     control: ControlService = Depends(get_control_service),
+    config_service: ConfigService = Depends(get_config_service),
 ) -> Any:
     chapter = control.query.get_chapter(task_id, chapter_index)
     if chapter is None:
@@ -485,6 +671,19 @@ async def get_chapter_audio(
             {"chapter_index": chapter_index},
         )
     path = Path(audio_path)
+    task = control.query.get_task(task_id)
+    snapshot = (task or {}).get("params", {}).get("config_snapshot") or {}
+    output_root = snapshot.get("OUTPUT_BASE_PATH") or config_service.get(
+        "OUTPUT_BASE_PATH"
+    )
+    try:
+        path = ensure_under(output_root, path)
+    except PathSafetyError:
+        return fail(
+            3003,
+            "Audio path is outside the configured output root",
+            {"chapter_index": chapter_index},
+        )
     if not path.is_file():
         return fail(3002, "Audio file not found", {"path": str(path)})
     if path.stat().st_size == 0:

@@ -45,12 +45,19 @@ No Python or FFmpeg is needed on the host; both are inside the image.
 git clone https://github.com/tiger-sprite/ga-sprite-birds.git
 cd ga-sprite-birds
 cp .env.example .env                  # set LLM credentials / deployment settings
+mkdir -p data run cache output logs uploads
+sudo chown -R 1000:1000 data run cache output logs uploads
 docker compose up -d --build
 # open http://127.0.0.1:8000/
 # if port 8000 is taken: API_HOST_PORT=18080 docker compose up -d --build
 ```
 
 - Persistent data: `./data`, `./run`, `./cache`, `./output`, `./logs`, `./uploads`.
+- The image runs as unprivileged `app` (default `1000:1000`); chown the bind mounts first, or set
+  `APP_UID`/`APP_GID` and rebuild for a different host user.
+- Published on `127.0.0.1` by default. For LAN access set `API_BIND_HOST=0.0.0.0` and enable
+  `API_AUTH_ENABLED=true` + `API_AUTH_TOKEN`; the GUI key button stores the token.
+- CORS is off by default; use an explicit origin list if needed.
 - `models/` is Python code in the image; model caches go to `./cache/models`.
 - Docker and a host engine must not share `data/` or `run/` at the same time (single-instance lock).
 - The engine command channel (`127.0.0.1:39300`) is never exposed.

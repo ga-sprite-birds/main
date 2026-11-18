@@ -1,6 +1,7 @@
 """SQLite connections for system configuration and task persistence."""
 
 import logging
+import os
 import sqlite3
 import time
 from datetime import datetime, timezone
@@ -37,6 +38,10 @@ def _connect(db_path: str | Path, readonly: bool) -> sqlite3.Connection:
         connection.execute("PRAGMA query_only = ON")
     else:
         _enable_wal(connection)
+        try:
+            os.chmod(path, 0o600)
+        except OSError:
+            pass
     return connection
 
 

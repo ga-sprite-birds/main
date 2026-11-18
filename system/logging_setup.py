@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -30,4 +31,8 @@ def configure_logging(name: str, *, log_file: Path | None = None) -> None:
     )
     file_handler.setFormatter(formatter)
     root.addHandler(file_handler)
+    try:
+        os.chmod(target, 0o600)
+    except OSError:
+        pass
     logging.getLogger(name).info("Logging initialized")
