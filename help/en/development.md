@@ -87,6 +87,7 @@ cp .env.example .env
 | `TASK_MAX_CONCURRENT` | `2` | Concurrent tasks in the engine |
 | `TASK_RESULT_TTL` | `86400` | Seconds to keep terminal task records; `0` keeps forever |
 | `FFMPEG_PATH` | empty | FFmpeg directory; empty uses system `PATH` |
+| `MODEL_CACHE_DIR` | `./cache/models` | Downloaded model cache (kept out of the `models/` code package) |
 | `LOG_LEVEL` / `LOG_FILE` | `INFO` / `./logs/app.log` | Logging |
 
 > **Business settings are not in `.env`.** Language, voice, rate, chapter rules, output strategy

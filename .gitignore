@@ -51,10 +51,14 @@ logs/
 # Output
 output/
 uploads/
-models/
 *.mp3
 *.m4a
 *.wav
+
+# models/ is BOTH the Python package and the runtime model cache:
+# track the code, ignore downloaded cache files.
+models/*
+!models/*.py
 
 # Config (if it contains sensitive data)
 # config.yaml

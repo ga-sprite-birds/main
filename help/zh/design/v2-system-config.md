@@ -49,7 +49,8 @@ project/
 ├── cache/
 │   ├── config/system.json      # 用户覆盖
 │   ├── voices/edge_voices.json # edge 音色表缓存
-│   └── tts/preview/            # 音色试听缓存
+│   ├── tts/preview/            # 音色试听缓存
+│   └── models/                 # 下载的模型缓存
 ├── logs/  output/  ...
 └── .env                        # 仅部署级/密钥
 ```

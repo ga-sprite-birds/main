@@ -84,6 +84,7 @@ cp .env.example .env
 | `TASK_MAX_CONCURRENT` | `2` | 引擎并发任务数 |
 | `TASK_RESULT_TTL` | `86400` | 终态任务记录保留秒数；`0` 永久保留 |
 | `FFMPEG_PATH` | 空 | FFmpeg 目录；空则使用系统 `PATH` |
+| `MODEL_CACHE_DIR` | `./cache/models` | 下载的模型缓存（与 `models/` 代码包分离） |
 | `LOG_LEVEL` / `LOG_FILE` | `INFO` / `./logs/app.log` | 日志 |
 
 > **业务配置不在 `.env`。** 语言、音色、语速、章节规则、输出策略以及新的按次开关来自

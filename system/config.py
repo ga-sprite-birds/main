@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     DATA_DIR: Path = PROJECT_ROOT / "data"
     CACHE_DIR: Path = PROJECT_ROOT / "cache"
     RUN_DIR: Path = PROJECT_ROOT / "run"
-    MODEL_CACHE_DIR: Path = PROJECT_ROOT / "models"
+    MODEL_CACHE_DIR: Path = PROJECT_ROOT / "cache" / "models"
     CHARACTER_CACHE_DIR: Path = PROJECT_ROOT / "cache" / "role"
     TTS_VOICE_CATALOG_CACHE: Path = PROJECT_ROOT / "cache" / "voices" / "edge_voices.json"
 

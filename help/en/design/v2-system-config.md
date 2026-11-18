@@ -49,7 +49,8 @@ project/
 ├── cache/
 │   ├── config/system.json      # user overrides
 │   ├── voices/edge_voices.json # edge voice list cache
-│   └── tts/preview/            # voice preview cache
+│   ├── tts/preview/            # voice preview cache
+│   └── models/                 # downloaded model cache
 ├── logs/  output/  ...
 └── .env                        # deployment/secrets only
 ```
