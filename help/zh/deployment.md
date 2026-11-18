@@ -1,6 +1,8 @@
 # 部署与运维
 
-v2 是**两个进程**：
+> English version：[../en/deployment.md](../en/deployment.md) · 使用指南：[README.md](README.md) · 开发文档：[development.md](development.md)
+
+v2 始终由**两个进程**组成：
 
 ```
 ┌──────────────────────────┐        localhost HTTP + Bearer token
@@ -22,25 +24,71 @@ v2 是**两个进程**：
 关闭 API 不影响引擎继续跑任务；重启引擎后 `running` 任务会从最后一个成功章节续跑，
 `paused` 任务保持暂停等人工 `resume`。
 
+> 生产部署可选 **Docker（推荐）** 与 **venv（原生）**。conda 只用于开发环境（见[开发文档](development.md)）。
+
 ---
 
-## 1. 手动启动（开发/单机）
+## 1. Docker（推荐）
+
+仓库自带 `Dockerfile` + `docker-compose.yml`，在一个容器内同时运行 Core 引擎与 Control API
+（共享 loopback，API 可访问引擎命令通道）。
 
 ```bash
+cp .env.example .env          # 配置 LLM 凭据
+docker compose up -d --build
+# GUI: http://127.0.0.1:8000/
+docker compose logs -f
+docker compose down
+```
+
+- 持久化：`./data ./run ./cache ./output ./logs ./uploads`（bind mount）。
+- 容器内 `API_HOST=0.0.0.0`；默认映射宿主机 `8000`，可用
+  `API_HOST_PORT=18080 docker compose up -d --build` 改端口；引擎命令通道
+  `127.0.0.1:39300` 不暴露。
+- `models/` 是镜像内的 Python 代码包；模型缓存写到 `./cache/models`。
+- Docker 与宿主机引擎**不能同时共用** `data/`、`run/`（单实例锁）：切换前先停宿主机
+  `engine`/`server`，或在独立目录运行 compose。
+- 宿主机不需要 Python 或 FFmpeg，二者都在镜像内。
+- 需要水平拆分时，可改成 engine / api 两个服务，并用 `network_mode: service:engine`
+  让 API 共享引擎的 loopback。
+
+---
+
+## 2. venv（原生）
+
+```bash
+git clone https://github.com/tiger-sprite/ga-sprite-birds.git
+cd ga-sprite-birds
+python -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+pip install -U pip setuptools wheel
+pip install -r requirements.txt
+cp .env.example .env
+
 # 终端 1：Core 引擎（前台运行，Ctrl+C 优雅退出）
 python -m engine run
 
-# 终端 2：Control API
+# 终端 2：Control API + GUI
 python -m server run
+```
 
-# 另开终端做健康检查
-python -m engine status          # pid / port / 任务计数
-python -m engine doctor --json   # 目录、权限、DB、ffmpeg、端口自检
+**只用 CLI 时，`python -m server run` 是可选的**：CLI 直接通过本地命令通道与引擎通信。
+不需要 GUI / HTTP API 时只启动 `python -m engine run`；需要时再同时启动两个进程。
+
+先安装 FFmpeg（`apt install ffmpeg`、`brew install ffmpeg` 或 Windows 构建），用
+`ffmpeg -version` 验证；也可以设置 `FFMPEG_PATH`。
+
+健康检查：
+
+```bash
+python -m engine status          # pid / 端口 / 任务计数
+python -m engine doctor --json   # 目录、权限、tasks.db、ffmpeg、发现文件
 curl -s http://127.0.0.1:8000/fcgi-bin/api/status
 ```
 
-引擎默认监听 `127.0.0.1:39300`，被占用时顺延，实际端口写在 `run/engine.json`。
-API 默认 `127.0.0.1:8000`，由 `.env` 的 `API_HOST` / `API_PORT` 决定。
+引擎默认监听 `127.0.0.1:39300`，被占用时顺延，实际端口写入 `run/engine.json`。
+API 默认 `127.0.0.1:8000`，由 `.env` 的 `API_HOST` / `API_PORT` 决定；未加
+`--strict-port` 时会自动顺延到空闲端口。
 
 ### 日常运维命令
 
@@ -67,15 +115,32 @@ python fcgi-bin/cli.py system info
 
 ---
 
-## 2. systemd
+## 3. systemd
+
+单元模板在 [`scripts/systemd/`](../../scripts/systemd/)：
+`ga-sprite-birds-core.{user,system}.service` 与 `ga-sprite-birds-api.{user,system}.service`。
+system 变体带加固项，默认假定安装在 `/opt/ga-sprite-birds` 且使用 `.venv`。
+
+用户级（无需 root，跟随登录会话启动）：
+
+```bash
+mkdir -p ~/.config/systemd/user
+cp scripts/systemd/ga-sprite-birds-core.user.service ~/.config/systemd/user/ga-sprite-birds-core.service
+cp scripts/systemd/ga-sprite-birds-api.user.service  ~/.config/systemd/user/ga-sprite-birds-api.service
+systemctl --user daemon-reload
+systemctl --user enable --now ga-sprite-birds-core ga-sprite-birds-api
+```
+
+退出登录后仍保持运行：`sudo loginctl enable-linger "$USER"`。
+
+系统级（开机启动，不依赖登录）：
 
 ```bash
 sudo useradd --system --create-home --home-dir /opt/ga-sprite-birds gasprite
 sudo cp -r . /opt/ga-sprite-birds
-# 单元模板统一在 scripts/systemd/（system 变体已内置加固项）
+# 先按需修改 unit 内的 User/Group/WorkingDirectory/ExecStart
 sudo cp scripts/systemd/ga-sprite-birds-core.system.service /etc/systemd/system/ga-sprite-birds-core.service
 sudo cp scripts/systemd/ga-sprite-birds-api.system.service  /etc/systemd/system/ga-sprite-birds-api.service
-# 先按需修改 unit 内的 User/Group/WorkingDirectory/ExecStart
 sudo systemctl daemon-reload
 sudo systemctl enable --now ga-sprite-birds-core ga-sprite-birds-api
 ```
@@ -91,7 +156,17 @@ journalctl -u ga-sprite-birds-api -f
 单实例保护：两个 Core 抢同一份 `run/engine.lock` 时，后启动的进程直接退出并返回码 `2`，
 不会出现双写 `tasks.db`。
 
-### 升级与回滚
+### 3.1 Windows — NSSM
+
+```powershell
+nssm install GASpriteBirds-Core "C:\path\to\repo\.venv\Scripts\python.exe" "-m engine run"
+nssm set GASpriteBirds-Core AppDirectory "C:\path\to\repo"
+nssm install GASpriteBirds-API "C:\path\to\repo\.venv\Scripts\python.exe" "-m server run --strict-port"
+nssm set GASpriteBirds-API AppDirectory "C:\path\to\repo"
+nssm start GASpriteBirds-Core; nssm start GASpriteBirds-API
+```
+
+### 3.2 升级与回滚
 
 ```bash
 # 升级：先停 API（前端 503），再停 Core（当前章节跑完后退出），替换代码，再按序启动
@@ -102,17 +177,17 @@ sudo systemctl start ga-sprite-birds-core
 sudo systemctl start ga-sprite-birds-api
 ```
 
-`data/tasks.db` 迁移随代码走：引擎启动时执行版本化迁移（`engine/migrations/`），
-升级只前进不后退；回滚代码前请先备份 `data/` 与 `cache/config/system.json`。
+`data/tasks.db` 迁移随代码走：引擎启动时执行版本化迁移（`engine/migrations/`），升级只前进不后退。
+回滚代码前请先备份 `data/` 与 `cache/config/system.json`。
 
 ---
 
-## 3. 路径与权限
+## 4. 路径与权限
 
 | 路径 | 写入者 | 说明 |
 |------|--------|------|
 | `data/tasks.db` | 仅 Core | 任务、章节、事件、命令幂等日志；WAL |
-| `data/system.db` | 初始化/迁移 | 配置默认值（只读挂载给 API 也够用） |
+| `data/system.db` | Core/API 种子 + 迁移 | 配置默认值；两个进程首次启动都会补齐缺失键 |
 | `cache/config/system.json` | API / Core（原子替换） | 用户覆盖值；两边按文件签名自动重载 |
 | `run/engine.json` | Core | 发现文件（host/port/token/pid），权限 `0600` |
 | `run/engine.lock` | Core | 单实例锁 |
@@ -128,7 +203,7 @@ sudo systemctl start ga-sprite-birds-api
 
 ---
 
-## 4. 反向代理（可选）
+## 5. 反向代理（可选）
 
 GUI 与 API 同源，反代只需透传：
 
@@ -142,25 +217,3 @@ location / {
 ```
 
 **不要**把 `127.0.0.1:39300`（引擎命令通道）暴露出去。
-
----
-
-## 5. Docker
-
-仓库自带 `Dockerfile` + `docker-compose.yml`，在一个容器内同时运行 Core 引擎与 Control API（共享 loopback，API 可访问引擎命令通道）。
-
-```bash
-cp .env.example .env          # 配置 LLM 凭据
-docker compose up -d --build
-# GUI: http://127.0.0.1:8000/
-docker compose logs -f
-docker compose down
-```
-
-- 持久化：`./data ./run ./cache ./output ./logs ./uploads`（bind mount）。
-- 容器内 `API_HOST=0.0.0.0`；默认映射宿主机 `8000`，可用 `API_HOST_PORT=18080 docker compose up -d` 改端口；引擎命令通道 `127.0.0.1:39300` 不暴露。
-- `models/` 是镜像内的 Python 代码包；模型缓存写到 `./cache/models`。
-- Docker 与宿主机引擎**不能同时共用** `data/`、`run/`（单实例锁）：切换前先停宿主机 `engine`/`server`，或在独立目录运行 compose。
-- 需要水平拆分时，可改成 engine / api 两个服务，并用 `network_mode: service:engine` 让 API 共享引擎的 loopback。
-
-> 服务器部署以 **venv** 为主；conda 是开发环境，不作为服务器运行时。

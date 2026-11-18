@@ -1,265 +1,256 @@
-# Retry Generator - 失败章节重试生成器
+# Retry Generator — Failed-Chapter Retry Tool
 
-## 📋 功能简介
+Analyzes TTS generation logs, detects failed chapters, and generates retry commands. Three output
+modes are supported:
 
-自动分析 TTS 生成日志，识别失败章节，生成重试命令。支持三种输出模式：
+1. **Shell script** — an executable bash script
+2. **Plain text** — a command list
+3. **Direct execution** — run the retries immediately (asks for confirmation)
 
-1. **Shell 脚本模式** - 生成可执行的 bash 脚本
-2. **纯文本模式** - 生成命令列表文本
-3. **直接执行模式** - 立即执行重试（需确认）
+## Quick start
 
-## 🚀 快速开始
-
-### 基本用法
+### Basic usage
 
 ```bash
-# 生成 Shell 脚本（推荐）
+# Generate a shell script (recommended)
 python utils/retry_generator/cli.py logs/app.log sh output/retry.sh
 
-# 生成纯文本
+# Generate plain text
 python utils/retry_generator/cli.py logs/app.log txt output/retry.txt
 
-# 直接执行重试（危险，需确认）
+# Execute retries directly (dangerous: asks for confirmation)
 python utils/retry_generator/cli.py logs/app.log exec
 ```
 
-### 高级用法
+### Advanced usage
 
 ```bash
-# 自定义批次大小（每批次10章）
+# Custom batch size (10 chapters per batch)
 python utils/retry_generator/cli.py logs/app.log sh output/retry.sh --batch-size 10
 
-# 指定输入文件
+# Specify the source file
 python utils/retry_generator/cli.py logs/app.log sh output/retry.sh --input books/novel.pdf
 
-# 仅包含网络错误
+# Only include network errors
 python utils/retry_generator/cli.py logs/app.log sh output/retry.sh --filter network
 ```
 
-## 📖 参数说明
+## Parameters
 
-### 必需参数
+### Required
 
-| 参数 | 说明 | 示例 |
-|------|------|------|
-| `log_file` | 日志文件路径 | `logs/app.log` |
-| `output_type` | 输出类型 | `sh` / `txt` / `exec` |
-| `output_path` | 输出文件路径 | `output/retry.sh` |
+| Parameter | Description | Example |
+|---|---|---|
+| `log_file` | Path to the log file | `logs/app.log` |
+| `output_type` | Output type | `sh` / `txt` / `exec` |
+| `output_path` | Output file path | `output/retry.sh` |
 
-> **注意**: `exec` 模式下 `output_path` 可省略
+> `output_path` may be omitted in `exec` mode.
 
-### 可选参数
+### Optional
 
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| `--batch-size` | 每批次章节数 | `20` |
-| `--input` | 输入文件路径 | `debug/ga.pdf` |
-| `--filter` | 错误类型过滤 | `all` |
+| Parameter | Description | Default |
+|---|---|---|
+| `--batch-size` | Chapters per batch | `20` |
+| `--input` | Source input file | `debug/ga.pdf` |
+| `--filter` | Error-type filter | `all` |
 
-#### 错误类型过滤
+#### Error-type filters
 
-- `all` - 所有错误（默认）
-- `network` - 仅网络连接错误
-- `timeout` - 仅超时错误
+- `all` — all errors (default)
+- `network` — network/connection errors only
+- `timeout` — timeout errors only
 
-## 📝 输出示例
+## Output examples
 
-### Shell 脚本模式 (`sh`)
+### Shell script (`sh`)
 
-生成的脚本包含：
-- 自动错误检测
-- 批次执行确认
-- 失败后询问是否继续
+The generated script includes:
+
+- automatic error detection
+- per-batch confirmation
+- a prompt to continue after a failed batch
 
 ```bash
 #!/bin/bash
-# 自动生成的重试脚本
-# 生成时间: 2025-11-11 16:00:00
-# 失败章节总数: 133
-# 批次总数: 7
+# Auto-generated retry script
+# Generated at: 2025-11-11 16:00:00
+# Failed chapters: 133
+# Batches: 7
 
-echo '开始重试失败章节...'
+echo 'Starting failed-chapter retries...'
 
-# 批次1：第67-86章（20章）
-echo '执行批次 1/7...'
+# Batch 1: chapters 67-86 (20 chapters)
+echo 'Running batch 1/7...'
 python fcgi-bin/cli.py -i debug/ga.pdf --start 67 --end 86
 if [ $? -ne 0 ]; then
-    echo '❌ 批次1失败，是否继续？(y/n)'
+    echo 'Batch 1 failed. Continue? (y/n)'
     read -r response
     if [ "$response" != "y" ]; then exit 1; fi
 fi
 ```
 
-### 纯文本模式 (`txt`)
+### Plain text (`txt`)
 
-生成简洁的命令列表：
+Produces a concise command list:
 
-```
-失败章节重试命令列表
-生成时间: 2025-11-11 16:00:00
-失败章节总数: 133
-批次总数: 7
+```text
+Failed-chapter retry commands
+Generated at: 2025-11-11 16:00:00
+Failed chapters: 133
+Batches: 7
 
 ============================================================
 
-批次1：第67-86章（20章）
+Batch 1: chapters 67-86 (20 chapters)
 python fcgi-bin/cli.py -i debug/ga.pdf --start 67 --end 86
 
-批次2：第87-106章（20章）
+Batch 2: chapters 87-106 (20 chapters)
 python fcgi-bin/cli.py -i debug/ga.pdf --start 87 --end 106
 ```
 
-### 直接执行模式 (`exec`)
+### Direct execution (`exec`)
 
-交互式执行流程：
+Interactive flow:
 
-```
+```text
 ============================================================
-⚠️  直接执行模式
+WARNING: direct execution mode
 ============================================================
 
-📊 即将执行:
-   - 批次总数: 7
-   - 输入文件: debug/ga.pdf
+About to run:
+   - Batches: 7
+   - Input: debug/ga.pdf
 
-📋 批次列表:
-   1. 第67-86章（20章）
-   2. 第87-106章（20章）
+Batch list:
+   1. chapters 67-86 (20 chapters)
+   2. chapters 87-106 (20 chapters)
    ...
 
-⚠️  警告: 将直接执行重试，无法撤销！
-是否继续？(yes/no): 
+Warning: retries will run immediately and cannot be undone.
+Continue? (yes/no):
 ```
 
-## 🔧 工作原理
+## How it works
 
-### 1. 日志分析
+### 1. Log analysis
 
-扫描日志文件，识别包含以下错误的行：
-- `Cannot connect to host` - 网络连接失败
-- `getaddrinfo failed` - DNS 解析失败
-- `timeout` / `timed out` - 超时错误
-- `TTS 生成失败` - TTS 引擎错误
+Scans the log for error lines matching:
 
-### 2. 章节提取
+- `Cannot connect to host` — connection failure
+- `getaddrinfo failed` — DNS failure
+- `timeout` / `timed out` — timeout
+- `TTS 生成失败` / `✗ 生成失败` — TTS engine failure
 
-从错误行向前查找章节信息：
-- 匹配模式: `[67/458]` 提取章节序号
-- 去重并排序
+> The Chinese strings above are **literal log patterns emitted by the engine**, not untranslated
+> documentation text. Keep them exactly as shown when grepping logs.
 
-### 3. 批次分组
+### 2. Chapter extraction
 
-智能分组策略：
-- 连续章节合并为一个批次
-- 每批次最多 N 章（可配置）
-- 间隔小于 3 章的也会合并
+Looks backward from each error line for chapter information:
 
-### 4. 命令生成
+- pattern `[67/458]` → chapter 67
+- results are deduplicated and sorted
 
-根据输出类型生成：
-- Shell 脚本：包含错误处理和交互确认
-- 纯文本：简洁的命令列表
-- 直接执行：实时执行并显示进度
+### 3. Batch grouping
 
-## 📂 文件结构
+- contiguous chapters are merged into one batch
+- a batch contains at most `--batch-size` chapters
+- chapters separated by a gap of 3 or less are merged as well
 
-```
+### 4. Command generation
+
+Depending on `output_type`:
+
+- Shell script: error handling + interactive confirmation
+- Plain text: concise command list
+- Direct execution: runs commands and prints progress
+
+## File structure
+
+```text
 utils/retry_generator/
-├── cli.py              # 命令行入口
-├── analyzer.py         # 日志分析器
-├── generator.py        # 命令生成器
-├── executor.py         # 直接执行器
-└── README.md           # 使用文档
+├── cli.py              # command-line entry point
+├── analyzer.py         # log analyzer
+├── generator.py        # command generator
+├── executor.py         # direct executor
+└── README.md
 ```
 
-## 🎯 使用场景
+## Use cases
 
-### 场景1：网络不稳定导致批量失败
+### 1. Network instability caused many failures
 
 ```bash
-# 1. 分析日志，生成重试脚本
+# 1. Analyze the log and generate a retry script
 python utils/retry_generator/cli.py logs/app.log sh retry.sh
 
-# 2. 检查脚本内容
+# 2. Review the script
 cat retry.sh
 
-# 3. 执行重试
+# 3. Run the retries
 bash retry.sh
 ```
 
-### 场景2：快速查看失败章节
+### 2. Inspect failed chapters quickly
 
 ```bash
-# 生成文本列表
 python utils/retry_generator/cli.py logs/app.log txt failed_list.txt
-
-# 查看
 cat failed_list.txt
 ```
 
-### 场景3：立即重试（适合少量失败）
+### 3. Retry immediately (small failure sets)
 
 ```bash
-# 直接执行模式
 python utils/retry_generator/cli.py logs/app.log exec
 ```
 
-## ⚠️ 注意事项
+## Caveats
 
-1. **exec 模式风险**
-   - 会立即执行重试，无法撤销
-   - 建议先用 `sh` 或 `txt` 模式查看
-   - 执行前会要求确认
+1. **`exec` mode is immediate and irreversible.**
+   - Prefer `sh` or `txt` first.
+   - It asks for confirmation before running.
+2. **Batch size guidance**
+   - stable network: 20–30 chapters per batch
+   - unstable network: 5–10 chapters per batch
+   - many failures: split into several runs
+3. **Log requirements**
+   - must contain chapter markers such as `[N/Total]`
+   - must contain the error messages listed above
+   - use the most recent log file
 
-2. **批次大小建议**
-   - 网络稳定：20-30 章/批次
-   - 网络不稳定：5-10 章/批次
-   - 大量失败：建议分多次执行
+## Troubleshooting
 
-3. **日志文件要求**
-   - 必须包含章节序号信息 `[N/Total]`
-   - 必须包含错误信息
-   - 建议使用最新的日志文件
+### No failed chapters detected
 
-## 🐛 故障排除
+**Cause:** the log format does not match.
 
-### 问题1：未识别到失败章节
-
-**原因**: 日志格式不匹配
-
-**解决**:
 ```bash
-# 检查日志是否包含错误信息
+# Check for errors and chapter markers
 grep "失败" logs/app.log
-
-# 检查日志是否包含章节序号
-grep "\[.*/.*/\]" logs/app.log
+grep "\[.*/.*\]" logs/app.log
 ```
 
-### 问题2：生成的批次过多
+### Too many batches
 
-**原因**: 默认批次大小太小
+**Cause:** the batch size is too small.
 
-**解决**:
 ```bash
-# 增加批次大小
 python utils/retry_generator/cli.py logs/app.log sh retry.sh --batch-size 50
 ```
 
-### 问题3：exec 模式执行失败
+### `exec` mode fails
 
-**原因**: 工作目录不正确
+**Cause:** the working directory is wrong.
 
-**解决**:
 ```bash
-# 确保在项目根目录执行
 cd /path/to/ga-sprite-birds
 python utils/retry_generator/cli.py logs/app.log exec
 ```
 
-## 📚 相关文档
+## Related documentation
 
-- [项目主文档](../../README.md)
-- [CLI 使用说明](../../fcgi-bin/cli.py)
-- [配置文件说明](../../.env)
-
+- [Project usage guide](../../help/en/README.md)
+- [CLI/API reference](../../help/en/api.md)
+- [CLI source](../../fcgi-bin/cli.py)
+- [Development setup](../../help/en/development.md)

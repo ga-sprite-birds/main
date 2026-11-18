@@ -2,7 +2,7 @@
 # before enabling. Conda is a development environment; not recommended here.
 [Unit]
 Description=GA Sprite Birds Control API
-Documentation=file:///opt/ga-sprite-birds/docs/deploy/README.md
+Documentation=file:///opt/ga-sprite-birds/help/en/deployment.md
 After=network-online.target ga-sprite-birds-core.service
 Wants=network-online.target
 Requires=ga-sprite-birds-core.service

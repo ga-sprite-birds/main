@@ -4,7 +4,7 @@
 #   ExecStart=/home/<user>/miniconda3/envs/ga-sprite-birds/bin/python -m engine run
 [Unit]
 Description=GA Sprite Birds Core Engine
-Documentation=file:///opt/ga-sprite-birds/docs/deploy/README.md
+Documentation=file:///opt/ga-sprite-birds/help/en/deployment.md
 After=network-online.target
 Wants=network-online.target
 

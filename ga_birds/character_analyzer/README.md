@@ -1,5 +1,9 @@
 # 角色分析工具
 
+> **v2 说明**：v2 的 Control API / CLI **不再暴露角色分析**（`--analyze-characters` 会直接报错），
+> 仓库中也不再提供 `cli.sh`。本文档描述的是底层 `ga_birds/character_analyzer` 模块的旧用法。
+> 如需多角色生成，请自行准备角色模板，并通过 `multi_voice` + `character_template` 使用。
+
 使用 LLM 从小说章节中自动提取角色信息，支持**智能分析**和**混合模式**两种方式。
 
 ---

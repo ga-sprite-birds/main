@@ -26,9 +26,11 @@ If you are planning a large change, please open an issue first to describe the g
 It is recommended to read the following documents first:
 
 - `README.md`
-- `help/INSTALL.md`
-- `help/development-guide.md`
+- `help/en/development.md`
+- `help/en/developer-guide.md`
+- `help/en/api.md`
 - `tests/README.md`
+- `.augment/rules/imported/` (the global development contract)
 
 This project is currently Python-based and includes:
 
@@ -39,23 +41,22 @@ This project is currently Python-based and includes:
 
 ## 3. Development Environment
 
-Python `3.10+` is recommended.
-
-Basic setup:
+Python `3.10+` is recommended. Development uses **conda** for a reproducible setup:
 
 ```bash
-python -m venv venv
-source venv/bin/activate
-python -m pip install --upgrade pip setuptools wheel
-pip install -r requirements.txt
+conda env create -f environment.yml
+conda activate ga-sprite-birds
 ```
 
-If you use Conda or another environment manager, you can also follow the instructions in `help/INSTALL.md`.
+See [`help/en/development.md`](help/en/development.md) for the full setup (FFmpeg, `.env`, GUI build,
+tests and troubleshooting). Production deployment uses Docker (recommended) or venv, not conda —
+see the root `README.md`.
 
 ## 4. Development Principles
 
 When submitting changes, please follow these guidelines:
 
+- **Follow the global contract in `.augment/rules/imported/`.** This project is developed strictly against it; secondary development and forks are strongly encouraged to do the same.
 - Keep changes focused; do not mix unrelated issues in the same PR
 - Prefer fixing the root cause over surface-level patches
 - Reuse existing module boundaries; do not arbitrarily break directory layering
@@ -72,7 +73,7 @@ Please keep your code consistent with the existing style:
 - Function names use lowercase with underscores
 - API parameters keep underscore style
 - CLI long parameters keep hyphen style
-- For import order, module boundaries, and naming conventions, refer to `help/development-guide.md`
+- For import order, module boundaries, and naming conventions, refer to `help/en/developer-guide.md`
 
 If you introduce non-obvious business logic, please add concise comments explaining *why* it is done that way.
 
@@ -87,7 +88,7 @@ Common commands:
 pytest tests/unit -v
 
 # Run a specific test file
-pytest tests/unit/test_upload.py -v
+pytest tests/unit/test_api_v2.py -v
 
 # Integration tests (requires API to be running first)
 pytest tests/integration -v
@@ -107,7 +108,8 @@ When the text contains multiple characters (speakers), the system automatically 
 
 ### 7.1 Single-Role Mode
 
-If only a single narrator or character is present, `TTS_VOICE` from the `.env` configuration is used throughout.
+If only a single narrator or character is present, `TTS_VOICE` from the system config
+(`data/system.db` defaults + `cache/config/system.json` overrides) is used throughout.
 
 ### 7.2 Multi-Role Mode
 
@@ -121,7 +123,7 @@ If only a single narrator or character is present, `TTS_VOICE` from the `.env` c
    - Voices are then drawn from the auto-built voice pool for that locale, gender-matched and cycled to distribute distinct voices across characters.
 
 3. **Fallback to `TTS_VOICE`**
-   - If none of the above rules match, a warning is logged and `TTS_VOICE` from the `.env` file is used as the fallback.
+   - If none of the above rules match, a warning is logged and `TTS_VOICE` from system config is used as the fallback.
 
 ### 7.3 Locale Preferences
 
@@ -212,14 +214,14 @@ The character voice template used internally follows this structure:
 }
 ```
 
-### 7.7 Key Environment Variables
+### 7.7 Key Settings
 
-| Variable | Description |
-|----------|-------------|
-| `TTS_VOICE` | Default / fallback voice (e.g. `zh-CN-YunxiNeural`) |
-| `TTS_ENGINE` | TTS engine to use (currently `edge`) |
-| `TTS_PROSODY_MODE` | `off`, `pause`, or `prosody` |
-| `TTS_VOICE_CATALOG_CACHE` | Path to cached TTS voice catalog |
+| Setting | Where | Description |
+|----------|-------|-------------|
+| `TTS_VOICE` | System config (GUI / API) | Default / fallback voice (e.g. `zh-CN-YunxiNeural`) |
+| `TTS_ENGINE` | System config (GUI / API) | TTS engine to use (currently `edge`) |
+| `TTS_PROSODY_MODE` | System config (GUI / API) | `off`, `pause`, or `prosody` |
+| `TTS_VOICE_CATALOG_CACHE` | Deployment (`system/config.py` / `.env`) | Path to the cached TTS voice catalog |
 
 ## 8. Pull Request Guidelines
 
@@ -282,7 +284,7 @@ Please maintain professional, respectful, and constructive communication. When d
 **Email**: `dev@ebf.hk`  
 **Website**: <http://ebf.cc>  
 **GitHub Source**: <https://github.com/tiger-sprite/ga-sprite-birds>  
-**Last updated**: 2026-10-23
+**Last updated**: 2026-11-18
 
 ---
 

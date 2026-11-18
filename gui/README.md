@@ -1,36 +1,42 @@
 # GA Sprite Birds GUI
 
-基于 Vue3、Element Plus、Pinia、Vite 的 FastAPI 图形界面。主题骨架沿用 `tiger-backend-themes`，登录和鉴权页面已移除。
+A Vue 3 + Element Plus + Pinia + Vite frontend for the FastAPI backend. The theme shell is
+derived from `tiger-backend-themes`; login and authentication pages have been removed.
 
-## 启动
+## Development
 
 ```bash
 npm install
 npm run dev
 ```
 
-生产构建：
+The Vite dev server proxies `/fcgi-bin` to the API (default `http://localhost:8000`; override with
+`VITE_API_PROXY_TARGET`).
+
+Production build:
 
 ```bash
 npm run build
 ```
 
-## 环境配置
+This writes the single-file `../index.html` at the repository root.
 
-项目使用 Vite env mode：
+## Environment configuration
 
-- `.env`：公共展示身份，如标题、公司名、构建版本。
-- `.env.development`：本地开发配置，包含 API 代理和默认主题。
-- `.env.production`：生产构建配置，包含线上 API 和默认主题。
+The project uses Vite env modes:
 
-常用主题配置：
+- `.env`: shared display identity (title, company name, build version).
+- `.env.development`: local development, including the API proxy and default theme.
+- `.env.production`: production build, including the production API and default theme.
+
+Common theme settings:
 
 ```env
-VITE_DEFAULT_THEME_FAMILY=bootstrap
+VITE_DEFAULT_THEME_FAMILY=photoshop
 VITE_DEFAULT_THEME_MODE=system
 ```
 
-可用主题：
+Available themes:
 
 - `bootstrap`
 - `wechat`
@@ -38,9 +44,9 @@ VITE_DEFAULT_THEME_MODE=system
 - `cherryRed`
 - `photoshop`
 
-## 主题使用
+## Using themes
 
-页面不要直接写死主题色，优先使用语义变量：
+Do not hard-code theme colors in pages; use the semantic variables:
 
 ```css
 background: var(--theme-surface-bg);
@@ -48,8 +54,11 @@ color: var(--theme-text-color);
 border-color: var(--theme-border-color);
 ```
 
-主按钮、开关、分页等 Element Plus 组件优先使用 `type="primary"`，主题系统会把当前主色写入 Element Plus CSS 变量。
+Prefer `type="primary"` for Element Plus buttons, switches, pagination and similar components; the
+theme system writes the current primary color into Element Plus CSS variables.
 
-新增品牌色主题时，通常只需要在 `src/assets/styles/theme.js` 里新增一个 `type: "basic"` 主题并配置 `primary`。系统会自动推导基础主题的 hover / active 辅助色。
+To add a brand-color theme, usually you only need to register a new `type: "basic"` theme in
+`src/assets/styles/theme.js` and set `primary`. The system derives the hover/active auxiliary
+colors automatically.
 
-完整说明见 `help/主题.md`。
+Full guides: [`help/theme.md`](help/theme.md) and [`help/layout.md`](help/layout.md).

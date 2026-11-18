@@ -12,6 +12,8 @@ state, so a job queued from the CLI is visible in the GUI and controllable from 
 - **Input:** `.txt` / `.md` / `.pdf` · **Output:** one `.mp3` per chapter (chapter text optional)
 - **TTS:** Edge TTS (free, needs network) · **LLM:** local Ollama or any OpenAI-compatible API
 
+> English docs: [help/en/README.md](help/en/README.md) · 中文文档：[help/zh/README.md](help/zh/README.md)
+
 ---
 
 ## 1. Features
@@ -19,7 +21,7 @@ state, so a job queued from the CLI is visible in the GUI and controllable from 
 | Feature | What it does |
 |---|---|
 | Chapter splitting | Detects chapter headings (plain text / Markdown / PDF) and renders per chapter; generate all or only selected chapters |
-| Single & multi-character voices | One voice for the whole book, or detect characters and assign a voice per role |
+| Single & multi-character voices | One voice for the whole book, or generate with a per-role voice template |
 | LLM colloquialization | Optional rewrite of written text into natural spoken language (Ollama or OpenAI-compatible) |
 | Pauses & light prosody | `off` / `pause` / `prosody` — punctuation-driven pauses and optional tone shifts |
 | Voice preview | Listen to a cached sample before choosing a voice |
@@ -29,69 +31,115 @@ state, so a job queued from the CLI is visible in the GUI and controllable from 
 | System config | Three-layer config (defaults → user overrides → per-task snapshot); edits apply to new tasks only |
 | i18n | Chinese and English UI, CLI and API messages |
 
-> The GUI currently covers single-voice generation and system config. Multi-character
-> generation, character analysis and TTL cleanup are available through the CLI/API.
+> The GUI covers single-voice generation and system config. Multi-character generation and
+> TTL cleanup are available through the CLI/API. Character analysis is **not** exposed by the
+> v2 add flow; provide a character template yourself for multi-voice generation.
 
 ---
 
-## 2. Install & documentation
+## 2. Deployment
 
-**Requirements:** Python 3.10+ and FFmpeg. Node.js is only needed to build the GUI yourself.
+v2 always runs as **two processes** (Core engine + Control API). Choose **Docker (recommended)**
+or a native **venv** install. Development uses conda — that path is documented separately and is
+**not** a production deployment method.
+
+### 2.1 Docker — strongly recommended
+
+No Python or FFmpeg is needed on the host; both are inside the image.
+
+```bash
+git clone https://github.com/tiger-sprite/ga-sprite-birds.git
+cd ga-sprite-birds
+cp .env.example .env                  # set LLM credentials / deployment settings
+docker compose up -d --build
+# open http://127.0.0.1:8000/
+# if port 8000 is taken: API_HOST_PORT=18080 docker compose up -d --build
+```
+
+- Persistent data lives in `./data`, `./run`, `./cache`, `./output`, `./logs`, `./uploads`.
+- The container listens on `8000`; `API_HOST_PORT` changes only the published host port.
+- `models/` is Python code in the image; downloaded model caches go to `./cache/models`.
+- Docker and a host engine must **not** share `data/` or `run/` at the same time (single-instance
+  lock). Stop the host `engine`/`server` first, or run compose from a separate directory.
+- The engine command channel (`127.0.0.1:39300`) is never exposed.
+
+Details: [Deployment & operations](help/en/deployment.md) · [中文](help/zh/deployment.md).
+
+### 2.2 venv — native alternative
+
+Requires Python 3.10+ and FFmpeg.
 
 ```bash
 git clone https://github.com/tiger-sprite/ga-sprite-birds.git
 cd ga-sprite-birds
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -U pip setuptools wheel
 pip install -r requirements.txt
+cp .env.example .env
 ```
 
-**Quick start** — `utils/quick/` launches the Core engine and the Control API together (and opens the GUI):
+Install FFmpeg first (`apt install ffmpeg`, `brew install ffmpeg`, or the Windows build) and check
+it with `ffmpeg -version`.
+
+Start the two processes in one of two ways:
+
+**Option A — local GUI quick start (Linux/macOS).** `utils/quick/` starts the engine and API,
+picks a free API port, and opens the GUI:
 
 ```bash
-bash utils/quick/linux-run.sh        # Linux
-./utils/quick/mac-run.command        # macOS
+bash utils/quick/linux-run.sh
+./utils/quick/mac-run.command
 ```
 
-On Windows, start the two processes manually (see the install guide).
-
-**Or run separately**, one process per terminal:
+**Option B — start separately (headless / no GUI).** Useful for servers, automation, or when you
+only need the CLI/API:
 
 ```bash
-python -m engine run              # terminal 1 — Core engine
-python -m server run     # terminal 2 — Control API + GUI
+# Terminal 1 — Core engine (required)
+python -m engine run
+# Terminal 2 — Control API + GUI (optional)
+python -m server run
 ```
 
-The FastAPI application lives in `fcgi-bin/api.py`; `python -m server run` is its
-launcher (the `server/` package: host/port + uvicorn). If the API port is occupied,
-it picks the next free port and prints a warning; pass `--strict-port` to fail instead.
+- **CLI only:** start just the engine; `fcgi-bin/cli.py` talks to it over the local command channel.
+- **GUI / HTTP API:** start both processes.
 
-**Or run with Docker** (engine + API in one container):
+The API auto-shifts to a free port when `8000` is taken; pass `--strict-port` for a fixed port
+(used by systemd, Docker and reverse proxies). The engine listens on `127.0.0.1:39300` and writes
+its port/token to `run/engine.json`.
 
-```bash
-cp .env.example .env          # set LLM credentials
-docker compose up -d --build
-# open http://127.0.0.1:8000/  (API_HOST_PORT=18080 to change the host port)
-```
+For long-lived deployments, use systemd / NSSM as described in
+[Deployment & operations](help/en/deployment.md).
 
-The shipped units/scripts use a **venv** for servers; conda is a development convenience.
+### 2.3 Development (conda)
 
-
-**Documentation navigation**
-
-| Document | Contents |
-|---|---|
-| [Install guide](./help/INSTALL.md) · [安装指南](./help/INSTALL.zh.md) | Runtime requirements, first-time setup, local & API deployment, troubleshooting |
-| [API reference](./docs/api.md) | Every endpoint and the CLI/API parity matrix |
-| [Deployment & operations](./docs/deploy/README.md) | systemd, permissions, reverse proxy, upgrade & rollback |
-| [Development guide](./help/development-guide.md) · [开发规范](./help/development-guide.zh.md) | Architecture boundaries, adding config items, i18n sync, tests |
-| Design specs | [System config](./docs/design/v2-system-config.md) · [Headless core](./docs/design/v2-headless-core.md) |
-| systemd unit templates | [`scripts/systemd/`](./scripts/systemd/) (core/api × user/system) |
+Developers can use conda for a reproducible local setup. See
+[Development setup](help/en/development.md) · [中文](help/zh/development.md). Production
+deployments should use Docker or venv, not conda.
 
 ---
 
-## 3. Design: one engine, two access modes
+## 3. Documentation
 
-### 3.1 Two processes, one engine
+All documentation uses the same layout in both languages: `help/en/` (English) and `help/zh/`
+(Chinese).
+
+| Document | English | 中文 |
+|---|---|---|
+| Usage guide | [help/en/README.md](help/en/README.md) | [help/zh/README.md](help/zh/README.md) |
+| Development setup (conda) | [help/en/development.md](help/en/development.md) | [help/zh/development.md](help/zh/development.md) |
+| Developer guide | [help/en/developer-guide.md](help/en/developer-guide.md) | [help/zh/developer-guide.md](help/zh/developer-guide.md) |
+| Utils development | [help/en/utils.md](help/en/utils.md) | [help/zh/utils.md](help/zh/utils.md) |
+| API reference | [help/en/api.md](help/en/api.md) | [help/zh/api.md](help/zh/api.md) |
+| Deployment & operations | [help/en/deployment.md](help/en/deployment.md) | [help/zh/deployment.md](help/zh/deployment.md) |
+| Design specs | [help/en/design/](help/en/design/README.md) | [help/zh/design/](help/zh/design/README.md) |
+| systemd unit templates | [`scripts/systemd/`](scripts/systemd/) (core/api × user/system) | 同左 |
+
+---
+
+## 4. Design: one engine, two access modes
+
+### 4.1 Two processes, one engine
 
 ```text
 GUI / CLI / HTTP clients
@@ -113,18 +161,18 @@ Control API (python -m server run)            Core engine (python -m engine run)
 - **Config is snapshotted per task.** Editing config never disturbs a running task; changes
   apply to the next task started.
 
-### 3.2 CLI mode — for local batch & scripting
+### 4.2 CLI mode — for local batch & scripting
 
 `fcgi-bin/cli.py` is a thin client of the engine, ideal for your own machine and automation:
 
 - One command can chain **upload + parse + generate** (`cli.py add -i book.txt`).
 - Human-readable output or machine-readable `--json`; `--follow` streams progress.
 - Full control surface: `add / list / get / status / pause / resume / cancel / retry /
-  remove / events / clean / config / system`.
+  remove / cancel-chapter / events / logs / clean / config / system`.
 - No open port needed: the CLI talks to the engine over the local command channel.
 - Good for cron jobs, batch conversion and operations.
 
-### 3.3 API mode — for services & integrations
+### 4.3 API mode — for services & integrations
 
 The Control API (`python -m server run`) exposes the same capabilities as `/fcgi-bin/api/*` for remote clients and
 the web GUI:
@@ -137,7 +185,7 @@ the web GUI:
 - Bind to loopback/private addresses (there is no built-in auth) and put a reverse proxy in
   front when exposing it.
 
-### 3.4 CLI vs API at a glance
+### 4.4 CLI vs API at a glance
 
 | | CLI (`fcgi-bin/cli.py`) | HTTP API (`/fcgi-bin/api/*`) |
 |---|---|---|
@@ -152,19 +200,9 @@ other can do.
 
 ---
 
-## 4. How to use
+## 5. How to use
 
-### 4.1 Start
-
-```bash
-python -m engine run        # terminal 1 — Core engine (Ctrl+C = graceful stop)
-python -m server run      # terminal 2 — Control API + GUI
-```
-
-Engine status / discovery: `python -m engine status` (PID, port, task counters). The engine
-listens on `127.0.0.1:39300` by default and writes its port and token to `run/engine.json`.
-
-### 4.2 GUI
+### 5.1 GUI
 
 Open <http://127.0.0.1:8000/>:
 
@@ -176,14 +214,13 @@ Open <http://127.0.0.1:8000/>:
 5. **System config** in the sidebar edits business settings in grouped sections, with
    option explanations, override badges and per-section reset.
 
-### 4.3 CLI
+### 5.2 CLI
 
 ```bash
 # Upload + parse + queue generation in one call
 python fcgi-bin/cli.py add -i book.txt --voice zh-CN-YunxiNeural --rate 1.2 --no-llm --start 1 --end 5
 
-# Multi-character: analyze characters, then generate with the template
-python fcgi-bin/cli.py add -i novel.txt --analyze-characters --analysis-mode hybrid --character-list characters.txt
+# Multi-character generation with an existing voice template
 python fcgi-bin/cli.py add -i novel.txt --multi-voice --character-template cache/role/novel_characters.json
 
 # Control and follow
@@ -195,10 +232,10 @@ python fcgi-bin/cli.py events <task_id> --follow
 python fcgi-bin/cli.py config set TTS_RATE 1.15
 ```
 
-`characters.txt` lists one `name [gender]` per line (`张三 male`, `李四 female`).
-Run `python fcgi-bin/cli.py --help` for all subcommands.
+Run `python fcgi-bin/cli.py --help` for all subcommands. Character analysis is not part of the
+v2 `add` flow; prepare the multi-voice template yourself (see the developer guide).
 
-### 4.4 API
+### 5.3 API
 
 ```bash
 # Upload (idempotent)
@@ -218,9 +255,10 @@ curl -o preview.mp3 "http://127.0.0.1:8000/fcgi-bin/api/tts/preview?voice=zh-CN-
 ```
 
 Error-code ranges: `1000` arguments, `2000` auth, `3000` business, `4000` system; engine
-down → HTTP `503` + `code 3004`. Full details: [docs/api.md](./docs/api.md).
+down → HTTP `503` + `code 3004`. Full details: [API reference](help/en/api.md) ·
+[中文](help/zh/api.md).
 
-### 4.5 Task lifecycle
+### 5.4 Task lifecycle
 
 ```text
 pending ──▶ queued ──▶ running ──▶ succeeded / failed / canceled
@@ -232,7 +270,7 @@ any state ──▶ removed
 
 Pause/cancel take effect at a chapter boundary; running tasks refresh a heartbeat every 10s.
 
-### 4.6 Output layout
+### 5.5 Output layout
 
 Each source file gets a directory named after it under the output root:
 

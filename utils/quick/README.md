@@ -1,25 +1,28 @@
-# utils/quick — 快速启动
+# utils/quick — Quick Start
 
-一键同时启动 **Core 引擎 + Control API**（并打开界面）。脚本会：
+Starts the **Core engine + Control API** together and opens the GUI. The script:
 
-- 复用已在运行的引擎（不会重复启动）
-- API 端口被占用时自动挑选空闲端口
-- 就绪后自动打开浏览器
-- Ctrl+C 时优雅停止 API，以及由它启动的引擎
+> This script is for local GUI use. Without the GUI, start only `python -m engine run` for
+> CLI-only work; add `python -m server run` when you also need the HTTP API.
 
-| 平台 | 命令 |
+- Reuses an engine that is already running (never starts a second one)
+- Picks a free API port when the default port is occupied
+- Opens the browser when the API is ready
+- On Ctrl+C, stops the API gracefully and stops the engine it started
+
+| Platform | Command |
 |---|---|
 | Linux | `bash utils/quick/linux-run.sh` |
 | macOS | `./utils/quick/mac-run.command` |
-| Windows | 手动两进程：`python -m engine run` + `python -m server run` |
+| Windows | Start two processes manually: `python -m engine run` + `python -m server run` |
 
-> Windows 的批处理在端口探测和进程回收（优雅停止）上不可靠、也难以自动化验证，
-> 因此不提供 `.bat`。Windows 请用两条命令分别启动，或用 NSSM 注册为服务
-> （见 `help/INSTALL.md` 的 API 部署一节）。
+> Windows batch files are not shipped: port probing and graceful process cleanup are unreliable
+> there and hard to verify automatically. Use the two commands above, or register both processes
+> with NSSM (see the systemd/NSSM section of [`help/en/deployment.md`](../../help/en/deployment.md)).
 
-需要分别运行（不用快速启动）时：
+To run the processes separately (without the quick-start script):
 
 ```bash
-python -m engine run        # 引擎
-python -m server run        # API（--host/--port；端口占用默认自动顺延并警告）
+python -m engine run        # Core engine
+python -m server run        # Control API + GUI (--host/--port; auto-shifts when occupied)
 ```

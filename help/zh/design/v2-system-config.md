@@ -1,6 +1,8 @@
 # v2 设计：env 拆分 / 系统配置
 
-> 状态：需求已定稿，待开发（本文只做设计，不含实现）
+> English version：[../../en/design/v2-system-config.md](../../en/design/v2-system-config.md)
+>
+> 状态：已实现（本文保留设计说明）
 > 适用版本：v2 绝对技术重构
 > 原则：按新契约（`python.md` / `api.md`）实现，不做旧版兼容
 > 关联文档：`v2-headless-core.md`（任务引擎/持久化）；契约总纲见 `.augment/rules/imported/`
@@ -46,7 +48,8 @@ project/
 │   └── system.db               # 配置默认值 + 系统元数据
 ├── cache/
 │   ├── config/system.json      # 用户覆盖
-│   └── tts/voices.json         # edge 音色表缓存
+│   ├── voices/edge_voices.json # edge 音色表缓存
+│   └── tts/preview/            # 音色试听缓存
 ├── logs/  output/  ...
 └── .env                        # 仅部署级/密钥
 ```
@@ -191,7 +194,7 @@ CREATE TABLE schema_meta (
 ## 6. TTS 音色校验
 
 - 来源：`edge_tts.list_voices()`（网络调用）。
-- 缓存：`cache/tts/voices.json`（带 TTL），避免每次校验联网。
+- 缓存：`cache/voices/edge_voices.json`（带 TTL），避免每次校验联网。
 - 校验：`PUT` 时校验 `TTS_VOICE` ∈ 缓存 `ShortName` 列表。
 - 只读接口：`GET /fcgi-bin/api/tts/voices`（支持按 locale / gender 过滤），供 GUI 下拉。
 - **离线策略**：无缓存且 fetch 失败时——**放行 + 返回 warning**（不阻塞配置）。
@@ -255,7 +258,7 @@ CREATE TABLE schema_meta (
 - `set(values)`：按 schema 校验 → 仅改动键写 `system.json` → 热更新内存。
 - `reset(section)` / `reset_all()`：从 `system.json` 删对应键 → 重新合并。
 - 并发：单进程 + 内存锁。
-- 业务代码不再 `import config`；业务项走 `config_service.get(...)`，部署项走 `settings`。
+- 业务代码通过 `config` 门面读取（先取任务快照，再回落到 ConfigService）；部署项走 `settings`。不要在模块导入期缓存配置。
 - 同一个 `ConfigService` 由 **API（读写：提供/编辑配置）** 与 **engine（每个任务开始时读取生效配置）** 共用。
 
 ---
@@ -264,8 +267,8 @@ CREATE TABLE schema_meta (
 
 1. `.env` / `.env.example` 删除所有业务配置项，仅留部署/密钥（见附录）。
 2. `system/config.py` 用 `pydantic-settings` 只定义部署项。
-3. `ga_birds` 各模块：`config.TTS_*` / `CHAPTER_*` / `OUTPUT_*` / `ENABLE_*` 等改为 `config_service.get(...)`；`*_DIR` 等改读 `settings`。
-4. 废弃 `config/__init__.py` 的 env 读取逻辑。
+3. `ga_birds` 各模块：业务值通过 `config` 门面读取（任务快照 → ConfigService）；`*_DIR` 等部署项改读 `settings`。不要在模块导入期捕获配置值。
+4. 废弃 `config/__init__.py` 中业务项的 env 读取逻辑（部署项委托给 `settings`）。
 5. 所有 API 输出改走 `system/response.py` 统一信封。
 
 ---
@@ -311,8 +314,11 @@ CREATE TABLE schema_meta (
 
 ## 附录：`.env` 保留清单（部署级/密钥）
 
-`LLM_MODE`、`LLM_API_TYPE / ENDPOINT / KEY / MODEL`、`LLM_LOCAL_HOST / MODEL`、`LLM_SYSTEM_PROMPT`、
-`API_HOST / PORT / DEBUG / CORS_*`、`TASK_*`、`REDIS_*`、`FFMPEG_PATH`、`CORE_DIR`、
-`MODEL_CACHE_DIR`、`CHARACTER_CACHE_DIR`、`API_UPLOAD_DIR`、`LOG_*`。
+- LLM：`LLM_MODE`、`LLM_API_TYPE / ENDPOINT / KEY / MODEL`、`LLM_LOCAL_HOST / MODEL`、`LLM_SYSTEM_PROMPT`
+- API：`API_HOST / PORT / DEBUG / CORS_ENABLED / CORS_ORIGINS / MAX_UPLOAD_SIZE / UPLOAD_DIR`
+- 任务：`TASK_MAX_CONCURRENT / GRACE_SECONDS / RESULT_TTL / CACHE_DIR`
+- Redis（预留）：`REDIS_HOST / PORT / DB / PASSWORD`
+- 路径与依赖：`FFMPEG_PATH`、`CORE_DIR`、`DATA_DIR`、`CACHE_DIR`、`RUN_DIR`、`MODEL_CACHE_DIR`、`CHARACTER_CACHE_DIR`、`TTS_VOICE_CATALOG_CACHE`
+- 日志：`LOG_LEVEL / FORMAT / FILE / MAX_FILE_SIZE / BACKUP_COUNT / CONSOLE`
 
 > 注意：`OUTPUT_BASE_PATH`（输出目录）属业务配置，归 API 管，不在此清单。

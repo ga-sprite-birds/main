@@ -1,5 +1,7 @@
 # Control API 参考（v2）
 
+> English version：[../en/api.md](../en/api.md)
+
 所有业务接口挂在 `/fcgi-bin/api` 前缀下。Control API 由 `python -m server run` 启动（`server/` 包），FastAPI 应用在 `fcgi-bin/api.py`，只是薄控制面：
 **不执行任务**，只做参数校验、命令转发、只读查询。
 
@@ -21,7 +23,7 @@
 | `3000~3999` | 业务错误（任务不存在、状态非法、非法流转、幂等冲突） |
 | `4000~4999` | 系统错误（内部异常、配置读写失败） |
 
-特殊 HTTP 状态：引擎未运行 → `503` + `code 3004`；文档/Swagger 等未知路由 → `404` + `code 3002`。
+特殊 HTTP 状态：引擎未运行 → `503` + `code 3004`；文档/Swagger 等未知路由 → `404` + `code 3002`；`data/tasks.db` 损坏或不可读 → HTTP `200` + `code 4001`。
 其余业务错误都以 HTTP `200` + 非零 `code` 返回，前端只需判断信封。
 
 ---
@@ -36,7 +38,8 @@
 {"code":0,"msg":"ok","data":{
   "name":"GA Sprite Birds","version":"2.0.0","status":"running",
   "defaults":{"voice":"zh-CN-YunjianNeural","rate":1.0,"enable_llm":false,
-              "prosody_mode":"off","language":"zh_CN"}
+              "prosody_mode":"off","language":"zh_CN",
+              "chapter_intro_outro":true,"chapter_lead_in_enabled":false}
 }}
 ```
 
@@ -68,10 +71,12 @@ curl -X POST "http://127.0.0.1:8000/fcgi-bin/api/upload" \
 ### `POST /fcgi-bin/api/parse`
 
 ```json
-{"task_id": "<id>", "command_id": "parse-1", "language": "zh_CN"}
+{"task_id": "<id>", "command_id": "parse-1"}
 ```
 
-引擎执行章节解析，成功后任务 `phase=parsed`，`total_chapters` 就绪。
+引擎在后台执行章节解析，成功后任务 `phase=ready`、`total_chapters` 就绪；失败为 `phase=parse_failed`。命令本身立即返回，客户端轮询 `phase`。
+
+> 解析使用任务的配置快照（`LANGUAGE`）。可选的 `language` 请求字段目前保留但未生效。
 
 ### `POST /fcgi-bin/api/generate`
 
@@ -84,6 +89,8 @@ curl -X POST "http://127.0.0.1:8000/fcgi-bin/api/upload" \
   "rate": 1.2,
   "prosody_mode": "prosody",
   "enable_llm": false,
+  "chapter_intro_outro": true,
+  "chapter_lead_in_enabled": false,
   "multi_voice": false,
   "character_template": "cache/role/novel_characters.json"
 }
@@ -91,13 +98,17 @@ curl -X POST "http://127.0.0.1:8000/fcgi-bin/api/upload" \
 
 | 字段 | 约束 |
 |------|------|
-| `chapter_indexes` | 非空正整数数组；省略表示全部章节；不存在的章节号被忽略并由引擎记录 |
+| `chapter_indexes` | 非空正整数数组；省略表示全部章节；不存在的章节号返回 `1001`（不会进队列） |
 | `rate` | `0.5 ~ 2.0` |
 | `prosody_mode` | `off` / `pause` / `prosody` |
 | `voice` | 非空字符串（音色 ShortName） |
 | `enable_llm` / `multi_voice` | 布尔 |
+| `chapter_intro_outro` | 本次生成是否启用章节片头片尾；省略时用任务快照（系统配置） |
+| `chapter_lead_in_enabled` | 本次生成是否生成/使用导读篇；省略时用任务快照（系统配置） |
+| `output_path` | 本次生成的输出根目录（可选） |
+| `character_template` | 角色音色模板路径（配合 `multi_voice` 使用） |
 
-任一字段越界在模型层直接返回 `1001`，不会进引擎队列。
+任一字段越界在模型层直接返回 `1001`，不会进引擎队列。`chapter_intro_outro` / `chapter_lead_in_enabled` 只对本次生成生效，**不写回系统配置**。
 
 ---
 
@@ -167,7 +178,7 @@ task.removed`。章节级进度通过 `task.progress` 的 payload 与 `status` �
 ```
 
 删除超过 TTL 的**终态**任务记录。`dry_run` 只返回将被删的 `task_ids`。
-引擎自身也会按 `TASK_RESULT_TTL` 定期执行一次（默认每小时，启动时先跑一次）。
+引擎自身也会每小时执行一次清理（启动时先跑一次），删除超过 `TASK_RESULT_TTL` 的终态记录。
 
 ---
 
@@ -260,9 +271,9 @@ task.removed`。章节级进度通过 `task.progress` 的 payload 与 `status` �
 
 **差异声明**
 
-1. **角色分析**只能作为独立任务执行，CLI 的 `--analyze-characters` 在 v2 会提示走独立任务；
-   GUI 暂不暴露该入口。
-2. **多角色生成**：API 通过 `multi_voice` + `character_template` 支持；GUI 未提供开关。
+1. **角色分析**在 v2 的 `add` 流程中**未暴露**：`--analyze-characters` 会直接报错，也没有对应的 HTTP 端点。
+   请自行准备角色模板后使用多角色生成。
+2. **多角色生成**：API 通过 `multi_voice` + `character_template` 支持（模板文件必须存在）；GUI 未提供开关。
 3. **管理器类操作**（`system doctor`、`engine status`）只在 CLI 侧实现，直接读进程与文件系统，
    不经 API——避免把运维面暴露到 HTTP。
 4. **章节文本下载**未提供 HTTP 端点，产物在输出目录直接读取。

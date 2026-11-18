@@ -1,8 +1,11 @@
-# GA Sprite Birds
+# GA Sprite Birds — 使用指南
 
-> 把书籍或长文本变成有声书：自动拆分章节，可选地让 LLM 把书面语改写为自然口语，逐章合成 MP3；支持为不同角色分配不同音色。
+> English version: [../en/README.md](../en/README.md) · 项目主页：[../../README.md](../../README.md)
 
-GA Sprite Birds 是一个可自托管的有声书生成引擎。它识别章节边界，可把文本改写为口语，再把每一章渲染成音频。你可以用 **Web 界面**、**CLI** 或 **HTTP API** 驱动它——三种方式共享同一个引擎和同一份任务状态，CLI 排的任务能在界面里看到，也能用 API 控制。
+GA Sprite Birds 把书籍或长文本变成有声书：自动拆分章节，可选地让 LLM 把书面语改写为自然口语，
+逐章合成 MP3；支持按角色分配不同音色。
+
+你可以用 **Web 界面**、**CLI** 或 **HTTP API** 驱动它——三种方式共享同一个引擎和同一份任务状态。
 
 - **输入：** `.txt` / `.md` / `.pdf` · **输出：** 每章一个 `.mp3`（可选章节文本）
 - **TTS：** Edge TTS（免费，需联网） · **LLM：** 本地 Ollama 或任意 OpenAI 兼容接口
@@ -14,7 +17,7 @@ GA Sprite Birds 是一个可自托管的有声书生成引擎。它识别章节�
 | 功能 | 说明 |
 |---|---|
 | 章节拆分 | 识别章节标题（纯文本 / Markdown / PDF），逐章生成；可全选或只生成勾选章节 |
-| 单角色 / 多角色配音 | 整本书一个音色，或识别角色并为每个角色分配音色 |
+| 单角色 / 多角色配音 | 整本书一个音色，或按角色音色模板生成 |
 | LLM 口语化 | 可选地把书面语改写为自然口语（Ollama 或 OpenAI 兼容接口） |
 | 停顿与轻语气 | `off` / `pause` / `prosody`，按标点插入停顿、可选语气变化 |
 | 音色试听 | 选定前先听一段缓存样音 |
@@ -24,66 +27,100 @@ GA Sprite Birds 是一个可自托管的有声书生成引擎。它识别章节�
 | 系统配置 | 三层配置（默认值 → 用户覆盖 → 任务快照），修改只对新任务生效 |
 | 多语言 | 中文 / 英文界面、CLI 与 API 消息 |
 
-> 界面当前覆盖单角色生成与系统配置；多角色生成、角色分析、TTL 清理通过 CLI/API 提供。
+> 界面覆盖单角色生成与系统配置；多角色生成、TTL 清理通过 CLI/API 提供。
+> **角色分析不在 v2 的 add 流程中暴露**；多角色生成需要自行准备角色音色模板。
 
 ---
 
-## 2. 安装与文档导航
+## 2. 快速开始
 
-**环境要求：** Python 3.10+ 和 FFmpeg。只有要自己构建前端时才需要 Node.js。
+### 2.1 Docker（强烈推荐）
+
+宿主机不需要 Python 或 FFmpeg，二者都在镜像内。
+
+```bash
+git clone https://github.com/tiger-sprite/ga-sprite-birds.git
+cd ga-sprite-birds
+cp .env.example .env                  # 配置 LLM 凭据与部署参数
+docker compose up -d --build
+# 打开 http://127.0.0.1:8000/
+# 8000 被占用时：API_HOST_PORT=18080 docker compose up -d --build
+```
+
+- 持久化数据：`./data`、`./run`、`./cache`、`./output`、`./logs`、`./uploads`。
+- `models/` 是镜像内的 Python 代码包；模型缓存写到 `./cache/models`。
+- Docker 与宿主机引擎不能同时共用 `data/`、`run/`（单实例锁）。
+- 引擎命令通道（`127.0.0.1:39300`）不对外暴露。
+
+systemd、目录权限、反向代理与升级回滚见[部署与运维](deployment.md)。
+
+### 2.2 venv（原生方式）
+
+需要 Python 3.10+ 和 FFmpeg。
 
 ```bash
 git clone https://github.com/tiger-sprite/ga-sprite-birds.git
 cd ga-sprite-birds
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -U pip setuptools wheel
 pip install -r requirements.txt
+cp .env.example .env
 ```
 
-**快速启动** —— `utils/quick/` 会把 Core 引擎和 Control API 一起拉起（并自动打开界面）：
+先安装 FFmpeg（`apt install ffmpeg`、`brew install ffmpeg` 或 Windows 构建），用
+`ffmpeg -version` 验证。
+
+两种启动方式：
+
+**方式 A — 本地 GUI 一键启动（Linux/macOS）。** `utils/quick/` 会拉起引擎与 API、
+自动选择空闲 API 端口并打开界面：
 
 ```bash
-bash utils/quick/linux-run.sh        # Linux
-./utils/quick/mac-run.command        # macOS
+bash utils/quick/linux-run.sh
+./utils/quick/mac-run.command
 ```
 
-Windows 下请按安装指南手动启动两个进程。
-
-**或者分别运行**，每个进程一个终端：
+**方式 B — 引擎与 API 分别启动（无 GUI / 后台模式）。** 适合服务器、自动化，
+或只需要 CLI/API 的场景：
 
 ```bash
-python -m engine run              # 终端 1 — Core 引擎
-python -m server run     # 终端 2 — Control API + GUI
+# 终端 1 —— Core 引擎（必需）
+python -m engine run
+# 终端 2 —— Control API + GUI（可选）
+python -m server run
 ```
 
-FastAPI 应用在 `fcgi-bin/api.py`；`python -m server run` 是它的启动器（`server/` 包：host/port + uvicorn）。API 端口被占用时会自动顺延并打印警告；加 `--strict-port` 则改为直接报错。
+- **只用 CLI：** 只启动引擎即可；CLI 通过本地命令通道与引擎通信。
+- **需要 GUI / HTTP API：** 两个进程都要启动。
 
-**或用 Docker 运行**（引擎 + API 在同一个容器内）：
+API 端口被占用时会自动顺延；`--strict-port` 可固定端口。引擎默认监听 `127.0.0.1:39300`，
+实际端口与 token 写入 `run/engine.json`。
 
-```bash
-cp .env.example .env          # 配置 LLM 凭据
-docker compose up -d --build
-# 打开 http://127.0.0.1:8000/（可用 API_HOST_PORT=18080 改宿主机端口）
-```
+### 2.3 开发环境（conda）
 
-服务器部署使用 **venv**；conda 仅作开发便利，不作为服务器环境。
-
-
-**文档导航**
-
-| 文档 | 内容 |
-|---|---|
-| [安装指南](./INSTALL.zh.md) · [Install guide](./INSTALL.md) | 运行环境、初始安装、本地与 API 部署、故障排查 |
-| [API 参考](../docs/api.md) | 全部端点、CLI/API 对等矩阵 |
-| [部署与运维](../docs/deploy/README.md) | systemd、目录权限、反向代理、升级回滚 |
-| [开发规范](./development-guide.zh.md) · [Development guide](./development-guide.md) | 架构边界、新增配置项、i18n 同步、测试 |
-| 设计规格 | [系统配置](../docs/design/v2-system-config.md) · [无头 Core](../docs/design/v2-headless-core.md) |
-| systemd 单元模板 | [`scripts/systemd/`](../scripts/systemd/)（core/api × user/system） |
+开发者可用 conda 搭建可复现的本地环境，见[开发文档](development.md)。
+生产部署请使用 Docker 或 venv，不要使用 conda。
 
 ---
 
-## 3. 设计原理：一个引擎，两种接入方式
+## 3. 文档导航
 
-### 3.1 两个进程，一个引擎
+| 文档 | 内容 |
+|---|---|
+| [开发文档](development.md) | conda 环境、FFmpeg、`.env`、GUI 构建、测试、故障排查 |
+| [开发者指南](developer-guide.md) | 全局契约、模块边界、新增配置项、i18n 同步、命令通道、测试 |
+| [Utils 开发规范](utils.md) | `utils/` 下独立工具的结构、配置读取与约定 |
+| [API 参考](api.md) | 全部端点、CLI/API 对等矩阵 |
+| [部署与运维](deployment.md) | venv/Docker、systemd、目录权限、反向代理、升级回滚 |
+| [设计规格](design/README.md) | [系统配置](design/v2-system-config.md) · [无头 Core](design/v2-headless-core.md) |
+| systemd 模板 | [`scripts/systemd/`](../../scripts/systemd/)（core/api × user/system） |
+| English docs | [../en/README.md](../en/README.md) |
+
+---
+
+## 4. 设计原理：一个引擎，两种接入方式
+
+### 4.1 两个进程，一个引擎
 
 ```text
 GUI / CLI / HTTP 客户端
@@ -97,21 +134,22 @@ Control API（python -m server run）            Core 引擎（python -m engine 
         └────── 只读 ────▶ data/tasks.db ◀──── 写入 ────┘
 ```
 
-- **引擎是唯一写者。** 任务状态、章节、事件只能由引擎写入，API 和 CLI 绝不直接写 `tasks.db`；停掉 API 不影响正在运行的任务。
+- **引擎是唯一写者。** 任务状态、章节、事件只能由引擎写入，API 和 CLI 绝不直接写
+  `tasks.db`；停掉 API 不影响正在运行的任务。
 - **恢复是内置能力。** 引擎重启后，`running` 任务从最后一个成功章节续跑，`paused` 任务保持暂停。
 - **配置按任务冻结快照。** 改配置不影响运行中的任务，只对之后新启动的任务生效。
 
-### 3.2 CLI 模式 —— 面向本地批处理与脚本
+### 4.2 CLI 模式 —— 面向本地批处理与脚本
 
 `fcgi-bin/cli.py` 是引擎的轻客户端，适合本机与自动化：
 
 - 一条命令即可串起**上传 + 解析 + 生成**（`cli.py add -i book.txt`）。
 - 人类可读输出或 `--json`；`--follow` 持续输出进度。
-- 完整控制面：`add / list / get / status / pause / resume / cancel / retry / remove / events / clean / config / system`。
+- 完整控制面：`add / list / get / status / pause / resume / cancel / retry / remove / cancel-chapter / events / logs / clean / config / system`。
 - 无需开放端口：CLI 通过本地命令通道与引擎通信。
 - 适合 cron、批量转换与运维。
 
-### 3.3 API 模式 —— 面向服务与集成
+### 4.3 API 模式 —— 面向服务与集成
 
 Control API（`python -m server run`）以 `/fcgi-bin/api/*` 暴露同样的能力，供远程客户端与 Web 界面使用：
 
@@ -121,7 +159,7 @@ Control API（`python -m server run`）以 `/fcgi-bin/api/*` 暴露同样的能�
 - 托管打包好的 GUI；界面每次点击都映射到同样的端点。
 - 无内置鉴权，暴露时请绑定回环/内网地址并在前面加反向代理。
 
-### 3.4 CLI 与 API 对比
+### 4.4 CLI 与 API 对比
 
 | | CLI（`fcgi-bin/cli.py`） | HTTP API（`/fcgi-bin/api/*`） |
 |---|---|---|
@@ -135,18 +173,9 @@ Control API（`python -m server run`）以 `/fcgi-bin/api/*` 暴露同样的能�
 
 ---
 
-## 4. 如何使用
+## 5. 如何使用
 
-### 4.1 启动
-
-```bash
-python -m engine run        # 终端 1 — Core 引擎（Ctrl+C 优雅停止）
-python -m server run      # 终端 2 — Control API + GUI
-```
-
-引擎状态：`python -m engine status`（PID、端口、任务计数）。默认监听 `127.0.0.1:39300`，端口和 token 写入 `run/engine.json`。
-
-### 4.2 界面（GUI）
+### 5.1 界面（GUI）
 
 打开 <http://127.0.0.1:8000/>：
 
@@ -156,14 +185,13 @@ python -m server run      # 终端 2 — Control API + GUI
 4. **暂停**在当前章节完成后停下；**继续**生成剩余章节。已完成章节可在线播放或下载。
 5. 侧边栏**系统配置**按分组编辑业务配置，带选项说明、覆盖徽标与按组重置。
 
-### 4.3 CLI
+### 5.2 CLI
 
 ```bash
 # 上传 + 解析 + 排队生成，一步完成
 python fcgi-bin/cli.py add -i book.txt --voice zh-CN-YunxiNeural --rate 1.2 --no-llm --start 1 --end 5
 
-# 多角色：先分析角色，再按模板生成
-python fcgi-bin/cli.py add -i novel.txt --analyze-characters --analysis-mode hybrid --character-list characters.txt
+# 多角色：使用已有的角色音色模板
 python fcgi-bin/cli.py add -i novel.txt --multi-voice --character-template cache/role/novel_characters.json
 
 # 控制与跟踪
@@ -175,9 +203,10 @@ python fcgi-bin/cli.py events <task_id> --follow
 python fcgi-bin/cli.py config set TTS_RATE 1.15
 ```
 
-`characters.txt` 每行一个 `名字 [性别]`（如 `张三 male`、`李四 female`）。全部子命令见 `python fcgi-bin/cli.py --help`。
+全部子命令见 `python fcgi-bin/cli.py --help`。角色分析不在 v2 的 `add` 流程中；
+多角色模板请自行准备（见开发者指南）。
 
-### 4.4 API
+### 5.3 API
 
 ```bash
 # 上传（幂等）
@@ -196,9 +225,10 @@ curl "http://127.0.0.1:8000/fcgi-bin/api/task/<id>/status"
 curl -o preview.mp3 "http://127.0.0.1:8000/fcgi-bin/api/tts/preview?voice=zh-CN-YunxiNeural"
 ```
 
-错误码分段：`1000` 参数、`2000` 认证、`3000` 业务、`4000` 系统；引擎不可用时 HTTP `503` + `code 3004`。全部端点见 [docs/api.md](../docs/api.md)。
+错误码分段：`1000` 参数、`2000` 认证、`3000` 业务、`4000` 系统；引擎不可用时 HTTP `503` +
+`code 3004`。全部端点见 [API 参考](api.md)。
 
-### 4.5 任务生命周期
+### 5.4 任务生命周期
 
 ```text
 pending ──▶ queued ──▶ running ──▶ succeeded / failed / canceled
@@ -210,7 +240,7 @@ pending ──▶ queued ──▶ running ──▶ succeeded / failed / cancel
 
 暂停/取消在章节边界生效；运行中任务每 10 秒刷新心跳。
 
-### 4.6 输出目录
+### 5.5 输出目录
 
 每个源文件在输出根目录下得到同名子目录：
 

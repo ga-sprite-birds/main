@@ -1,6 +1,8 @@
 # v2 设计：彻底分离任务与 API 表现层（Headless Core）
 
-> 状态：需求已定稿，待开发（本文只做设计，不含实现）
+> English version：[../../en/design/v2-headless-core.md](../../en/design/v2-headless-core.md)
+>
+> 状态：已实现（本文保留设计说明）
 > 适用版本：v2 绝对技术重构
 > 依据契约：`task-system.md`（Core/Control API 分离、状态机、事件、恢复、单实例、优雅退出、运行时发现）、`api.md`（响应结构、双入口→本版仅 `/fcgi-bin/api/*`）、`python.md`（分层）
 > 核心目标：**引擎（Core）独立常驻，API 只是控制面；杀掉 API 任务照跑；Core 由系统层（systemd）或手动维护。**
@@ -30,7 +32,7 @@ GUI / CLI ───────────────► Control API(api.py) �
                                  ▼                      │
                          Core 引擎(engine/, 常驻) ───────┘
                           ├─ Scheduler(并发/暂停/取消/重试)
-                          ├─ Handlers(parse/generate/merge/export) → ga_birds
+                          ├─ Handlers(parse/generate/multi_voice/lead_in) → ga_birds
                           ├─ TaskStore(tasks.db)
                           ├─ 单实例锁 + 运行时发现文件
                           └─ 恢复 / 优雅退出
@@ -59,7 +61,7 @@ GUI / CLI ───────────────► Control API(api.py) �
   - `POST /command`：`{ "command_id":"uuid", "command":"task.add", "payload":{...} }`
   - `GET /system/info`、`GET /system/stats`
 - **幂等**：`command_id` 去重，重复提交返回同一结果（见 §4 `command_log`）。
-- **命令集**（按 `task-system.md` §4.1）：`task.add / pause / resume / cancel / retry / remove / update_options`、`config.get/set`、`system.info / system.stats`。
+- **命令集**（按 `task-system.md` §4.1，含 v2 增补）：`task.add / parse / generate / pause / resume / cancel / retry / remove / cleanup / update_options / chapter.remove`、`config.get/set`、`system.info / system.stats`。
 - **查询不进命令通道**：状态/历史由 API **只读** `tasks.db`（满足"Core 停机仍可查历史"）。
 
 ---
@@ -134,7 +136,7 @@ GUI / CLI ───────────────► Control API(api.py) �
 
 - **入口**：`python -m engine run`（`engine/__main__.py`）；`engine status` 查看。
 - **Scheduler**：按 `TASK_MAX_CONCURRENT` 调度 `queued → running`；提供 pause/cancel/retry。
-- **Handlers**：`parse / generate / merge / export`，调用 `ga_birds` 业务；章节级循环，每章完成写 checkpoint + 事件。
+- **Handlers**：`parse / generate / multi_voice / lead_in`，调用 `ga_birds` 业务；章节级循环，每章完成写 checkpoint + 事件。
 - **parse 为后台任务**：`task.parse` 命令只把任务入队并立即返回（`phase=parsing`），由引擎的 parse worker 执行；完成后 `phase=ready`，失败 `phase=parse_failed`；客户端轮询 `phase` 判断进度。
 - **导读生成**：若 `CHAPTER_LEAD_IN_ENABLED`（可被本次生成参数 `chapter_lead_in_enabled` 覆盖）开启且任务无导读章节，generate 阶段调用 LLM 生成导读并作为第 0 章（`000-导读篇`）插入；LLM 不可用时跳过，不阻断生成。
 - **片头片尾按次覆盖**：`CHAPTER_INTRO_OUTRO` 可被本次生成参数 `chapter_intro_outro` 覆盖，仅影响本次生成。
@@ -151,7 +153,7 @@ GUI / CLI ───────────────► Control API(api.py) �
 - **入口**：`python -m server run`（`server/` 包，加载 `fcgi-bin/api.py` 的 app；本版**无 policy**）。
 - 路由只做：收参（Pydantic）→ 构造命令发给 Core / 只读查 tasks.db → 统一响应。
 - **禁止**：import `Audio/LLM/Parser`、任务循环、写 task 状态。
-- 路由集：`upload / parse / generate / pause / resume / cancel / delete / retry / status / chapter / events / system-config / tts-voices / GUI`。
+- 路由集：`upload / parse / generate / pause / resume / cancel / delete / retry / status / chapter / events / tasks / cleanup / system-config / tts-voices / tts-preview / GUI`。
 - 响应统一 `{code, msg, data}`（`api.md`）。
 - 托管 GUI 静态资源。
 - **Core 不可用时**：命令类返回明确错误（"引擎未运行"）；查询类仍可读 tasks.db 历史。
@@ -230,9 +232,8 @@ project/
 │   ├── __main__.py             # python -m engine run
 │   ├── server.py               # 本地命令 HTTP + token + 发现文件
 │   ├── scheduler.py
-│   ├── handlers/               # parse / generate / merge / export
-│   ├── store.py                # TaskStore(tasks.db, 读写)
-│   ├── recovery.py
+│   ├── handlers/               # parse / generate / multi_voice / lead_in
+│   ├── store.py                # TaskStore(tasks.db, 读写；恢复逻辑在此)
 │   └── lock.py
 ├── services/
 │   └── control/                # API/CLI 共享控制层
@@ -299,7 +300,7 @@ Core 启动时按**持久化状态**处理：
 ## 15. 已定细节
 
 1. **命令服务端口**：默认 `39300`，被占用则**顺延**（39301、39302…），实际端口写入发现文件。
-2. **运行时目录**：可配置。开发/手动默认用项目根 `run/`；systemd 用 `RuntimeDirectory=ga-sprite-birds`（即 `/run/ga-sprite-birds`），确保服务用户可写。发现文件权限 0600。
+2. **运行时目录**：通过 `RUN_DIR` 可配置。开发/手动以及自带 systemd 单元都使用项目根 `run/`（通过 `ReadWritePaths` 授权可写）。若希望使用 tmpfs 运行时目录，可设置 `RUN_DIR=/run/ga-sprite-birds`，并在 unit 中加 `RuntimeDirectory=ga-sprite-birds`。发现文件权限 0600。
 3. **过期清理**：`TASK_RESULT_TTL` 迁移为 DB 清理任务，支持两种方式：
    - **定期自动清理**（引擎内定时器）；
    - **CLI 命令清理**：`cli.py clean` → 向引擎发 `task.cleanup` 命令，由引擎执行（引擎独占写）。
@@ -307,5 +308,5 @@ Core 启动时按**持久化状态**处理：
 5. **进度获取**：本轮**先轮询**（`GET status` 读 tasks.db）；`task_events` 已持久化，**SSE 作为后续增强**，不改数据结构。
 
 ### 附：运行时目录说明
-- `run/`（或 `/run/ga-sprite-birds/`）保存 `engine.json`（发现文件：host/port/token/pid/协议版本/启动时间）与 `engine.lock`（单实例锁）。
-- 手动运行：项目 `run/`；systemd：由 `RuntimeDirectory` 创建，无需手动建、属主即服务用户。
+- `run/`（或 `RUN_DIR` 指定的目录）保存 `engine.json`（发现文件：host/port/token/pid/协议版本/启动时间）与 `engine.lock`（单实例锁）。
+- 手动运行与自带 systemd 单元使用项目 `run/`；若 `RUN_DIR` 指向 `/run/...`，可由 systemd 的 `RuntimeDirectory` 创建。
