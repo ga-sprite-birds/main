@@ -70,7 +70,7 @@ it picks the next free port and prints a warning; pass `--strict-port` to fail i
 ```bash
 cp .env.example .env          # set LLM credentials
 docker compose up -d --build
-# open http://127.0.0.1:8000/
+# open http://127.0.0.1:8000/  (API_HOST_PORT=18080 to change the host port)
 ```
 
 The shipped units/scripts use a **venv** for servers; conda is a development convenience.

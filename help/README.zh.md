@@ -62,7 +62,7 @@ FastAPI 应用在 `fcgi-bin/api.py`；`python -m server run` 是它的启动器�
 ```bash
 cp .env.example .env          # 配置 LLM 凭据
 docker compose up -d --build
-# 打开 http://127.0.0.1:8000/
+# 打开 http://127.0.0.1:8000/（可用 API_HOST_PORT=18080 改宿主机端口）
 ```
 
 服务器部署使用 **venv**；conda 仅作开发便利，不作为服务器环境。

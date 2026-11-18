@@ -11,9 +11,11 @@ services:
       API_PORT: "8000"
       # Use the ffmpeg installed in the image (ignore any host-specific path in .env).
       FFMPEG_PATH: ""
+      # models/ is the Python package inside the image; keep model cache in the cache volume.
+      MODEL_CACHE_DIR: /app/cache/models
     init: true
     ports:
-      - "8000:8000"
+      - "${API_HOST_PORT:-8000}:8000"
     volumes:
       - ./data:/app/data
       - ./run:/app/run
@@ -21,5 +23,4 @@ services:
       - ./output:/app/output
       - ./logs:/app/logs
       - ./uploads:/app/uploads
-      - ./models:/app/models
     restart: unless-stopped

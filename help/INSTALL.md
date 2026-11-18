@@ -223,8 +223,15 @@ docker compose down
 ```
 
 Persistent data lives in the bind-mounted `./data`, `./run`, `./cache`, `./output`,
-`./logs`, `./uploads`, `./models`. The engine command channel (`127.0.0.1:39300`)
-is never exposed.
+`./logs`, `./uploads`. The container listens on `8000`; override the published
+host port with `API_HOST_PORT` (e.g. `API_HOST_PORT=18080 docker compose up -d`).
+The `models/` directory is Python code inside the image; downloaded model caches
+go to `./cache/models`. The engine command channel (`127.0.0.1:39300`) is never
+exposed.
+
+> Docker and a host engine must not share `data/` or `run/` at the same time
+> (single-instance lock). Stop the host `engine`/`server` first, or run compose
+> from a separate directory.
 
 > For servers and the shipped systemd units, use a **venv**. Conda is a development
 > convenience; the units only show it as a commented alternative.

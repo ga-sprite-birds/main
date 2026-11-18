@@ -157,8 +157,10 @@ docker compose logs -f
 docker compose down
 ```
 
-- 持久化：`./data ./run ./cache ./output ./logs ./uploads ./models`（bind mount）。
-- 容器内 `API_HOST=0.0.0.0`；宿主机只映射 `8000`，引擎命令通道 `127.0.0.1:39300` 不暴露。
+- 持久化：`./data ./run ./cache ./output ./logs ./uploads`（bind mount）。
+- 容器内 `API_HOST=0.0.0.0`；默认映射宿主机 `8000`，可用 `API_HOST_PORT=18080 docker compose up -d` 改端口；引擎命令通道 `127.0.0.1:39300` 不暴露。
+- `models/` 是镜像内的 Python 代码包；模型缓存写到 `./cache/models`。
+- Docker 与宿主机引擎**不能同时共用** `data/`、`run/`（单实例锁）：切换前先停宿主机 `engine`/`server`，或在独立目录运行 compose。
 - 需要水平拆分时，可改成 engine / api 两个服务，并用 `network_mode: service:engine` 让 API 共享引擎的 loopback。
 
 > 服务器部署以 **venv** 为主；conda 是开发环境，不作为服务器运行时。

@@ -20,8 +20,12 @@ cache/
 output/
 logs/
 uploads/
-models/
 debug/
+
+# models/ is BOTH the Python package and the runtime model cache:
+# keep the code, drop downloaded cache files.
+models/*
+!models/*.py
 
 # Secrets
 .env

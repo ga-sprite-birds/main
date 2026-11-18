@@ -132,3 +132,36 @@ def test_command_log_is_ordered_idempotent_and_cleanup_is_bounded(tmp_path):
         assert store.get_task(task["task_id"]) is None
     finally:
         store.close()
+
+
+def test_reopen_generation_applies_new_options(tmp_path):
+    """Re-running a finished task must store the new generation options."""
+    store = make_store(tmp_path)
+    try:
+        task = store.create_task("audiobook", {"file_path": "book.txt"})
+        store.replace_chapters(
+            task["task_id"],
+            [
+                {"index": 1, "title": "One", "content": "x"},
+                {"index": 2, "title": "Two", "content": "y"},
+            ],
+        )
+
+        store.queue_for_generation(
+            task["task_id"], options={"chapter_indexes": [1]}
+        )
+        assert store.claim_queued_task(task["task_id"]) is not None
+        store.update_task(task["task_id"], status="succeeded", phase="completed")
+
+        store.queue_for_generation(
+            task["task_id"],
+            options={"chapter_indexes": [2], "chapter_intro_outro": False},
+            reopen=True,
+        )
+        reopened = store.require_task(task["task_id"])
+        generation = reopened["params"]["generation"]
+        assert reopened["status"] == "queued"
+        assert generation["chapter_indexes"] == [2]
+        assert generation["chapter_intro_outro"] is False
+    finally:
+        store.close()

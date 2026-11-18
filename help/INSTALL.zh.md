@@ -206,7 +206,9 @@ docker compose logs -f
 docker compose down
 ```
 
-持久化数据在 bind mount 的 `./data`、`./run`、`./cache`、`./output`、`./logs`、`./uploads`、`./models`。引擎命令通道（`127.0.0.1:39300`）不对外暴露。
+持久化数据在 bind mount 的 `./data`、`./run`、`./cache`、`./output`、`./logs`、`./uploads`。容器内监听 `8000`，可用 `API_HOST_PORT` 覆盖宿主机映射端口（如 `API_HOST_PORT=18080 docker compose up -d`）。`models/` 是镜像内的 Python 代码包；模型缓存写到 `./cache/models`。引擎命令通道（`127.0.0.1:39300`）不对外暴露。
+
+> Docker 与宿主机引擎不能同时共用 `data/`、`run/`（单实例锁）。切换前先停宿主机的 `engine`/`server`，或在独立目录运行 compose。
 
 > 服务器部署与自带 systemd 单元使用 **venv**。conda 仅是开发便利，单元里只作为注释示例。
 

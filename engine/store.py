@@ -325,6 +325,9 @@ class TaskStore:
     ) -> dict[str, Any]:
         task = self.require_task(task_id)
         target_current = task["status"]
+        params = task["params"]
+        if options:
+            params = {**params, "generation": dict(options)}
         if reopen and target_current in ("succeeded", "failed", "canceled"):
             phase = "generation_requested"
             now = utc_now_iso()
@@ -332,11 +335,12 @@ class TaskStore:
                 self._conn().execute(
                     """
                     UPDATE tasks
-                    SET status = 'queued', phase = ?, error = NULL, result_json = NULL,
-                        queued_at = ?, finished_at = NULL, updated_at = ?
+                    SET status = 'queued', phase = ?, params_json = ?, error = NULL,
+                        result_json = NULL, queued_at = ?, finished_at = NULL,
+                        updated_at = ?
                     WHERE task_id = ?
                     """,
-                    (phase, now, now, task_id),
+                    (phase, _json(params), now, now, task_id),
                 )
                 self._conn().execute(
                     """
@@ -355,9 +359,6 @@ class TaskStore:
 
         ensure_transition(task_id, target_current, "queued")
         now = utc_now_iso()
-        params = task["params"]
-        if options:
-            params = {**params, "generation": dict(options)}
         with self._lock, self._conn():
             self._conn().execute(
                 """
