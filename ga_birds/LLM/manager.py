@@ -8,6 +8,7 @@ Dev team: Tiger
 
 import re
 import importlib
+from pathlib import Path
 from typing import Optional
 import time
 
@@ -20,8 +21,10 @@ from ga_birds.Common.i18n import t
 import config
 from ga_birds.Utils.retry_utils import llm_retry
 
-# Dynamically import the core module
-_core_module_name = config.CORE_DIR.replace('-', '_')
+# Dynamically import the core module. CORE_DIR may be a package name or an
+# absolute directory from the deployment settings; only the package name is
+# importable.
+_core_module_name = Path(config.CORE_DIR).name.replace('-', '_')
 _utils_module = importlib.import_module(f'{_core_module_name}.Utils.model_manager')
 ModelManager = _utils_module.ModelManager
 

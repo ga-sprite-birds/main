@@ -23,8 +23,9 @@ from ga_birds.Common.i18n import t
 
 import config
 
-# Dynamically import the core module
-_core_module_name = config.CORE_DIR.replace('-', '_')
+# Dynamically import the core module. CORE_DIR may be a package name or an
+# absolute directory from deployment settings.
+_core_module_name = Path(config.CORE_DIR).name.replace('-', '_')
 _parser_module = importlib.import_module(f'{_core_module_name}.Parser')
 Chapter = _parser_module.Chapter
 
