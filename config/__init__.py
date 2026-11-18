@@ -22,7 +22,6 @@ _SERVICE: Any = None
 
 _DEPLOYMENT_FIELDS: dict[str, str] = {
     "LLM_MODE": "LLM_MODE",
-    "LLM_API_TYPE": "LLM_API_TYPE",
     "LLM_API_ENDPOINT": "LLM_API_ENDPOINT",
     "LLM_API_KEY": "LLM_API_KEY",
     "LLM_API_MODEL": "LLM_API_MODEL",

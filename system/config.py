@@ -20,7 +20,6 @@ class Settings(BaseSettings):
     )
 
     LLM_MODE: str = "local"
-    LLM_API_TYPE: str = "openai"
     LLM_API_ENDPOINT: str = "https://api.openai.com/v1"
     LLM_API_KEY: str | None = None
     LLM_API_MODEL: str = "gpt-4"
@@ -40,11 +39,6 @@ class Settings(BaseSettings):
     TASK_CACHE_DIR: Path = PROJECT_ROOT / "cache" / "tasks"
     TASK_MAX_CONCURRENT: int = Field(default=2, gt=0)
     TASK_GRACE_SECONDS: float = Field(default=30.0, ge=0)
-
-    REDIS_HOST: str = "localhost"
-    REDIS_PORT: int = Field(default=6379, ge=1, le=65535)
-    REDIS_DB: int = Field(default=0, ge=0)
-    REDIS_PASSWORD: str | None = None
 
     FFMPEG_PATH: str = ""
     CORE_DIR: Path = PROJECT_ROOT / "ga_birds"
